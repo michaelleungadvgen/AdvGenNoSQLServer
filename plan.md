@@ -600,7 +600,7 @@ Where third-party libraries have restrictive licenses, we implement custom solut
 
 ### Security
 - [x] User authentication (username/password)
-- [ ] Token generation and validation (JWT)
+- [x] Token generation and validation (JWT)
 - [x] Role-based access control
 - [ ] TLS/SSL support
 - [ ] Encryption for sensitive data

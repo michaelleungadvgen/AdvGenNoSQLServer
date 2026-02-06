@@ -83,4 +83,29 @@ public class ServerConfiguration
     /// Token expiration time in hours
     /// </summary>
     public int TokenExpirationHours { get; set; } = 24;
+
+    #region JWT Configuration
+
+    /// <summary>
+    /// Secret key for JWT token signing (should be at least 32 characters)
+    /// If not set, a secure key will be generated automatically
+    /// </summary>
+    public string? JwtSecretKey { get; set; }
+
+    /// <summary>
+    /// JWT token issuer (default: "AdvGenNoSqlServer")
+    /// </summary>
+    public string? JwtIssuer { get; set; } = "AdvGenNoSqlServer";
+
+    /// <summary>
+    /// JWT token audience (default: "AdvGenNoSqlClient")
+    /// </summary>
+    public string? JwtAudience { get; set; } = "AdvGenNoSqlClient";
+
+    /// <summary>
+    /// Whether to enable JWT authentication (default: true)
+    /// </summary>
+    public bool EnableJwtAuthentication { get; set; } = true;
+
+    #endregion
 }
