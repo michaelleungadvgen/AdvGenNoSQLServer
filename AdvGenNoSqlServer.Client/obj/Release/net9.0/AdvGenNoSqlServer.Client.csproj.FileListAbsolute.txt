@@ -1,0 +1,17 @@
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Client\bin\Release\net9.0\AdvGenNoSqlServer.Client.deps.json
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Client\bin\Release\net9.0\AdvGenNoSqlServer.Client.dll
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Client\bin\Release\net9.0\AdvGenNoSqlServer.Client.pdb
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Client\bin\Release\net9.0\AdvGenNoSqlServer.Core.dll
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Client\bin\Release\net9.0\AdvGenNoSqlServer.Network.dll
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Client\bin\Release\net9.0\AdvGenNoSqlServer.Core.pdb
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Client\bin\Release\net9.0\AdvGenNoSqlServer.Network.pdb
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Client\obj\Release\net9.0\AdvGenNoSqlServer.Client.csproj.AssemblyReference.cache
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Client\obj\Release\net9.0\AdvGenNoSqlServer.Client.GeneratedMSBuildEditorConfig.editorconfig
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Client\obj\Release\net9.0\AdvGenNoSqlServer.Client.AssemblyInfoInputs.cache
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Client\obj\Release\net9.0\AdvGenNoSqlServer.Client.AssemblyInfo.cs
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Client\obj\Release\net9.0\AdvGenNoSqlServer.Client.csproj.CoreCompileInputs.cache
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Client\obj\Release\net9.0\AdvGenNo.F14256B0.Up2Date
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Client\obj\Release\net9.0\AdvGenNoSqlServer.Client.dll
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Client\obj\Release\net9.0\refint\AdvGenNoSqlServer.Client.dll
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Client\obj\Release\net9.0\AdvGenNoSqlServer.Client.pdb
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Client\obj\Release\net9.0\ref\AdvGenNoSqlServer.Client.dll

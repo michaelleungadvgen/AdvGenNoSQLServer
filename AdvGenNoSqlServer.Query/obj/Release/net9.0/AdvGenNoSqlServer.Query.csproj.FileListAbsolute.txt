@@ -1,0 +1,11 @@
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Query\bin\Release\net9.0\AdvGenNoSqlServer.Query.deps.json
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Query\bin\Release\net9.0\AdvGenNoSqlServer.Query.dll
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Query\bin\Release\net9.0\AdvGenNoSqlServer.Query.pdb
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Query\obj\Release\net9.0\AdvGenNoSqlServer.Query.GeneratedMSBuildEditorConfig.editorconfig
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Query\obj\Release\net9.0\AdvGenNoSqlServer.Query.AssemblyInfoInputs.cache
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Query\obj\Release\net9.0\AdvGenNoSqlServer.Query.AssemblyInfo.cs
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Query\obj\Release\net9.0\AdvGenNoSqlServer.Query.csproj.CoreCompileInputs.cache
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Query\obj\Release\net9.0\AdvGenNoSqlServer.Query.dll
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Query\obj\Release\net9.0\refint\AdvGenNoSqlServer.Query.dll
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Query\obj\Release\net9.0\AdvGenNoSqlServer.Query.pdb
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Query\obj\Release\net9.0\ref\AdvGenNoSqlServer.Query.dll

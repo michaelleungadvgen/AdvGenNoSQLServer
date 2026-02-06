@@ -1,0 +1,53 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v9.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v9.0": {
+      "NoSqlServer.Client/1.0.0": {
+        "dependencies": {
+          "NoSqlServer.Core": "1.0.0",
+          "NoSqlServer.Network": "1.0.0"
+        },
+        "runtime": {
+          "NoSqlServer.Client.dll": {}
+        }
+      },
+      "NoSqlServer.Core/1.0.0": {
+        "runtime": {
+          "NoSqlServer.Core.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "NoSqlServer.Network/1.0.0": {
+        "runtime": {
+          "NoSqlServer.Network.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "NoSqlServer.Client/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "NoSqlServer.Core/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "NoSqlServer.Network/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}
