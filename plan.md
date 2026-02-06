@@ -607,7 +607,7 @@ Where third-party libraries have restrictive licenses, we implement custom solut
 - [ ] Audit logging
 
 ### Storage
-- [ ] Document store with CRUD operations
+- [x] Document store with CRUD operations
 - [ ] File-based persistence
 - [ ] B-tree indexing
 - [ ] Query optimization with index selection
