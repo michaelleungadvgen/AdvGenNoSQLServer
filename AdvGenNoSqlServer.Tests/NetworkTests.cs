@@ -2,13 +2,14 @@
 // Licensed under the MIT License.
 // See LICENSE.txt for license information.
 
+using AdvGenNoSqlServer.Core.Configuration;
+using AdvGenNoSqlServer.Network;
 using System;
 using System.Buffers;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using AdvGenNoSqlServer.Network;
 using Xunit;
 
 namespace AdvGenNoSqlServer.Tests

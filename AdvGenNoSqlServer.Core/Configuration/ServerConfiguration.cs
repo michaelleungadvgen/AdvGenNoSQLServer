@@ -1,3 +1,7 @@
+// Copyright (c) 2026 [Your Organization]
+// Licensed under the MIT License.
+// See LICENSE.txt for license information.
+
 namespace AdvGenNoSqlServer.Core.Configuration;
 
 /// <summary>
@@ -6,9 +10,39 @@ namespace AdvGenNoSqlServer.Core.Configuration;
 public class ServerConfiguration
 {
     /// <summary>
-    /// The port number the server will listen on
+    /// The host IP address to bind to (default: 0.0.0.0)
     /// </summary>
-    public int Port { get; set; } = 8080;
+    public string Host { get; set; } = "0.0.0.0";
+
+    /// <summary>
+    /// The port number the server will listen on (default: 9090)
+    /// </summary>
+    public int Port { get; set; } = 9090;
+
+    /// <summary>
+    /// The maximum number of concurrent connections (default: 10000)
+    /// </summary>
+    public int MaxConcurrentConnections { get; set; } = 10000;
+
+    /// <summary>
+    /// Connection timeout duration (default: 30 seconds)
+    /// </summary>
+    public TimeSpan ConnectionTimeout { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Keep-alive interval for connections (default: 60 seconds)
+    /// </summary>
+    public TimeSpan KeepAliveInterval { get; set; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>
+    /// Size of the receive buffer (default: 65536)
+    /// </summary>
+    public int ReceiveBufferSize { get; set; } = 65536;
+
+    /// <summary>
+    /// Size of the send buffer (default: 65536)
+    /// </summary>
+    public int SendBufferSize { get; set; } = 65536;
 
     /// <summary>
     /// The maximum number of items to store in the cache
@@ -24,11 +58,6 @@ public class ServerConfiguration
     /// The base path for file storage
     /// </summary>
     public string StoragePath { get; set; } = "data";
-
-    /// <summary>
-    /// The maximum number of concurrent connections
-    /// </summary>
-    public int MaxConcurrentConnections { get; set; } = 100;
 
     /// <summary>
     /// Whether to enable detailed logging

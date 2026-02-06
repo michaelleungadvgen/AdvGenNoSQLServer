@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 // See LICENSE.txt for license information.
 
+using AdvGenNoSqlServer.Core.Configuration;
 using System;
 using System.Buffers;
 using System.Collections.Concurrent;
@@ -311,47 +312,6 @@ namespace AdvGenNoSqlServer.Network
             }
             _activeConnections.Clear();
         }
-    }
-
-    /// <summary>
-    /// Server configuration class
-    /// </summary>
-    public class ServerConfiguration
-    {
-        /// <summary>
-        /// Host IP address to bind to
-        /// </summary>
-        public string Host { get; set; } = "0.0.0.0";
-
-        /// <summary>
-        /// Port number to listen on
-        /// </summary>
-        public int Port { get; set; } = 9090;
-
-        /// <summary>
-        /// Maximum number of concurrent connections
-        /// </summary>
-        public int MaxConcurrentConnections { get; set; } = 10000;
-
-        /// <summary>
-        /// Connection timeout
-        /// </summary>
-        public TimeSpan ConnectionTimeout { get; set; } = TimeSpan.FromSeconds(30);
-
-        /// <summary>
-        /// Keep-alive interval
-        /// </summary>
-        public TimeSpan KeepAliveInterval { get; set; } = TimeSpan.FromSeconds(60);
-
-        /// <summary>
-        /// Size of the receive buffer
-        /// </summary>
-        public int ReceiveBufferSize { get; set; } = 65536;
-
-        /// <summary>
-        /// Size of the send buffer
-        /// </summary>
-        public int SendBufferSize { get; set; } = 65536;
     }
 
     /// <summary>

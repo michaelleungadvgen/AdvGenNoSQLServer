@@ -3,6 +3,7 @@
 // See LICENSE.txt for license information.
 
 using AdvGenNoSqlServer.Client;
+using AdvGenNoSqlServer.Core.Configuration;
 using AdvGenNoSqlServer.Network;
 
 // Disable parallel execution for this test class since they use TCP ports

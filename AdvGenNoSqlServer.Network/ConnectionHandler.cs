@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 // See LICENSE.txt for license information.
 
+using AdvGenNoSqlServer.Core.Configuration;
 using System;
 using System.Buffers;
 using System.Buffers.Binary;
