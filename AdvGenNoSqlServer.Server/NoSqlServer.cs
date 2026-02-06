@@ -40,7 +40,7 @@ public class NoSqlServer : IHostedService, IDisposable
         
         _logger.LogInformation("Starting NoSQL Server on {Host}:{Port}...", config.Host, config.Port);
         _logger.LogInformation("Max connections: {MaxConnections}", config.MaxConcurrentConnections);
-        _logger.LogInformation("Cache size limit: {MaxCacheSize}", config.MaxCacheSize);
+        _logger.LogInformation("Cache size limit: {MaxCacheItemCount} items, {MaxCacheSizeInBytes} bytes", config.MaxCacheItemCount, config.MaxCacheSizeInBytes);
         _logger.LogInformation("Storage path: {StoragePath}", config.StoragePath);
 
         // Create and configure the TCP server

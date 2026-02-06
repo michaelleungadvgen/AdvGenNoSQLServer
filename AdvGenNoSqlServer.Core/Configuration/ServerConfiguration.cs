@@ -45,12 +45,22 @@ public class ServerConfiguration
     public int SendBufferSize { get; set; } = 65536;
 
     /// <summary>
-    /// The maximum number of items to store in the cache
+    /// The maximum number of items to store in the cache (default: 10000)
     /// </summary>
-    public int MaxCacheSize { get; set; } = 1000;
+    public int MaxCacheItemCount { get; set; } = 10000;
 
     /// <summary>
-    /// The timeout for cache items in minutes
+    /// The maximum size of the cache in bytes (default: 100MB)
+    /// </summary>
+    public long MaxCacheSizeInBytes { get; set; } = 104857600;
+
+    /// <summary>
+    /// The default TTL for cache items in milliseconds (default: 30 minutes)
+    /// </summary>
+    public long DefaultCacheTtlMilliseconds { get; set; } = 1800000;
+
+    /// <summary>
+    /// The timeout for cache items in minutes (legacy property, maps to TTL)
     /// </summary>
     public int CacheTimeoutMinutes { get; set; } = 30;
 

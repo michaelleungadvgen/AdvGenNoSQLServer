@@ -86,11 +86,25 @@ public class ConfigurationManager : IConfigurationManager
             _configuration.Port = port;
         }
 
-        // MaxCacheSize
-        var maxCacheSizeEnv = Environment.GetEnvironmentVariable("NOSQL_MAX_CACHE_SIZE");
-        if (!string.IsNullOrEmpty(maxCacheSizeEnv) && int.TryParse(maxCacheSizeEnv, out int maxCacheSize))
+        // MaxCacheItemCount
+        var maxCacheItemCountEnv = Environment.GetEnvironmentVariable("NOSQL_MAX_CACHE_ITEM_COUNT");
+        if (!string.IsNullOrEmpty(maxCacheItemCountEnv) && int.TryParse(maxCacheItemCountEnv, out int maxCacheItemCount))
         {
-            _configuration.MaxCacheSize = maxCacheSize;
+            _configuration.MaxCacheItemCount = maxCacheItemCount;
+        }
+
+        // MaxCacheSizeInBytes
+        var maxCacheSizeInBytesEnv = Environment.GetEnvironmentVariable("NOSQL_MAX_CACHE_SIZE_BYTES");
+        if (!string.IsNullOrEmpty(maxCacheSizeInBytesEnv) && long.TryParse(maxCacheSizeInBytesEnv, out long maxCacheSizeInBytes))
+        {
+            _configuration.MaxCacheSizeInBytes = maxCacheSizeInBytes;
+        }
+
+        // DefaultCacheTtlMilliseconds
+        var defaultCacheTtlEnv = Environment.GetEnvironmentVariable("NOSQL_DEFAULT_CACHE_TTL_MS");
+        if (!string.IsNullOrEmpty(defaultCacheTtlEnv) && long.TryParse(defaultCacheTtlEnv, out long defaultCacheTtl))
+        {
+            _configuration.DefaultCacheTtlMilliseconds = defaultCacheTtl;
         }
 
         // CacheTimeoutMinutes

@@ -27,12 +27,14 @@ public class Program
         services.AddSingleton<IConfigurationManager, ConfigurationManager>();
         
         // Add caching with configuration
-        services.AddMemoryCache();
         services.AddSingleton<ICacheManager>(provider =>
         {
             var configManager = provider.GetRequiredService<IConfigurationManager>();
-            var memoryCache = provider.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>();
-            return new AdvancedMemoryCacheManager(memoryCache, configManager.Configuration.MaxCacheSize);
+            var config = configManager.Configuration;
+            return new AdvancedMemoryCacheManager(
+                maxItemCount: config.MaxCacheItemCount > 0 ? config.MaxCacheItemCount : 10000,
+                maxSizeInBytes: config.MaxCacheSizeInBytes > 0 ? config.MaxCacheSizeInBytes : 104857600,
+                defaultTtlMilliseconds: config.DefaultCacheTtlMilliseconds > 0 ? config.DefaultCacheTtlMilliseconds : 1800000);
         });
         
         // Add file storage with configuration

@@ -16,7 +16,9 @@ public class ConfigurationManagerTests : IDisposable
         // Create a test config file
         var testConfig = @"{
   ""port"": 9090,
-  ""maxCacheSize"": 500,
+  ""maxCacheItemCount"": 500,
+  ""maxCacheSizeInBytes"": 52428800,
+  ""defaultCacheTtlMilliseconds"": 900000,
   ""cacheTimeoutMinutes"": 15,
   ""storagePath"": ""test_data"",
   ""maxConcurrentConnections"": 50,
@@ -37,7 +39,9 @@ public class ConfigurationManagerTests : IDisposable
 
         // Assert
         Assert.Equal(9090, config.Port);
-        Assert.Equal(500, config.MaxCacheSize);
+        Assert.Equal(500, config.MaxCacheItemCount);
+        Assert.Equal(52428800, config.MaxCacheSizeInBytes);
+        Assert.Equal(900000, config.DefaultCacheTtlMilliseconds);
         Assert.Equal(15, config.CacheTimeoutMinutes);
         Assert.Equal("test_data", config.StoragePath);
         Assert.Equal(50, config.MaxConcurrentConnections);
@@ -53,11 +57,11 @@ public class ConfigurationManagerTests : IDisposable
 
         // Act
         configManager.UpdateConfiguration("Port", 1234);
-        configManager.UpdateConfiguration("MaxCacheSize", 750);
+        configManager.UpdateConfiguration("MaxCacheItemCount", 750);
 
         // Assert
         Assert.Equal(1234, configManager.Configuration.Port);
-        Assert.Equal(750, configManager.Configuration.MaxCacheSize);
+        Assert.Equal(750, configManager.Configuration.MaxCacheItemCount);
     }
 
     [Fact]
@@ -89,7 +93,9 @@ public class ConfigurationManagerTests : IDisposable
         // Modify the config file
         var updatedConfig = @"{
   ""port"": 8081,
-  ""maxCacheSize"": 1000,
+  ""maxCacheItemCount"": 1000,
+  ""maxCacheSizeInBytes"": 104857600,
+  ""defaultCacheTtlMilliseconds"": 1800000,
   ""cacheTimeoutMinutes"": 30,
   ""storagePath"": ""data"",
   ""maxConcurrentConnections"": 100,
@@ -103,7 +109,7 @@ public class ConfigurationManagerTests : IDisposable
 
         // Assert
         Assert.Equal(8081, configManager.Configuration.Port);
-        Assert.Equal(1000, configManager.Configuration.MaxCacheSize);
+        Assert.Equal(1000, configManager.Configuration.MaxCacheItemCount);
     }
 
     public void Dispose()
