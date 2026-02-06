@@ -40,6 +40,30 @@
 
 ## Completed Tasks
 
+### Agent-7: File-based Persistence for Document Store ✓ COMPLETED
+**Scope**: Implement file-based persistence for the Document Store with JSON serialization
+**Completed**: 2026-02-07
+**Summary**:
+- Implemented IPersistentDocumentStore interface extending IDocumentStore
+- Created PersistentDocumentStore class with JSON file persistence
+- Stores documents as individual JSON files organized by collection
+- Supports full CRUD operations with automatic disk persistence
+- Implemented InitializeAsync() to load existing collections from disk
+- Implemented SaveChangesAsync() and SaveCollectionAsync() for explicit persistence
+- Thread-safe implementation using SemaphoreSlim for disk operations
+- 33 comprehensive unit tests (all passing)
+- Document data preserved across server restarts
+
+**Files Created**:
+- AdvGenNoSqlServer.Storage/IPersistentDocumentStore.cs (55 lines)
+- AdvGenNoSqlServer.Storage/PersistentDocumentStore.cs (494 lines)
+- AdvGenNoSqlServer.Tests/PersistentDocumentStoreTests.cs (562 lines, 33 tests)
+
+**Build Status**: ✓ Compiles successfully (0 warnings, 0 errors)
+**Test Status**: ✓ 33/33 PersistentDocumentStore tests pass
+
+---
+
 ### Agent-6: Document Store Implementation with CRUD Operations ✓ COMPLETED
 **Scope**: Implement document-based storage with CRUD operations for the Storage Engine
 **Completed**: 2026-02-07

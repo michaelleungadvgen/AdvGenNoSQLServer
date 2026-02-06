@@ -608,7 +608,7 @@ Where third-party libraries have restrictive licenses, we implement custom solut
 
 ### Storage
 - [x] Document store with CRUD operations
-- [ ] File-based persistence
+- [x] File-based persistence
 - [ ] B-tree indexing
 - [ ] Query optimization with index selection
 

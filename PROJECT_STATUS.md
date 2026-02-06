@@ -29,14 +29,14 @@
 
 ## 2. Current Project Status
 
-### Overall Completion: **48%**
+### Overall Completion: **52%**
 
 | Phase | Status | Progress | Target Date |
 |-------|--------|----------|-------------|
 | Phase 1: Foundation | 🟢 **Complete** | 100% | ✓ Done |
 | Phase 2: Network & TCP | 🟢 **Complete** | 100% | ✓ Done |
 | Phase 3: Security | 🔴 **Not Started** | 0% | Week 5-6 |
-| Phase 4: Storage Engine | 🔴 **Not Started** | 0% | Week 7-8 |
+| Phase 4: Storage Engine | 🟡 **In Progress** | 35% | Week 7-8 |
 | Phase 5: Query Engine | 🔴 **Not Started** | 0% | Week 9-10 |
 | Phase 6: Transactions | 🔴 **Not Started** | 0% | Week 11-12 |
 | Phase 7: Caching & Perf | 🔴 **Not Started** | 0% | Week 13-14 |
@@ -261,12 +261,14 @@ AdvGenNoSQLServer/
 - [ ] Encryption/decryption services for sensitive data
 - [ ] Audit logging implementation
 
-### 🔴 Storage Engine (0% Complete)
+### 🟡 Storage Engine (35% Complete)
 **Target**: Weeks 7-8
 
+**Completed**:
+- [x] Document store implementation (in-memory)
+- [x] File-based persistence with JSON serialization
+
 **Planned**:
-- [ ] Document store implementation
-- [ ] File-based persistence
 - [ ] B-tree indexing
 - [ ] Index management
 - [ ] Query optimization
