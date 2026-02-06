@@ -1,4 +1,8 @@
-﻿using System;
+﻿// Copyright (c) 2026 [Your Organization]
+// Licensed under the MIT License.
+// See LICENSE.txt for license information.
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;

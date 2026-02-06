@@ -555,6 +555,9 @@
       "AdvGenNoSqlServer.Network/1.0.0": {
         "type": "project",
         "framework": ".NETCoreApp,Version=v9.0",
+        "dependencies": {
+          "AdvGenNoSqlServer.Core": "1.0.0"
+        },
         "compile": {
           "bin/placeholder/AdvGenNoSqlServer.Network.dll": {}
         },

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 [Your Organization]
+// Licensed under the MIT License.
+// See LICENSE.txt for license information.
+
 using System.Security.Cryptography;
 using System.Text;
 using AdvGenNoSqlServer.Core.Configuration;

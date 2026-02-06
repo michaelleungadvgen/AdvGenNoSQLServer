@@ -27,6 +27,18 @@ dotnet build AdvGenNoSqlServer.sln -c Release
 if ($?) { dotnet test AdvGenNoSqlServer.Tests/AdvGenNoSqlServer.Tests.csproj -c Release --no-build }
 ```
 
+### Run Specific Test Categories
+```powershell
+# Run only RBAC tests
+dotnet test AdvGenNoSqlServer.Tests/AdvGenNoSqlServer.Tests.csproj --filter "FullyQualifiedName~RoleManagerTests"
+
+# Run only Authentication tests
+dotnet test AdvGenNoSqlServer.Tests/AdvGenNoSqlServer.Tests.csproj --filter "FullyQualifiedName~AuthenticationServiceTests"
+
+# Run only Network tests
+dotnet test AdvGenNoSqlServer.Tests/AdvGenNoSqlServer.Tests.csproj --filter "FullyQualifiedName~NetworkTests"
+```
+
 ---
 
 ## Project Structure

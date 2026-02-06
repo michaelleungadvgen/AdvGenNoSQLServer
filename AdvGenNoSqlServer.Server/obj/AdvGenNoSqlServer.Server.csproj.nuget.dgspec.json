@@ -104,7 +104,11 @@
         "frameworks": {
           "net9.0": {
             "targetAlias": "net9.0",
-            "projectReferences": {}
+            "projectReferences": {
+              "E:\\Projects\\AdvGenNoSQLServer\\AdvGenNoSqlServer.Core\\AdvGenNoSqlServer.Core.csproj": {
+                "projectPath": "E:\\Projects\\AdvGenNoSQLServer\\AdvGenNoSqlServer.Core\\AdvGenNoSqlServer.Core.csproj"
+              }
+            }
           }
         },
         "warningProperties": {

@@ -9,3 +9,7 @@ E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Network\obj\Release\net9.0\AdvGe
 E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Network\obj\Release\net9.0\refint\AdvGenNoSqlServer.Network.dll
 E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Network\obj\Release\net9.0\AdvGenNoSqlServer.Network.pdb
 E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Network\obj\Release\net9.0\ref\AdvGenNoSqlServer.Network.dll
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Network\bin\Release\net9.0\AdvGenNoSqlServer.Core.dll
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Network\bin\Release\net9.0\AdvGenNoSqlServer.Core.pdb
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Network\obj\Release\net9.0\AdvGenNoSqlServer.Network.csproj.AssemblyReference.cache
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Network\obj\Release\net9.0\AdvGenNo.069DADE6.Up2Date
