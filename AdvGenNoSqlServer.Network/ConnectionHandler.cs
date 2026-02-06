@@ -97,8 +97,8 @@ namespace AdvGenNoSqlServer.Network
         {
             try
             {
-                // Read the header (8 bytes minimum)
-                var headerBuffer = await ReadExactAsync(8, cancellationToken);
+                // Read the header (12 bytes)
+                var headerBuffer = await ReadExactAsync(MessageHeader.HeaderSize, cancellationToken);
                 if (headerBuffer == null)
                     return null;
 
