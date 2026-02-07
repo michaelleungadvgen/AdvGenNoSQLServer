@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<TestSequence>
+  <Test Name="AdvGenNoSqlServer.Tests.WriteAheadLogTests.Wal_Recover_RolledBackTransaction_NotInIncomplete" DisplayName="AdvGenNoSqlServer.Tests.WriteAheadLogTests.Wal_Recover_RolledBackTransaction_NotInIncomplete" Source="E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Tests\bin\Release\net9.0\AdvGenNoSqlServer.Tests.dll" Completed="True" />
+  <Test Name="AdvGenNoSqlServer.Tests.WriteAheadLogTests.Wal_AppendDelete_ReturnsLsn" DisplayName="AdvGenNoSqlServer.Tests.WriteAheadLogTests.Wal_AppendDelete_ReturnsLsn" Source="E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Tests\bin\Release\net9.0\AdvGenNoSqlServer.Tests.dll" Completed="True" />
+  <Test Name="AdvGenNoSqlServer.Tests.WriteAheadLogTests.Wal_EmptyTransactionId_Throws" DisplayName="AdvGenNoSqlServer.Tests.WriteAheadLogTests.Wal_EmptyTransactionId_Throws" Source="E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Tests\bin\Release\net9.0\AdvGenNoSqlServer.Tests.dll" Completed="True" />
+  <Test Name="AdvGenNoSqlServer.Tests.WriteAheadLogTests.Wal_CheckpointEvent_Raised" DisplayName="AdvGenNoSqlServer.Tests.WriteAheadLogTests.Wal_CheckpointEvent_Raised" Source="E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Tests\bin\Release\net9.0\AdvGenNoSqlServer.Tests.dll" Completed="False" />
+</TestSequence>

@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 [Your Organization]
+﻿// Copyright (c) 2026 AdvanGeneration Pty. Ltd.
 // Licensed under the MIT License.
 // See LICENSE.txt for license information.
 

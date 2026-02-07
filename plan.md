@@ -613,11 +613,11 @@ Where third-party libraries have restrictive licenses, we implement custom solut
 - [ ] Query optimization with index selection
 
 ### Transactions
-- [ ] Transaction coordinator
+- [x] Transaction coordinator (Two-Phase Commit, 41 tests)
 - [x] Lock manager with deadlock detection
 - [x] Write-ahead logging (WAL)
 - [x] Rollback mechanism (via WAL)
-- [ ] Multiple isolation levels
+- [x] Multiple isolation levels (ReadUncommitted, ReadCommitted, RepeatableRead, Serializable)
 
 ### Performance
 - [ ] Object pooling (buffers, objects)
