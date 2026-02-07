@@ -478,7 +478,7 @@ Build a **lightweight, high-performance NoSQL server** in C# with .NET featuring
 - ✓ Document store implementation (DocumentStore with CRUD, 37 tests)
 - ✓ File-based persistence (PersistentDocumentStore, 33 tests)
 - ✓ Index management (BTreeIndex, IndexManager, 77 tests)
-- ○ Garbage collection for deleted documents (planned for future)
+- ✓ Garbage collection for deleted documents (Tombstone, GarbageCollector, GarbageCollectedDocumentStore, 35 tests)
 
 ### Phase 5: Query Engine (Weeks 9-10) ✓ COMPLETE
 - ✓ Query parser (QueryParser with MongoDB-like syntax)

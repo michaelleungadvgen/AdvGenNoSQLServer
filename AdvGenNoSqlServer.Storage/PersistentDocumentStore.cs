@@ -158,7 +158,7 @@ public class PersistentDocumentStore : IPersistentDocumentStore
     }
 
     /// <inheritdoc />
-    public async Task<bool> DeleteAsync(string collectionName, string documentId)
+    public virtual async Task<bool> DeleteAsync(string collectionName, string documentId)
     {
         await EnsureInitializedAsync();
 
@@ -239,7 +239,7 @@ public class PersistentDocumentStore : IPersistentDocumentStore
     }
 
     /// <inheritdoc />
-    public async Task<bool> DropCollectionAsync(string collectionName)
+    public virtual async Task<bool> DropCollectionAsync(string collectionName)
     {
         await EnsureInitializedAsync();
 

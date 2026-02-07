@@ -16,6 +16,63 @@
 
 ## Completed Tasks
 
+### Agent-33: Garbage Collection for Deleted Documents ✓ COMPLETED
+**Scope**: Implement garbage collection system for deleted documents to reclaim storage space
+**Completed**: 2026-02-07
+**Summary**:
+- Created `Tombstone` class to track deleted documents with metadata (document ID, collection, deletion time, version, file path, transaction ID)
+- Created `GarbageCollector` class implementing `IGarbageCollector` interface:
+  - Records document deletions as tombstones
+  - Configurable retention period before physical deletion
+  - Automatic background collection via Timer
+  - Physical file deletion with bytes-freed tracking
+  - Thread-safe operations using ConcurrentDictionary
+  - Comprehensive statistics tracking
+- Created `GarbageCollectorOptions` for configuration:
+  - Enabled/disabled toggle
+  - Retention period (default 24 hours)
+  - Collection interval (default 1 hour)
+  - Max tombstones per run (default 1000)
+  - Background collection toggle
+- Created `GarbageCollectorStats` for monitoring:
+  - Total/cleaned tombstones count
+  - Documents physically deleted
+  - Bytes freed
+  - Last collection run timestamp
+  - Failed cleanup count
+- Created `GarbageCollectedDocumentStore` extending `PersistentDocumentStore`:
+  - Integrates garbage collection with document store
+  - Automatically creates tombstones on document/collection deletion
+  - Provides `CollectGarbageAsync()` method
+  - Provides `GetGarbageCollectionStats()` method
+- Created comprehensive unit tests (24 tests in GarbageCollectorTests.cs):
+  - Constructor tests
+  - Record deletion tests
+  - Tombstone retrieval tests
+  - Collection and cleanup tests
+  - Statistics tests
+  - Background collection tests
+- Created integration tests (11 tests in GarbageCollectedDocumentStoreTests.cs):
+  - Store initialization tests
+  - Delete integration tests
+  - Drop collection integration tests
+  - Full lifecycle integration test
+  - Concurrent deletion tests
+
+**Files Created**:
+- `AdvGenNoSqlServer.Storage/GarbageCollector.cs` (400+ lines)
+- `AdvGenNoSqlServer.Storage/GarbageCollectedDocumentStore.cs` (150+ lines)
+- `AdvGenNoSqlServer.Tests/GarbageCollectorTests.cs` (550+ lines, 24 tests)
+- `AdvGenNoSqlServer.Tests/GarbageCollectedDocumentStoreTests.cs` (450+ lines, 11 tests)
+
+**Files Modified**:
+- `AdvGenNoSqlServer.Storage/PersistentDocumentStore.cs` - Made DeleteAsync and DropCollectionAsync virtual
+
+**Build Status**: ✓ Compiles successfully (0 errors, 82 warnings - pre-existing)
+**Test Status**: ✓ 35/35 new tests pass, 872 total tests pass (24 skipped)
+
+---
+
 ### Agent-32: Fix B-tree Edge Cases ✓ COMPLETED
 **Scope**: Fix B-tree tree splitting for datasets >16 items to ensure correct leaf node linking
 **Completed**: 2026-02-07
