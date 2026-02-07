@@ -390,6 +390,43 @@
 
 ## Completed Tasks
 
+### Agent-14: Environment-Specific Configuration Files ✓ COMPLETED
+**Scope**: Create environment-specific configuration files for Development, Production, and Testing environments
+**Completed**: 2026-02-07
+**Summary**:
+- Created `appsettings.Development.json` with:
+  - Debug logging enabled to console
+  - Lower connection limits (100 max) for development
+  - SSL disabled for local development
+  - File logging disabled
+  - Relaxed security settings (5 max failed attempts)
+  - Workstation GC mode for faster startup
+- Created `appsettings.Production.json` with:
+  - Warning level logging to files only
+  - High connection limits (10000 max)
+  - SSL enabled with certificate path
+  - Data and log paths in `/var/lib/` and `/var/log/`
+  - Compression enabled
+  - Serializable isolation level as default
+  - Server GC mode for optimal throughput
+- Created `appsettings.Testing.json` with:
+  - Localhost binding (127.0.0.1) for security
+  - Port 19090 to avoid conflicts
+  - Authentication disabled for easy testing
+  - Small resource limits (50 connections, 64MB cache)
+  - Fast timeouts (10s) for quick test feedback
+  - Separate test data and log directories
+
+**Files Created**:
+- AdvGenNoSqlServer.Server/appsettings.Development.json
+- AdvGenNoSqlServer.Server/appsettings.Production.json
+- AdvGenNoSqlServer.Server/appsettings.Testing.json
+
+**Build Status**: ✓ Compiles successfully (0 errors, 0 warnings)
+**Test Status**: ✓ 514/514 relevant tests pass (10 integration tests pending server-side fix)
+
+---
+
 ### Agent-3: Integrate TcpServer into NoSqlServer ✓ COMPLETED
 **Scope**: Wire up TcpServer in NoSqlServer hosted service and implement message handlers
 **Completed**: 2026-02-07

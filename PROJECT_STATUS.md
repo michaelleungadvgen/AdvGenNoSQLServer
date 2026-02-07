@@ -383,10 +383,12 @@ AdvGenNoSQLServer/
 - ✓ `appsettings.json` - Default configuration template
 - ✓ Configuration schema defined
 
+### Created
+- ✓ `appsettings.Development.json` - Development overrides with debug logging, relaxed security
+- ✓ `appsettings.Production.json` - Production settings with SSL, file logging, high performance
+- ✓ `appsettings.Testing.json` - Test settings with localhost binding, auth disabled, fast timeouts
+
 ### To Be Created
-- [ ] `appsettings.Development.json` - Development overrides
-- [ ] `appsettings.Production.json` - Production settings
-- [ ] `appsettings.Testing.json` - Test settings
 - [ ] `config-schema.json` - JSON schema validation
 
 ---

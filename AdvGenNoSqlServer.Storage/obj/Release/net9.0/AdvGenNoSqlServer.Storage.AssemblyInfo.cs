@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("AdvGenNoSqlServer.Storage")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+754f8068956addf3e47c8a8ea01647af731ed272")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+82918c80fb4195d020521e8539cc65e7de8fb20d")]
 [assembly: System.Reflection.AssemblyProductAttribute("AdvGenNoSqlServer.Storage")]
 [assembly: System.Reflection.AssemblyTitleAttribute("AdvGenNoSqlServer.Storage")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
