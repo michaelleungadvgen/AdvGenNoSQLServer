@@ -114,3 +114,8 @@ E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Tests\obj\Release\net9.0\AdvGenN
 E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Tests\obj\Release\net9.0\ref\AdvGenNoSqlServer.Tests.dll
 E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Tests\bin\Release\net9.0\AdvGenNoSqlServer.Query.dll
 E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Tests\bin\Release\net9.0\AdvGenNoSqlServer.Query.pdb
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Tests\bin\Release\net9.0\AdvGenNoSqlServer.Client.xml
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Tests\bin\Release\net9.0\AdvGenNoSqlServer.Core.xml
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Tests\bin\Release\net9.0\AdvGenNoSqlServer.Network.xml
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Tests\bin\Release\net9.0\AdvGenNoSqlServer.Query.xml
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Tests\bin\Release\net9.0\AdvGenNoSqlServer.Storage.xml

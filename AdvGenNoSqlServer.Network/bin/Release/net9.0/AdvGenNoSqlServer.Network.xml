@@ -1,0 +1,627 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>AdvGenNoSqlServer.Network</name>
+    </assembly>
+    <members>
+        <member name="T:AdvGenNoSqlServer.Network.ConnectionHandler">
+            <summary>
+            Handles a single TCP connection with message framing and protocol handling
+            Supports both plain TCP and SSL/TLS encrypted connections
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.ConnectionHandler.ConnectionId">
+            <summary>
+            Unique connection identifier
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.ConnectionHandler.ConnectedAt">
+            <summary>
+            When the connection was established
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.ConnectionHandler.Client">
+            <summary>
+            The TCP client
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.ConnectionHandler.IsConnected">
+            <summary>
+            Whether the connection is still active
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.ConnectionHandler.RemoteAddress">
+            <summary>
+            Remote endpoint address
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.ConnectionHandler.IsSecure">
+            <summary>
+            Whether the connection is using SSL/TLS encryption
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.ConnectionHandler.SslStream">
+            <summary>
+            SSL/TLS connection information (null if not using SSL)
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.ConnectionHandler.#ctor(System.String,System.Net.Sockets.TcpClient,AdvGenNoSqlServer.Network.MessageProtocol,AdvGenNoSqlServer.Core.Configuration.ServerConfiguration)">
+            <summary>
+            Creates a new connection handler (plain TCP)
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.ConnectionHandler.#ctor(System.String,System.Net.Sockets.TcpClient,System.IO.Stream,AdvGenNoSqlServer.Network.MessageProtocol,AdvGenNoSqlServer.Core.Configuration.ServerConfiguration)">
+            <summary>
+            Creates a new connection handler with SSL stream
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.ConnectionHandler.EnableSslAsync(System.Threading.CancellationToken)">
+            <summary>
+            Performs SSL/TLS handshake for the connection
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.ConnectionHandler.ReadMessagesAsync(System.Threading.CancellationToken)">
+            <summary>
+            Reads messages from the connection asynchronously
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.ConnectionHandler.ReadMessageAsync(System.Threading.CancellationToken)">
+            <summary>
+            Reads a single message from the connection
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.ConnectionHandler.ReadExactAsync(System.Int32,System.Threading.CancellationToken)">
+            <summary>
+            Reads exactly the specified number of bytes from the stream
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.ConnectionHandler.SendAsync(AdvGenNoSqlServer.Network.NoSqlMessage,System.Threading.CancellationToken)">
+            <summary>
+            Sends a message to the client
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.ConnectionHandler.SendPingAsync(System.Threading.CancellationToken)">
+            <summary>
+            Sends a ping/keepalive message
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.ConnectionHandler.SendErrorAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Sends an error response
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.ConnectionHandler.CloseAsync">
+            <summary>
+            Closes the connection gracefully
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.ConnectionHandler.Dispose">
+            <summary>
+            Disposes the connection handler
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Network.ProtocolException">
+            <summary>
+            Exception thrown for protocol errors
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Network.ConnectionPool">
+            <summary>
+            Manages a pool of available connection slots for resource limiting
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.ConnectionPool.MaxConnections">
+            <summary>
+            Maximum number of concurrent connections allowed
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.ConnectionPool.ActiveConnections">
+            <summary>
+            Current number of active connections
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.ConnectionPool.AvailableSlots">
+            <summary>
+            Number of available connection slots
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.ConnectionPool.TotalAcquired">
+            <summary>
+            Total number of connections ever acquired
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.ConnectionPool.TotalReleased">
+            <summary>
+            Total number of connections released
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.ConnectionPool.HasAvailableSlots">
+            <summary>
+            Whether the pool has available slots
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.ConnectionPool.#ctor(System.Int32)">
+            <summary>
+            Creates a new connection pool with the specified capacity
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.ConnectionPool.TryAcquire">
+            <summary>
+            Attempts to acquire a connection slot without waiting
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.ConnectionPool.Acquire(System.Threading.CancellationToken)">
+            <summary>
+            Acquires a connection slot, waiting if necessary
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.ConnectionPool.TryAcquire(System.TimeSpan,System.Threading.CancellationToken)">
+            <summary>
+            Attempts to acquire a connection slot with a timeout
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.ConnectionPool.Release">
+            <summary>
+            Releases a connection slot back to the pool
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.ConnectionPool.GetStatistics">
+            <summary>
+            Gets current pool statistics
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.ConnectionPool.ResetStatistics">
+            <summary>
+            Resets the pool statistics
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Network.ConnectionPoolStatistics">
+            <summary>
+            Statistics for the connection pool
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.ConnectionPoolStatistics.MaxConnections">
+            <summary>
+            Maximum number of connections allowed
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.ConnectionPoolStatistics.ActiveConnections">
+            <summary>
+            Currently active connections
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.ConnectionPoolStatistics.AvailableSlots">
+            <summary>
+            Available connection slots
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.ConnectionPoolStatistics.TotalAcquired">
+            <summary>
+            Total connections acquired since start
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.ConnectionPoolStatistics.TotalReleased">
+            <summary>
+            Total connections released since start
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.ConnectionPoolStatistics.UtilizationPercent">
+            <summary>
+            Current utilization percentage
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.ConnectionPoolStatistics.ToString">
+            <summary>
+            Returns a string representation of the statistics
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Network.MessageType">
+            <summary>
+            Message types supported by the NoSQL protocol
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Network.MessageType.Handshake">
+            <summary>
+            Initial handshake message
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Network.MessageType.Authentication">
+            <summary>
+            Authentication request/response
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Network.MessageType.Command">
+            <summary>
+            Query or command message
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Network.MessageType.Response">
+            <summary>
+            Successful response
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Network.MessageType.Error">
+            <summary>
+            Error response
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Network.MessageType.Ping">
+            <summary>
+            Ping/keepalive message
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Network.MessageType.Pong">
+            <summary>
+            Pong/keepalive response
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Network.MessageType.Transaction">
+            <summary>
+            Transaction control (begin, commit, rollback)
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Network.MessageType.BulkOperation">
+            <summary>
+            Bulk operation request
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Network.MessageType.Notification">
+            <summary>
+            Server notification/event
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Network.MessageFlags">
+            <summary>
+            Protocol flags for message options
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Network.MessageFlags.None">
+            <summary>
+            No special flags
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Network.MessageFlags.Compressed">
+            <summary>
+            Message payload is compressed
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Network.MessageFlags.RequireAck">
+            <summary>
+            Message requires acknowledgment
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Network.MessageFlags.Encrypted">
+            <summary>
+            Message is encrypted
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Network.MessageFlags.EndOfBatch">
+            <summary>
+            End of batch/stream marker
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Network.NoSqlMessage">
+            <summary>
+            Binary message structure for NoSQL protocol
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Network.NoSqlMessage.Magic">
+            <summary>
+            Protocol magic bytes (4 bytes: "NOSQ")
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Network.NoSqlMessage.ProtocolVersion">
+            <summary>
+            Protocol version (2 bytes)
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.NoSqlMessage.MessageType">
+            <summary>
+            Message type
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.NoSqlMessage.Flags">
+            <summary>
+            Message flags
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.NoSqlMessage.Payload">
+            <summary>
+            Payload data (rented from ArrayPool, must be returned after use)
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.NoSqlMessage.PayloadLength">
+            <summary>
+            Length of the payload
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.NoSqlMessage.GetPayloadAsString">
+            <summary>
+            Gets the string representation of the payload
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.NoSqlMessage.Create(AdvGenNoSqlServer.Network.MessageType,System.String)">
+            <summary>
+            Creates a message with string payload
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.NoSqlMessage.CreateCommand(System.String,System.String,System.Object)">
+            <summary>
+            Creates a command message
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.NoSqlMessage.CreateError(System.String,System.String)">
+            <summary>
+            Creates an error response
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.NoSqlMessage.CreateSuccess(System.Object)">
+            <summary>
+            Creates a success response
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Network.MessageHeader">
+            <summary>
+            Message header structure
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Network.MessageHeader.Magic">
+            <summary>
+            Protocol magic bytes
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Network.MessageHeader.Version">
+            <summary>
+            Protocol version
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Network.MessageHeader.MessageType">
+            <summary>
+            Message type
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Network.MessageHeader.Flags">
+            <summary>
+            Message flags
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Network.MessageHeader.PayloadLength">
+            <summary>
+            Length of the payload in bytes
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Network.MessageHeader.HeaderSize">
+            <summary>
+            Total header size in bytes
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Network.MessageProtocol">
+            <summary>
+            Handles serialization and deserialization of messages
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.MessageProtocol.Serialize(AdvGenNoSqlServer.Network.NoSqlMessage)">
+            <summary>
+            Serializes a message to a byte array (rented from ArrayPool)
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.MessageProtocol.ParseHeader(System.Byte[])">
+            <summary>
+            Parses a message header from a byte array
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.MessageProtocol.ValidateHeader(AdvGenNoSqlServer.Network.MessageHeader)">
+            <summary>
+            Validates a message header
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.MessageProtocol.CalculateChecksum(System.Byte[],System.Int32)">
+            <summary>
+            Calculates CRC32 checksum of data
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.MessageProtocol.ValidateChecksum(System.Byte[],System.UInt32)">
+            <summary>
+            Validates checksum
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.MessageProtocol.Deserialize(System.Byte[],System.Int32)">
+            <summary>
+            Deserializes a message from a byte array
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Network.TcpServer">
+            <summary>
+            Async TCP Server for NoSQL database connections
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.TcpServer.Configuration">
+            <summary>
+            Server configuration
+            </summary>
+        </member>
+        <member name="E:AdvGenNoSqlServer.Network.TcpServer.ConnectionEstablished">
+            <summary>
+            Event raised when a new connection is established
+            </summary>
+        </member>
+        <member name="E:AdvGenNoSqlServer.Network.TcpServer.ConnectionClosed">
+            <summary>
+            Event raised when a connection is closed
+            </summary>
+        </member>
+        <member name="E:AdvGenNoSqlServer.Network.TcpServer.MessageReceived">
+            <summary>
+            Event raised when a message is received from a client
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.TcpServer.ActiveConnectionCount">
+            <summary>
+            Number of active connections
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.TcpServer.IsRunning">
+            <summary>
+            Whether the server is currently running
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.TcpServer.#ctor(AdvGenNoSqlServer.Core.Configuration.ServerConfiguration)">
+            <summary>
+            Creates a new TCP server with the specified configuration
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.TcpServer.StartAsync(System.Threading.CancellationToken)">
+            <summary>
+            Starts the TCP server and begins accepting connections
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.TcpServer.StopAsync(System.TimeSpan)">
+            <summary>
+            Stops the TCP server gracefully
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.TcpServer.BroadcastAsync(AdvGenNoSqlServer.Network.NoSqlMessage,System.Threading.CancellationToken)">
+            <summary>
+            Broadcasts a message to all connected clients
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.TcpServer.SendToClientAsync(System.String,AdvGenNoSqlServer.Network.NoSqlMessage,System.Threading.CancellationToken)">
+            <summary>
+            Sends a message to a specific client
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.TcpServer.Dispose">
+            <summary>
+            Disposes the server and all resources
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.TcpServer.DisposeAsync">
+            <summary>
+            Asynchronously disposes the server and all resources
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Network.ConnectionEventArgs">
+            <summary>
+            Event args for connection events
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.ConnectionEventArgs.ConnectionId">
+            <summary>
+            Unique connection identifier
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.ConnectionEventArgs.Client">
+            <summary>
+            The TCP client
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.ConnectionEventArgs.IsSecure">
+            <summary>
+            Whether the connection is using SSL/TLS encryption
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Network.MessageReceivedEventArgs">
+            <summary>
+            Event args for message received events
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.MessageReceivedEventArgs.ConnectionId">
+            <summary>
+            Connection ID that sent the message
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.MessageReceivedEventArgs.Client">
+            <summary>
+            TCP client
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Network.MessageReceivedEventArgs.Message">
+            <summary>
+            The received message
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.MessageReceivedEventArgs.SendResponseAsync(AdvGenNoSqlServer.Network.NoSqlMessage)">
+            <summary>
+            Function to send a response. Must be called by the event handler.
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.MessageReceivedEventArgs.WaitForResponseAsync(System.Threading.CancellationToken)">
+            <summary>
+            Waits for the response to be sent by the event handler
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.MessageReceivedEventArgs.CompleteWithoutResponse">
+            <summary>
+            Marks the response as complete without sending (for handlers that don't need to respond)
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Network.TlsStreamHelper">
+            <summary>
+            Helper class for SSL/TLS stream operations
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.TlsStreamHelper.CreateServerSslStreamAsync(System.Net.Sockets.TcpClient,AdvGenNoSqlServer.Core.Configuration.ServerConfiguration,System.Threading.CancellationToken)">
+            <summary>
+            Creates an SSL server stream and performs the TLS handshake
+            </summary>
+            <param name="client">The TCP client</param>
+            <param name="configuration">Server configuration with SSL settings</param>
+            <param name="cancellationToken">Cancellation token</param>
+            <returns>An authenticated SSL stream</returns>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.TlsStreamHelper.CreateClientSslStreamAsync(System.Net.Sockets.TcpClient,System.String,System.Security.Cryptography.X509Certificates.X509Certificate,System.Boolean,System.Threading.CancellationToken)">
+            <summary>
+            Creates an SSL client stream and performs the TLS handshake
+            </summary>
+            <param name="client">The TCP client</param>
+            <param name="targetHost">The target host name for certificate validation</param>
+            <param name="clientCertificate">Optional client certificate for mutual TLS</param>
+            <param name="checkCertificateRevocation">Whether to check certificate revocation</param>
+            <param name="cancellationToken">Cancellation token</param>
+            <returns>An authenticated SSL stream</returns>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.TlsStreamHelper.LoadCertificate(AdvGenNoSqlServer.Core.Configuration.ServerConfiguration)">
+            <summary>
+            Loads the SSL certificate based on configuration settings
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.TlsStreamHelper.LoadCertificateFromFile(System.String,System.String)">
+            <summary>
+            Loads a certificate from a PFX file
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.TlsStreamHelper.LoadCertificateFromStore(System.String)">
+            <summary>
+            Loads a certificate from the certificate store (Windows)
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.TlsStreamHelper.CreateSelfSignedCertificate(System.String,System.Int32)">
+            <summary>
+            Creates a self-signed certificate for development/testing purposes
+            </summary>
+            <param name="subjectName">The subject name for the certificate (e.g., "CN=localhost")</param>
+            <param name="validDays">Number of days the certificate is valid (default: 365)</param>
+            <returns>A self-signed certificate with exportable private key</returns>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.TlsStreamHelper.SaveCertificateToFile(System.Security.Cryptography.X509Certificates.X509Certificate2,System.String,System.String)">
+            <summary>
+            Saves a certificate to a PFX file
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.TlsStreamHelper.ServerCertificateValidationCallback(System.Object,System.Security.Cryptography.X509Certificates.X509Certificate,System.Security.Cryptography.X509Certificates.X509Chain,System.Net.Security.SslPolicyErrors)">
+            <summary>
+            Validates the server certificate on the client side
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.TlsStreamHelper.RemoteCertificateValidationCallback(System.Object,System.Security.Cryptography.X509Certificates.X509Certificate,System.Security.Cryptography.X509Certificates.X509Chain,System.Net.Security.SslPolicyErrors)">
+            <summary>
+            Validates the client certificate on the server side (for mutual TLS)
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Network.TlsStreamHelper.GetSslConnectionInfo(System.Net.Security.SslStream)">
+            <summary>
+            Gets SSL/TLS connection info for logging/diagnostics
+            </summary>
+        </member>
+    </members>
+</doc>

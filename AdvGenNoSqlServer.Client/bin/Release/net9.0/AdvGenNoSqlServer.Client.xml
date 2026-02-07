@@ -1,0 +1,291 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>AdvGenNoSqlServer.Client</name>
+    </assembly>
+    <members>
+        <member name="T:AdvGenNoSqlServer.Client.NoSqlClientException">
+            <summary>
+            Exception thrown when a client connection error occurs
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Client.NoSqlProtocolException">
+            <summary>
+            Exception thrown when a protocol error occurs
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Client.NoSqlResponse">
+            <summary>
+            Response from the NoSQL server
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Client.NoSqlResponse.Success">
+            <summary>
+            Whether the operation was successful
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Client.NoSqlResponse.Data">
+            <summary>
+            Response data (if any)
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Client.NoSqlResponse.Error">
+            <summary>
+            Error information (if operation failed)
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Client.NoSqlError">
+            <summary>
+            Error information from the server
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Client.NoSqlError.Code">
+            <summary>
+            Error code
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Client.NoSqlError.Message">
+            <summary>
+            Error message
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Client.AdvGenNoSqlClient">
+            <summary>
+            A client for interacting with the NoSQL server over TCP
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Client.AdvGenNoSqlClient.IsConnected">
+            <summary>
+            Gets whether the client is currently connected to the server
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Client.AdvGenNoSqlClient.IsSecure">
+            <summary>
+            Gets whether the connection is using SSL/TLS encryption
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Client.AdvGenNoSqlClient.SslStream">
+            <summary>
+            Gets SSL/TLS connection information (null if not using SSL)
+            </summary>
+        </member>
+        <member name="E:AdvGenNoSqlServer.Client.AdvGenNoSqlClient.Connected">
+            <summary>
+            Event raised when the client connects to the server
+            </summary>
+        </member>
+        <member name="E:AdvGenNoSqlServer.Client.AdvGenNoSqlClient.Disconnected">
+            <summary>
+            Event raised when the client disconnects from the server
+            </summary>
+        </member>
+        <member name="E:AdvGenNoSqlServer.Client.AdvGenNoSqlClient.ErrorOccurred">
+            <summary>
+            Event raised when an error occurs
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Client.AdvGenNoSqlClient.#ctor(System.String)">
+            <summary>
+            Initializes a new instance of the <see cref="T:AdvGenNoSqlServer.Client.AdvGenNoSqlClient"/> class.
+            </summary>
+            <param name="serverAddress">The server address to connect to (format: "host:port").</param>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Client.AdvGenNoSqlClient.#ctor(System.String,AdvGenNoSqlServer.Client.AdvGenNoSqlClientOptions)">
+            <summary>
+            Initializes a new instance of the <see cref="T:AdvGenNoSqlServer.Client.AdvGenNoSqlClient"/> class.
+            </summary>
+            <param name="serverAddress">The server address to connect to (format: "host:port").</param>
+            <param name="options">Client options.</param>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Client.AdvGenNoSqlClient.ConnectAsync(System.Threading.CancellationToken)">
+            <summary>
+            Connects to the NoSQL server.
+            </summary>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>A task representing the asynchronous operation.</returns>
+            <exception cref="T:AdvGenNoSqlServer.Client.NoSqlClientException">Thrown when connection fails.</exception>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Client.AdvGenNoSqlClient.DisconnectAsync(System.Threading.CancellationToken)">
+            <summary>
+            Disconnects from the NoSQL server.
+            </summary>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>A task representing the asynchronous operation.</returns>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Client.AdvGenNoSqlClient.PingAsync(System.Threading.CancellationToken)">
+            <summary>
+            Sends a ping message to check server availability
+            </summary>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>True if pong received, false otherwise.</returns>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Client.AdvGenNoSqlClient.ExecuteCommandAsync(System.String,System.String,System.Object,System.Threading.CancellationToken)">
+            <summary>
+            Executes a command against the NoSQL server.
+            </summary>
+            <param name="command">The command to execute (e.g., "GET", "SET", "DELETE").</param>
+            <param name="collection">The collection to operate on.</param>
+            <param name="document">Optional document data.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>The command response.</returns>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Client.AdvGenNoSqlClient.ExecuteQueryAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Executes a query against the NoSQL server.
+            </summary>
+            <param name="query">The query to execute.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>The query results.</returns>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Client.AdvGenNoSqlClient.AuthenticateAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Authenticates with the server using username and password.
+            </summary>
+            <param name="username">The username.</param>
+            <param name="password">The password.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>True if authentication successful.</returns>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Client.AdvGenNoSqlClient.BatchInsertAsync(System.String,System.Collections.Generic.IEnumerable{System.Object},AdvGenNoSqlServer.Core.Models.BatchOptions,System.Threading.CancellationToken)">
+            <summary>
+            Inserts multiple documents in a single batch operation
+            </summary>
+            <param name="collection">The collection to insert into</param>
+            <param name="documents">The documents to insert</param>
+            <param name="options">Optional batch operation options</param>
+            <param name="cancellationToken">Cancellation token</param>
+            <returns>Batch operation response with results</returns>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Client.AdvGenNoSqlClient.BatchUpdateAsync(System.String,System.Collections.Generic.IEnumerable{System.ValueTuple{System.String,System.Collections.Generic.Dictionary{System.String,System.Object}}},AdvGenNoSqlServer.Core.Models.BatchOptions,System.Threading.CancellationToken)">
+            <summary>
+            Updates multiple documents in a single batch operation
+            </summary>
+            <param name="collection">The collection to update</param>
+            <param name="updates">List of (documentId, updateFields) tuples</param>
+            <param name="options">Optional batch operation options</param>
+            <param name="cancellationToken">Cancellation token</param>
+            <returns>Batch operation response with results</returns>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Client.AdvGenNoSqlClient.BatchDeleteAsync(System.String,System.Collections.Generic.IEnumerable{System.String},AdvGenNoSqlServer.Core.Models.BatchOptions,System.Threading.CancellationToken)">
+            <summary>
+            Deletes multiple documents in a single batch operation
+            </summary>
+            <param name="collection">The collection to delete from</param>
+            <param name="documentIds">The document IDs to delete</param>
+            <param name="options">Optional batch operation options</param>
+            <param name="cancellationToken">Cancellation token</param>
+            <returns>Batch operation response with results</returns>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Client.AdvGenNoSqlClient.ExecuteBatchAsync(AdvGenNoSqlServer.Core.Models.BatchOperationRequest,AdvGenNoSqlServer.Core.Models.BatchOptions,System.Threading.CancellationToken)">
+            <summary>
+            Executes a batch operation request
+            </summary>
+            <param name="request">The batch operation request</param>
+            <param name="options">Optional batch options</param>
+            <param name="cancellationToken">Cancellation token</param>
+            <returns>Batch operation response</returns>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Client.AdvGenNoSqlClient.BulkInsertAsync(System.String,System.Collections.Generic.IEnumerable{System.Object},System.Int32,AdvGenNoSqlServer.Core.Models.BatchOptions,System.Action{System.Int32,System.Int32},System.Threading.CancellationToken)">
+            <summary>
+            Splits a large set of documents into manageable batches and executes them sequentially
+            </summary>
+            <param name="collection">The target collection</param>
+            <param name="documents">The documents to insert</param>
+            <param name="batchSize">Size of each batch (default 1000)</param>
+            <param name="options">Optional batch options</param>
+            <param name="progressCallback">Optional callback for progress reporting</param>
+            <param name="cancellationToken">Cancellation token</param>
+            <returns>Combined batch operation response</returns>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Client.AdvGenNoSqlClient.Dispose">
+            <summary>
+            Disposes the client and releases all resources
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Client.AdvGenNoSqlClient.DisposeAsync">
+            <summary>
+            Asynchronously disposes the client and releases all resources
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Client.AdvGenNoSqlClientFactory">
+            <summary>
+            Factory for creating NoSQL client instances.
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Client.AdvGenNoSqlClientFactory.CreateClient(AdvGenNoSqlServer.Client.AdvGenNoSqlClientOptions)">
+            <summary>
+            Creates a new instance of the AdvGenNoSqlClient with the specified options.
+            </summary>
+            <param name="options">The client options.</param>
+            <returns>A new AdvGenNoSqlClient instance.</returns>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Client.AdvGenNoSqlClientFactory.CreateClient(System.String)">
+            <summary>
+            Creates a new instance of the AdvGenNoSqlClient with the specified server address.
+            </summary>
+            <param name="serverAddress">The server address.</param>
+            <returns>A new AdvGenNoSqlClient instance.</returns>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Client.AdvGenNoSqlClientOptions">
+            <summary>
+            Options for configuring the NoSQL client.
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Client.AdvGenNoSqlClientOptions.ServerAddress">
+            <summary>
+            Gets or sets the server address.
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Client.AdvGenNoSqlClientOptions.ConnectionTimeout">
+            <summary>
+            Gets or sets the connection timeout in milliseconds.
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Client.AdvGenNoSqlClientOptions.UseSsl">
+            <summary>
+            Gets or sets a value indicating whether to use SSL.
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Client.AdvGenNoSqlClientOptions.SslTargetHost">
+            <summary>
+            Gets or sets the target host name for SSL certificate validation.
+            If not set, the server address will be used.
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Client.AdvGenNoSqlClientOptions.ClientCertificate">
+            <summary>
+            Gets or sets the client certificate for mutual TLS (mTLS) authentication.
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Client.AdvGenNoSqlClientOptions.CheckCertificateRevocation">
+            <summary>
+            Gets or sets a value indicating whether to check certificate revocation list.
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Client.AdvGenNoSqlClientOptions.EnableKeepAlive">
+            <summary>
+            Gets or sets a value indicating whether keep-alive is enabled.
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Client.AdvGenNoSqlClientOptions.KeepAliveInterval">
+            <summary>
+            Gets or sets the keep-alive interval in milliseconds.
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Client.AdvGenNoSqlClientOptions.MaxRetryAttempts">
+            <summary>
+            Gets or sets the maximum retry attempts for failed operations.
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Client.AdvGenNoSqlClientOptions.RetryDelayMs">
+            <summary>
+            Gets or sets the retry delay in milliseconds.
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Client.AdvGenNoSqlClientOptions.AutoReconnect">
+            <summary>
+            Gets or sets a value indicating whether to auto-reconnect on connection loss.
+            </summary>
+        </member>
+    </members>
+</doc>

@@ -1,0 +1,1061 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>AdvGenNoSqlServer.Query</name>
+    </assembly>
+    <members>
+        <member name="T:AdvGenNoSqlServer.Query.Aggregation.AggregationPipeline">
+            <summary>
+            Represents an aggregation pipeline that processes documents through multiple stages
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Aggregation.AggregationPipeline.Stages">
+            <summary>
+            The stages in this pipeline
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.AggregationPipeline.#ctor">
+            <summary>
+            Creates a new empty aggregation pipeline
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.AggregationPipeline.#ctor(System.Collections.Generic.IEnumerable{AdvGenNoSqlServer.Query.Aggregation.IAggregationStage})">
+            <summary>
+            Creates an aggregation pipeline with the given stages
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.AggregationPipeline.AddStage(AdvGenNoSqlServer.Query.Aggregation.IAggregationStage)">
+            <summary>
+            Adds a stage to the pipeline
+            </summary>
+            <param name="stage">The stage to add</param>
+            <returns>This pipeline for method chaining</returns>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.AggregationPipeline.AddStages(System.Collections.Generic.IEnumerable{AdvGenNoSqlServer.Query.Aggregation.IAggregationStage})">
+            <summary>
+            Adds multiple stages to the pipeline
+            </summary>
+            <param name="stages">The stages to add</param>
+            <returns>This pipeline for method chaining</returns>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.AggregationPipeline.Execute(System.Collections.Generic.IEnumerable{AdvGenNoSqlServer.Core.Models.Document})">
+            <summary>
+            Executes the pipeline on a sequence of documents
+            </summary>
+            <param name="documents">Input documents</param>
+            <returns>The aggregation result</returns>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.AggregationPipeline.ExecuteAsync(System.Collections.Generic.IEnumerable{AdvGenNoSqlServer.Core.Models.Document},System.Threading.CancellationToken)">
+            <summary>
+            Executes the pipeline on a sequence of documents asynchronously
+            </summary>
+            <param name="documents">Input documents</param>
+            <param name="cancellationToken">Cancellation token</param>
+            <returns>The aggregation result</returns>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.AggregationPipeline.Clear">
+            <summary>
+            Clears all stages from the pipeline
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Aggregation.AggregationPipeline.StageCount">
+            <summary>
+            Returns the number of stages in the pipeline
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Aggregation.AggregationPipelineBuilder">
+            <summary>
+            Builder for creating aggregation pipelines with a fluent API
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.AggregationPipelineBuilder.#ctor(AdvGenNoSqlServer.Query.Filtering.IFilterEngine)">
+            <summary>
+            Creates a new AggregationPipelineBuilder
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.AggregationPipelineBuilder.Match(AdvGenNoSqlServer.Query.Models.QueryFilter)">
+            <summary>
+            Adds a $match stage to filter documents
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.AggregationPipelineBuilder.Match(System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>
+            Adds a $match stage to filter documents
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.AggregationPipelineBuilder.Group(System.Collections.Generic.Dictionary{System.String,AdvGenNoSqlServer.Query.Aggregation.Stages.GroupFieldSpec})">
+            <summary>
+            Adds a $group stage to group documents
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.AggregationPipelineBuilder.Group(System.String,System.Collections.Generic.Dictionary{System.String,AdvGenNoSqlServer.Query.Aggregation.Stages.GroupFieldSpec})">
+            <summary>
+            Adds a $group stage to group documents by a field
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.AggregationPipelineBuilder.Project(System.Collections.Generic.Dictionary{System.String,System.Boolean})">
+            <summary>
+            Adds a $project stage to reshape documents
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.AggregationPipelineBuilder.Project(System.Collections.Generic.Dictionary{System.String,System.Boolean},System.Collections.Generic.Dictionary{System.String,System.String})">
+            <summary>
+            Adds a $project stage with field mappings
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.AggregationPipelineBuilder.Sort(System.String,System.Boolean)">
+            <summary>
+            Adds a $sort stage to sort documents
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.AggregationPipelineBuilder.Sort(System.Collections.Generic.IEnumerable{AdvGenNoSqlServer.Query.Aggregation.Stages.SortSpec})">
+            <summary>
+            Adds a $sort stage with multiple sort fields
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.AggregationPipelineBuilder.Sort(System.Collections.Generic.Dictionary{System.String,System.Int32})">
+            <summary>
+            Adds a $sort stage from a dictionary
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.AggregationPipelineBuilder.Limit(System.Int32)">
+            <summary>
+            Adds a $limit stage to limit the number of documents
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.AggregationPipelineBuilder.Skip(System.Int32)">
+            <summary>
+            Adds a $skip stage to skip documents
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.AggregationPipelineBuilder.AddStage(AdvGenNoSqlServer.Query.Aggregation.IAggregationStage)">
+            <summary>
+            Adds a custom stage to the pipeline
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.AggregationPipelineBuilder.Build">
+            <summary>
+            Builds the aggregation pipeline
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.AggregationPipelineBuilder.Execute(System.Collections.Generic.IEnumerable{AdvGenNoSqlServer.Core.Models.Document})">
+            <summary>
+            Executes the pipeline on a sequence of documents
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.AggregationPipelineBuilder.ExecuteAsync(System.Collections.Generic.IEnumerable{AdvGenNoSqlServer.Core.Models.Document},System.Threading.CancellationToken)">
+            <summary>
+            Executes the pipeline on a sequence of documents asynchronously
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Aggregation.Aggregation">
+            <summary>
+            Static helper class for creating aggregation pipelines
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Aggregation.New(AdvGenNoSqlServer.Query.Filtering.IFilterEngine)">
+            <summary>
+            Creates a new pipeline builder
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Aggregation.Sum(System.String)">
+            <summary>
+            Creates a sum aggregation spec
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Aggregation.Avg(System.String)">
+            <summary>
+            Creates an average aggregation spec
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Aggregation.Min(System.String)">
+            <summary>
+            Creates a minimum aggregation spec
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Aggregation.Max(System.String)">
+            <summary>
+            Creates a maximum aggregation spec
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Aggregation.Count">
+            <summary>
+            Creates a count aggregation spec
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Aggregation.First(System.String)">
+            <summary>
+            Creates a first value aggregation spec
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Aggregation.Last(System.String)">
+            <summary>
+            Creates a last value aggregation spec
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Aggregation.Push(System.String)">
+            <summary>
+            Creates a push to array aggregation spec
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Aggregation.AddToSet(System.String)">
+            <summary>
+            Creates an add to set aggregation spec
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Aggregation.AggregationResult">
+            <summary>
+            Represents the result of an aggregation pipeline execution
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Aggregation.AggregationResult.Documents">
+            <summary>
+            The documents produced by the aggregation pipeline
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Aggregation.AggregationResult.Count">
+            <summary>
+            The number of documents in the result
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Aggregation.AggregationResult.Success">
+            <summary>
+            Whether the aggregation was successful
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Aggregation.AggregationResult.ErrorMessage">
+            <summary>
+            Error message if the aggregation failed
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Aggregation.AggregationResult.ExecutionTimeMs">
+            <summary>
+            Time taken to execute the aggregation in milliseconds
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Aggregation.AggregationResult.StagesExecuted">
+            <summary>
+            Number of stages executed in the pipeline
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.AggregationResult.SuccessResult(System.Collections.Generic.List{AdvGenNoSqlServer.Core.Models.Document},System.Int32,System.Int64)">
+            <summary>
+            Creates a successful aggregation result
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.AggregationResult.FailureResult(System.String)">
+            <summary>
+            Creates a failed aggregation result
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Aggregation.IAggregationStage">
+            <summary>
+            Interface for a single aggregation pipeline stage
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Aggregation.IAggregationStage.StageType">
+            <summary>
+            The type of aggregation stage (e.g., "$match", "$group", "$project")
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.IAggregationStage.Execute(System.Collections.Generic.IEnumerable{AdvGenNoSqlServer.Core.Models.Document})">
+            <summary>
+            Executes this stage on a sequence of documents
+            </summary>
+            <param name="documents">Input documents</param>
+            <returns>Transformed documents</returns>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.IAggregationStage.ExecuteAsync(System.Collections.Generic.IEnumerable{AdvGenNoSqlServer.Core.Models.Document},System.Threading.CancellationToken)">
+            <summary>
+            Executes this stage on a sequence of documents asynchronously
+            </summary>
+            <param name="documents">Input documents</param>
+            <param name="cancellationToken">Cancellation token</param>
+            <returns>Transformed documents</returns>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Aggregation.AggregationStageException">
+            <summary>
+            Exception thrown when an aggregation stage encounters an error
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Aggregation.AggregationStageException.StageType">
+            <summary>
+            The type of stage that threw the exception
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.AggregationStageException.#ctor(System.String,System.String)">
+            <summary>
+            Creates a new AggregationStageException
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.AggregationStageException.#ctor(System.String,System.String,System.Exception)">
+            <summary>
+            Creates a new AggregationStageException with an inner exception
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Aggregation.AggregationPipelineException">
+            <summary>
+            Exception thrown when an aggregation pipeline encounters an error
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.AggregationPipelineException.#ctor(System.String)">
+            <summary>
+            Creates a new AggregationPipelineException
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.AggregationPipelineException.#ctor(System.String,System.Exception)">
+            <summary>
+            Creates a new AggregationPipelineException with an inner exception
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Aggregation.Stages.GroupOperator">
+            <summary>
+            Represents an aggregation operator for $group stage
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Query.Aggregation.Stages.GroupOperator.Sum">
+            <summary>
+            Sum of values
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Query.Aggregation.Stages.GroupOperator.Avg">
+            <summary>
+            Average of values
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Query.Aggregation.Stages.GroupOperator.Min">
+            <summary>
+            Minimum value
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Query.Aggregation.Stages.GroupOperator.Max">
+            <summary>
+            Maximum value
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Query.Aggregation.Stages.GroupOperator.Count">
+            <summary>
+            Count of documents
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Query.Aggregation.Stages.GroupOperator.First">
+            <summary>
+            First value in group
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Query.Aggregation.Stages.GroupOperator.Last">
+            <summary>
+            Last value in group
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Query.Aggregation.Stages.GroupOperator.Push">
+            <summary>
+            Add to array
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Query.Aggregation.Stages.GroupOperator.AddToSet">
+            <summary>
+            Add unique values to set
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Aggregation.Stages.GroupFieldSpec">
+            <summary>
+            Represents a field aggregation specification in a $group stage
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Aggregation.Stages.GroupFieldSpec.Operator">
+            <summary>
+            The operator to apply
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Aggregation.Stages.GroupFieldSpec.FieldPath">
+            <summary>
+            The field path to aggregate (e.g., "$quantity" or "$price")
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Stages.GroupFieldSpec.#ctor(AdvGenNoSqlServer.Query.Aggregation.Stages.GroupOperator,System.String)">
+            <summary>
+            Creates a new GroupFieldSpec
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Aggregation.Stages.GroupStage">
+            <summary>
+            $group stage - Groups documents by a field and applies aggregations
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Aggregation.Stages.GroupStage.StageType">
+            <inheritdoc />
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Aggregation.Stages.GroupStage.GroupByField">
+            <summary>
+            The field to group by (null for grouping all documents)
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Aggregation.Stages.GroupStage.Aggregations">
+            <summary>
+            The aggregation specifications
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Stages.GroupStage.#ctor(System.Collections.Generic.Dictionary{System.String,AdvGenNoSqlServer.Query.Aggregation.Stages.GroupFieldSpec})">
+            <summary>
+            Creates a new GroupStage that groups all documents together
+            </summary>
+            <param name="aggregations">Field name to aggregation spec mapping</param>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Stages.GroupStage.#ctor(System.String,System.Collections.Generic.Dictionary{System.String,AdvGenNoSqlServer.Query.Aggregation.Stages.GroupFieldSpec})">
+            <summary>
+            Creates a new GroupStage that groups by a specific field
+            </summary>
+            <param name="groupByField">The field path to group by (e.g., "$category")</param>
+            <param name="aggregations">Field name to aggregation spec mapping</param>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Stages.GroupStage.Execute(System.Collections.Generic.IEnumerable{AdvGenNoSqlServer.Core.Models.Document})">
+            <inheritdoc />
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Stages.GroupStage.ExecuteAsync(System.Collections.Generic.IEnumerable{AdvGenNoSqlServer.Core.Models.Document},System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Aggregation.Stages.ObjectEqualityComparer">
+            <summary>
+            Equality comparer for objects that handles nulls and type conversions
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Aggregation.Stages.LimitStage">
+            <summary>
+            $limit stage - Limits the number of documents passed to the next stage
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Aggregation.Stages.LimitStage.StageType">
+            <inheritdoc />
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Aggregation.Stages.LimitStage.Limit">
+            <summary>
+            The maximum number of documents to return
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Stages.LimitStage.#ctor(System.Int32)">
+            <summary>
+            Creates a new LimitStage
+            </summary>
+            <param name="limit">Maximum number of documents (must be positive)</param>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Stages.LimitStage.Execute(System.Collections.Generic.IEnumerable{AdvGenNoSqlServer.Core.Models.Document})">
+            <inheritdoc />
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Stages.LimitStage.ExecuteAsync(System.Collections.Generic.IEnumerable{AdvGenNoSqlServer.Core.Models.Document},System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Aggregation.Stages.MatchStage">
+            <summary>
+            $match stage - Filters documents based on query criteria
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Aggregation.Stages.MatchStage.StageType">
+            <inheritdoc />
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Stages.MatchStage.#ctor(AdvGenNoSqlServer.Query.Filtering.IFilterEngine,AdvGenNoSqlServer.Query.Models.QueryFilter)">
+            <summary>
+            Creates a new MatchStage with a filter engine and filter criteria
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Stages.MatchStage.#ctor(AdvGenNoSqlServer.Query.Filtering.IFilterEngine,System.Collections.Generic.Dictionary{System.String,System.Object})">
+            <summary>
+            Creates a new MatchStage with a filter engine and filter conditions
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Stages.MatchStage.Execute(System.Collections.Generic.IEnumerable{AdvGenNoSqlServer.Core.Models.Document})">
+            <inheritdoc />
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Stages.MatchStage.ExecuteAsync(System.Collections.Generic.IEnumerable{AdvGenNoSqlServer.Core.Models.Document},System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Aggregation.Stages.ProjectStage">
+            <summary>
+            $project stage - Reshapes documents by including/excluding fields
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Aggregation.Stages.ProjectStage.StageType">
+            <inheritdoc />
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Stages.ProjectStage.#ctor(System.Collections.Generic.Dictionary{System.String,System.Boolean})">
+            <summary>
+            Creates a new ProjectStage with inclusion/exclusion projections
+            </summary>
+            <param name="projections">Field name to include (true) or exclude (false) mapping</param>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Stages.ProjectStage.#ctor(System.Collections.Generic.Dictionary{System.String,System.Boolean},System.Collections.Generic.Dictionary{System.String,System.String})">
+            <summary>
+            Creates a new ProjectStage with field mappings
+            </summary>
+            <param name="projections">Field name to include mapping</param>
+            <param name="fieldMappings">Source field to destination field mappings</param>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Stages.ProjectStage.Execute(System.Collections.Generic.IEnumerable{AdvGenNoSqlServer.Core.Models.Document})">
+            <inheritdoc />
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Stages.ProjectStage.ExecuteAsync(System.Collections.Generic.IEnumerable{AdvGenNoSqlServer.Core.Models.Document},System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Aggregation.Stages.SkipStage">
+            <summary>
+            $skip stage - Skips a specified number of documents
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Aggregation.Stages.SkipStage.StageType">
+            <inheritdoc />
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Aggregation.Stages.SkipStage.Skip">
+            <summary>
+            The number of documents to skip
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Stages.SkipStage.#ctor(System.Int32)">
+            <summary>
+            Creates a new SkipStage
+            </summary>
+            <param name="skip">Number of documents to skip (must be non-negative)</param>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Stages.SkipStage.Execute(System.Collections.Generic.IEnumerable{AdvGenNoSqlServer.Core.Models.Document})">
+            <inheritdoc />
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Stages.SkipStage.ExecuteAsync(System.Collections.Generic.IEnumerable{AdvGenNoSqlServer.Core.Models.Document},System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Aggregation.Stages.SortSpec">
+            <summary>
+            Represents a sort specification
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Aggregation.Stages.SortSpec.FieldPath">
+            <summary>
+            The field path to sort by
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Aggregation.Stages.SortSpec.Ascending">
+            <summary>
+            True for ascending, false for descending
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Stages.SortSpec.#ctor">
+            <summary>
+            Creates a new SortSpec
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Stages.SortSpec.#ctor(System.String,System.Boolean)">
+            <summary>
+            Creates a new SortSpec with the specified field and direction
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Stages.SortSpec.Asc(System.String)">
+            <summary>
+            Creates an ascending sort spec
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Stages.SortSpec.Desc(System.String)">
+            <summary>
+            Creates a descending sort spec
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Aggregation.Stages.SortStage">
+            <summary>
+            $sort stage - Sorts documents by specified fields
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Aggregation.Stages.SortStage.StageType">
+            <inheritdoc />
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Aggregation.Stages.SortStage.SortSpecs">
+            <summary>
+            The sort specifications
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Stages.SortStage.#ctor(System.String,System.Boolean)">
+            <summary>
+            Creates a new SortStage with a single sort field
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Stages.SortStage.#ctor(System.Collections.Generic.IEnumerable{AdvGenNoSqlServer.Query.Aggregation.Stages.SortSpec})">
+            <summary>
+            Creates a new SortStage with multiple sort fields
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Stages.SortStage.#ctor(System.Collections.Generic.Dictionary{System.String,System.Int32})">
+            <summary>
+            Creates a new SortStage from a dictionary (field path -> direction)
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Stages.SortStage.Execute(System.Collections.Generic.IEnumerable{AdvGenNoSqlServer.Core.Models.Document})">
+            <inheritdoc />
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Aggregation.Stages.SortStage.ExecuteAsync(System.Collections.Generic.IEnumerable{AdvGenNoSqlServer.Core.Models.Document},System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Aggregation.Stages.ObjectComparer">
+            <summary>
+            Comparer for objects that handles nulls and type conversions
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Execution.IQueryExecutor">
+            <summary>
+            Interface for executing queries against the document store
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Execution.IQueryExecutor.ExecuteAsync(AdvGenNoSqlServer.Query.Models.Query,System.Threading.CancellationToken)">
+            <summary>
+            Executes a query and returns the matching documents
+            </summary>
+            <param name="query">The query to execute</param>
+            <param name="cancellationToken">Cancellation token</param>
+            <returns>Query result containing matching documents</returns>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Execution.IQueryExecutor.CountAsync(AdvGenNoSqlServer.Query.Models.Query,System.Threading.CancellationToken)">
+            <summary>
+            Executes a query and returns the count of matching documents
+            </summary>
+            <param name="query">The query to execute (without options/sort)</param>
+            <param name="cancellationToken">Cancellation token</param>
+            <returns>Count of matching documents</returns>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Execution.IQueryExecutor.ExistsAsync(AdvGenNoSqlServer.Query.Models.Query,System.Threading.CancellationToken)">
+            <summary>
+            Checks if any documents match the query
+            </summary>
+            <param name="query">The query to check</param>
+            <param name="cancellationToken">Cancellation token</param>
+            <returns>True if at least one document matches, false otherwise</returns>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Execution.IQueryExecutor.ExplainAsync(AdvGenNoSqlServer.Query.Models.Query)">
+            <summary>
+            Gets query statistics without executing the full query
+            </summary>
+            <param name="query">The query to analyze</param>
+            <returns>Query statistics including execution plan</returns>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Execution.QueryExecutionException">
+            <summary>
+            Exception thrown when query execution fails
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Execution.QueryExecutor">
+            <summary>
+            Implementation of the query executor that runs queries against the document store
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Execution.QueryExecutor.#ctor(AdvGenNoSqlServer.Storage.IDocumentStore,AdvGenNoSqlServer.Query.Filtering.IFilterEngine,AdvGenNoSqlServer.Storage.Indexing.IndexManager)">
+            <summary>
+            Creates a new QueryExecutor
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Execution.QueryExecutor.ExecuteAsync(AdvGenNoSqlServer.Query.Models.Query,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Execution.QueryExecutor.CountAsync(AdvGenNoSqlServer.Query.Models.Query,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Execution.QueryExecutor.ExistsAsync(AdvGenNoSqlServer.Query.Models.Query,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Execution.QueryExecutor.ExplainAsync(AdvGenNoSqlServer.Query.Models.Query)">
+            <inheritdoc />
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Filtering.FilterEngine">
+            <summary>
+            Implementation of the filter engine for evaluating documents against query criteria
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Filtering.FilterEngine.Matches(AdvGenNoSqlServer.Core.Models.Document,AdvGenNoSqlServer.Query.Models.QueryFilter)">
+            <inheritdoc />
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Filtering.FilterEngine.Filter(System.Collections.Generic.IEnumerable{AdvGenNoSqlServer.Core.Models.Document},AdvGenNoSqlServer.Query.Models.QueryFilter)">
+            <inheritdoc />
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Filtering.FilterEngine.GetFieldValue(AdvGenNoSqlServer.Core.Models.Document,System.String)">
+            <inheritdoc />
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Filtering.IFilterEngine">
+            <summary>
+            Interface for filtering documents based on query criteria
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Filtering.IFilterEngine.Matches(AdvGenNoSqlServer.Core.Models.Document,AdvGenNoSqlServer.Query.Models.QueryFilter)">
+            <summary>
+            Checks if a document matches the filter criteria
+            </summary>
+            <param name="document">The document to check</param>
+            <param name="filter">The filter criteria</param>
+            <returns>True if the document matches, false otherwise</returns>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Filtering.IFilterEngine.Filter(System.Collections.Generic.IEnumerable{AdvGenNoSqlServer.Core.Models.Document},AdvGenNoSqlServer.Query.Models.QueryFilter)">
+            <summary>
+            Filters a collection of documents
+            </summary>
+            <param name="documents">The documents to filter</param>
+            <param name="filter">The filter criteria</param>
+            <returns>Documents matching the filter</returns>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Filtering.IFilterEngine.GetFieldValue(AdvGenNoSqlServer.Core.Models.Document,System.String)">
+            <summary>
+            Extracts a field value from a document using dot notation (e.g., "address.city")
+            </summary>
+            <param name="document">The document to extract from</param>
+            <param name="fieldPath">The field path using dot notation</param>
+            <returns>The field value if found, null otherwise</returns>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Filtering.FilterEvaluationException">
+            <summary>
+            Exception thrown when filter evaluation fails
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Models.Query">
+            <summary>
+            Represents a query to be executed against a document collection
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Models.Query.CollectionName">
+            <summary>
+            The name of the collection to query
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Models.Query.Filter">
+            <summary>
+            The filter criteria for the query
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Models.Query.Sort">
+            <summary>
+            Sort specifications for ordering results
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Models.Query.Options">
+            <summary>
+            Pagination and limit options
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Models.Query.Projection">
+            <summary>
+            The projection specification to select specific fields
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Models.QueryFilter">
+            <summary>
+            Represents filter criteria for querying documents
+            Supports MongoDB-like query syntax with operators
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Models.QueryFilter.Conditions">
+            <summary>
+            The filter conditions as a dictionary
+            Keys are field names or operators ($and, $or)
+            Values are the filter values or nested conditions
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Models.QueryFilter.#ctor">
+            <summary>
+            Creates an empty filter
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Models.QueryFilter.#ctor(System.Text.Json.JsonElement)">
+            <summary>
+            Creates a filter from a JSON element
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Models.QueryFilter.Eq(System.String,System.Object)">
+            <summary>
+            Creates a filter with a single equality condition
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Models.QueryFilter.Gt(System.String,System.Object)">
+            <summary>
+            Creates a filter with a greater than condition
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Models.QueryFilter.Gte(System.String,System.Object)">
+            <summary>
+            Creates a filter with a greater than or equal condition
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Models.QueryFilter.Lt(System.String,System.Object)">
+            <summary>
+            Creates a filter with a less than condition
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Models.QueryFilter.Lte(System.String,System.Object)">
+            <summary>
+            Creates a filter with a less than or equal condition
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Models.QueryFilter.Ne(System.String,System.Object)">
+            <summary>
+            Creates a filter with a not equal condition
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Models.QueryFilter.In(System.String,System.Collections.Generic.IEnumerable{System.Object})">
+            <summary>
+            Creates a filter with an "in" condition
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Models.QueryFilter.Nin(System.String,System.Collections.Generic.IEnumerable{System.Object})">
+            <summary>
+            Creates a filter with a "not in" condition
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Models.QueryFilter.And(AdvGenNoSqlServer.Query.Models.QueryFilter)">
+            <summary>
+            Combines this filter with another using AND logic
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Models.QueryFilter.Or(AdvGenNoSqlServer.Query.Models.QueryFilter)">
+            <summary>
+            Combines this filter with another using OR logic
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Models.SortField">
+            <summary>
+            Specifies a field to sort by and the sort direction
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Models.SortField.FieldName">
+            <summary>
+            The field name to sort by
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Models.SortField.Direction">
+            <summary>
+            The sort direction (1 for ascending, -1 for descending)
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Models.SortField.Ascending(System.String)">
+            <summary>
+            Creates an ascending sort field
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Models.SortField.Descending(System.String)">
+            <summary>
+            Creates a descending sort field
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Models.SortDirection">
+            <summary>
+            Sort direction enumeration
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Query.Models.SortDirection.Ascending">
+            <summary>
+            Ascending order (A to Z, 0 to 9)
+            </summary>
+        </member>
+        <member name="F:AdvGenNoSqlServer.Query.Models.SortDirection.Descending">
+            <summary>
+            Descending order (Z to A, 9 to 0)
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Models.QueryOptions">
+            <summary>
+            Options for query execution including pagination
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Models.QueryOptions.Limit">
+            <summary>
+            Maximum number of documents to return
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Models.QueryOptions.Skip">
+            <summary>
+            Number of documents to skip before returning results
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Models.QueryOptions.IncludeTotalCount">
+            <summary>
+            Whether to include the total count of matching documents
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Models.QueryOptions.TimeoutMs">
+            <summary>
+            Maximum time in milliseconds to wait for query execution
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Models.QueryResult">
+            <summary>
+            Represents the result of a query execution
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Models.QueryResult.Documents">
+            <summary>
+            The documents matching the query
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Models.QueryResult.TotalCount">
+            <summary>
+            Total number of documents matching the query (before pagination)
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Models.QueryResult.Skipped">
+            <summary>
+            Number of documents skipped
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Models.QueryResult.ReturnedCount">
+            <summary>
+            Number of documents returned
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Models.QueryResult.HasMore">
+            <summary>
+            Whether there are more results available
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Models.QueryResult.ExecutionTimeMs">
+            <summary>
+            Query execution time in milliseconds
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Models.QueryResult.Success">
+            <summary>
+            Whether the query was successful
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Models.QueryResult.ErrorMessage">
+            <summary>
+            Error message if the query failed
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Models.QueryResult.SuccessResult(System.Collections.Generic.List{AdvGenNoSqlServer.Core.Models.Document},System.Int64,System.Int32,System.Int64)">
+            <summary>
+            Creates a successful result with documents
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Models.QueryResult.FailureResult(System.String)">
+            <summary>
+            Creates a failed result with an error message
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Models.QueryResult.EmptyResult">
+            <summary>
+            Creates an empty result
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Models.QueryStats">
+            <summary>
+            Represents statistics about a query execution
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Models.QueryStats.ExecutionTimeMs">
+            <summary>
+            Query execution time in milliseconds
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Models.QueryStats.DocumentsScanned">
+            <summary>
+            Number of documents scanned
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Models.QueryStats.DocumentsReturned">
+            <summary>
+            Number of documents returned
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Models.QueryStats.IndexUsed">
+            <summary>
+            Whether an index was used for the query
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Models.QueryStats.IndexName">
+            <summary>
+            Name of the index used (if any)
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Models.QueryStats.ExecutionPlan">
+            <summary>
+            Stage-by-stage execution plan
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Models.QueryPlanStage">
+            <summary>
+            Represents a stage in the query execution plan
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Models.QueryPlanStage.StageName">
+            <summary>
+            Name of the stage (e.g., "CollectionScan", "IndexScan", "Filter", "Sort")
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Models.QueryPlanStage.ExecutionTimeMs">
+            <summary>
+            Time spent in this stage (milliseconds)
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Models.QueryPlanStage.DocumentsProcessed">
+            <summary>
+            Number of documents processed in this stage
+            </summary>
+        </member>
+        <member name="P:AdvGenNoSqlServer.Query.Models.QueryPlanStage.Details">
+            <summary>
+            Stage-specific details
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Parsing.IQueryParser">
+            <summary>
+            Interface for parsing queries from various formats
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Parsing.IQueryParser.Parse(System.String)">
+            <summary>
+            Parses a query from a JSON string
+            </summary>
+            <param name="json">The JSON query string</param>
+            <returns>The parsed Query object</returns>
+            <exception cref="T:AdvGenNoSqlServer.Query.Parsing.QueryParseException">Thrown when the query cannot be parsed</exception>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Parsing.IQueryParser.Parse(System.Text.Json.JsonElement)">
+            <summary>
+            Parses a query from a JSON element
+            </summary>
+            <param name="jsonElement">The JSON element to parse</param>
+            <returns>The parsed Query object</returns>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Parsing.IQueryParser.ParseFilter(System.String)">
+            <summary>
+            Parses a filter from a JSON string
+            </summary>
+            <param name="json">The JSON filter string</param>
+            <returns>The parsed QueryFilter</returns>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Parsing.IQueryParser.TryParse(System.String,AdvGenNoSqlServer.Query.Models.Query@,System.String@)">
+            <summary>
+            Tries to parse a query from a JSON string
+            </summary>
+            <param name="json">The JSON query string</param>
+            <param name="query">The parsed query if successful</param>
+            <param name="error">Error message if parsing failed</param>
+            <returns>True if parsing succeeded, false otherwise</returns>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Parsing.QueryParseException">
+            <summary>
+            Exception thrown when a query cannot be parsed
+            </summary>
+        </member>
+        <member name="T:AdvGenNoSqlServer.Query.Parsing.QueryParser">
+            <summary>
+            Implementation of the query parser supporting MongoDB-like syntax
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Parsing.QueryParser.#ctor">
+            <summary>
+            Creates a new QueryParser with default options
+            </summary>
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Parsing.QueryParser.Parse(System.String)">
+            <inheritdoc />
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Parsing.QueryParser.Parse(System.Text.Json.JsonElement)">
+            <inheritdoc />
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Parsing.QueryParser.ParseFilter(System.String)">
+            <inheritdoc />
+        </member>
+        <member name="M:AdvGenNoSqlServer.Query.Parsing.QueryParser.TryParse(System.String,AdvGenNoSqlServer.Query.Models.Query@,System.String@)">
+            <inheritdoc />
+        </member>
+    </members>
+</doc>

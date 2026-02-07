@@ -28,3 +28,7 @@ E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Host\obj\Release\net9.0\refint\A
 E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Host\obj\Release\net9.0\AdvGenNoSqlServer.Host.pdb
 E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Host\obj\Release\net9.0\AdvGenNoSqlServer.Host.genruntimeconfig.cache
 E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Host\obj\Release\net9.0\ref\AdvGenNoSqlServer.Host.dll
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Host\bin\Release\net9.0\AdvGenNoSqlServer.Core.xml
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Host\bin\Release\net9.0\AdvGenNoSqlServer.Storage.xml
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Host\bin\Release\net9.0\AdvGenNoSqlServer.Network.xml
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Host\bin\Release\net9.0\AdvGenNoSqlServer.Query.xml

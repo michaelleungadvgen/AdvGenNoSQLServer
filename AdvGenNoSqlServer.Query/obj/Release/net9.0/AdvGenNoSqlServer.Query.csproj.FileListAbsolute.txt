@@ -15,3 +15,6 @@ E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Query\bin\Release\net9.0\AdvGenN
 E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Query\bin\Release\net9.0\AdvGenNoSqlServer.Core.pdb
 E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Query\bin\Release\net9.0\AdvGenNoSqlServer.Storage.pdb
 E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Query\obj\Release\net9.0\AdvGenNo.68BD0F8D.Up2Date
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Query\bin\Release\net9.0\AdvGenNoSqlServer.Query.xml
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Query\bin\Release\net9.0\AdvGenNoSqlServer.Core.xml
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Query\bin\Release\net9.0\AdvGenNoSqlServer.Storage.xml

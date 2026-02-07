@@ -13,3 +13,5 @@ E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Storage\obj\Release\net9.0\AdvGe
 E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Storage\obj\Release\net9.0\refint\AdvGenNoSqlServer.Storage.dll
 E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Storage\obj\Release\net9.0\AdvGenNoSqlServer.Storage.pdb
 E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Storage\obj\Release\net9.0\ref\AdvGenNoSqlServer.Storage.dll
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Storage\bin\Release\net9.0\AdvGenNoSqlServer.Storage.xml
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Storage\bin\Release\net9.0\AdvGenNoSqlServer.Core.xml

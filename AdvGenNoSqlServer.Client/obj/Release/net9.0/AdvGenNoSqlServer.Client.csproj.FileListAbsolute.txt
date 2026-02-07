@@ -15,3 +15,6 @@ E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Client\obj\Release\net9.0\AdvGen
 E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Client\obj\Release\net9.0\refint\AdvGenNoSqlServer.Client.dll
 E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Client\obj\Release\net9.0\AdvGenNoSqlServer.Client.pdb
 E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Client\obj\Release\net9.0\ref\AdvGenNoSqlServer.Client.dll
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Client\bin\Release\net9.0\AdvGenNoSqlServer.Client.xml
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Client\bin\Release\net9.0\AdvGenNoSqlServer.Core.xml
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Client\bin\Release\net9.0\AdvGenNoSqlServer.Network.xml
