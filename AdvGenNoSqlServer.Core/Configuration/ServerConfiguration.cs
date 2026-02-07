@@ -118,4 +118,29 @@ public class ServerConfiguration
     public bool EnableJwtAuthentication { get; set; } = true;
 
     #endregion
+
+    #region Encryption Configuration
+
+    /// <summary>
+    /// Master encryption key for data at rest (Base64 encoded, 32 bytes for AES-256)
+    /// If not set, a random key will be generated (data will not persist across restarts)
+    /// </summary>
+    public string? EncryptionKey { get; set; }
+
+    /// <summary>
+    /// Identifier for the current encryption key (for key rotation support)
+    /// </summary>
+    public string? EncryptionKeyId { get; set; }
+
+    /// <summary>
+    /// Whether to enable encryption for sensitive fields (default: false)
+    /// </summary>
+    public bool EnableFieldEncryption { get; set; } = false;
+
+    /// <summary>
+    /// Path to the key store file for encrypted key storage
+    /// </summary>
+    public string? KeyStorePath { get; set; }
+
+    #endregion
 }

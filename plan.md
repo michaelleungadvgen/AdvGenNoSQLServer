@@ -603,7 +603,7 @@ Where third-party libraries have restrictive licenses, we implement custom solut
 - [x] Token generation and validation (JWT)
 - [x] Role-based access control
 - [ ] TLS/SSL support
-- [ ] Encryption for sensitive data
+- [x] Encryption for sensitive data
 - [x] Audit logging (IAuditLogger, AuditLogger with file-based logging, 44 tests)
 
 ### Storage

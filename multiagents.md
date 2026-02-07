@@ -18,6 +18,32 @@
 
 ---
 
+### Agent-15: Encryption Service Implementation
+**Scope**: Implement encryption/decryption service for sensitive data at rest
+**Components**:
+- [ ] IEncryptionService interface with encrypt/decrypt methods
+- [ ] EncryptionService implementation using AES-256-GCM
+- [ ] Support for field-level encryption in documents
+- [ ] Key derivation using PBKDF2 or Argon2
+- [ ] Secure key storage interface (IKeyStore)
+- [ ] In-memory key store implementation
+- [ ] Unit tests for encryption/decryption operations
+- [ ] Integration with Document model for encrypted fields
+
+**Dependencies**:
+- Document model (exists)
+- ServerConfiguration (exists)
+- Authentication layer (exists)
+
+**Notes**:
+- Use AES-256-GCM for authenticated encryption
+- Use System.Security.Cryptography (MIT licensed)
+- Support key rotation capability
+- Follow existing code patterns with license headers
+- No external encryption libraries (must use built-in .NET crypto)
+
+---
+
 ### Agent-12: Write-Ahead Log (WAL) Implementation
 **Scope**: Implement Write-Ahead Logging system for transaction durability and crash recovery
 **Components**:
@@ -97,6 +123,33 @@
 - Use MIT-compatible dependencies only (no external JWT libraries)
 
 ## Completed Tasks
+
+### Agent-15: Encryption Service Implementation ✓ COMPLETED
+**Scope**: Implement encryption/decryption service for sensitive data at rest
+**Completed**: 2026-02-07
+**Summary**:
+- Implemented IEncryptionService interface with comprehensive encrypt/decrypt methods
+- Created EncryptionService class using AES-256-GCM authenticated encryption
+- Implemented secure key generation using RandomNumberGenerator
+- Added PBKDF2 key derivation from passwords with configurable iterations
+- Implemented key rotation capability for re-encrypting data with new keys
+- Added IKeyStore interface for future key management integration
+- Created EncryptionException for proper error handling
+- Updated ServerConfiguration with encryption settings (EncryptionKey, EncryptionKeyId, EnableFieldEncryption, KeyStorePath)
+- Added 51 comprehensive unit tests (all passing)
+
+**Files Created**:
+- AdvGenNoSqlServer.Core/Authentication/IEncryptionService.cs (133 lines)
+- AdvGenNoSqlServer.Core/Authentication/EncryptionService.cs (400+ lines)
+- AdvGenNoSqlServer.Tests/EncryptionServiceTests.cs (580+ lines, 51 tests)
+
+**Files Modified**:
+- AdvGenNoSqlServer.Core/Configuration/ServerConfiguration.cs (Added encryption properties)
+
+**Build Status**: ✓ Compiles successfully (0 errors, 0 warnings from new code)
+**Test Status**: ✓ 51/51 Encryption Service tests pass
+
+---
 
 ### Agent-13: Transaction Coordinator Implementation ✓ COMPLETED
 **Scope**: Implement the Transaction Coordinator that brings together LockManager and WAL for full ACID transaction support
