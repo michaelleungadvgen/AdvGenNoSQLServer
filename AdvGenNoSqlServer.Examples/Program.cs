@@ -234,7 +234,7 @@ class Program
             KeepAliveInterval = TimeSpan.FromSeconds(30)
         };
 
-        using var client = new AdvGenNoSqlClient("localhost:9090", options);
+        using var client = new AdvGenNoSqlClient("localhost:9091", options);
 
         try
         {
@@ -249,14 +249,11 @@ class Program
 
             // Execute a command
             Console.WriteLine("\nExecuting insert command...");
-            var insertCommand = JsonSerializer.Serialize(new
-            {
-                command = "insert",
-                collection = "test",
-                document = new { _id = "doc1", message = "Hello, NoSQL!" }
-            });
-            var response = await client.ExecuteCommandAsync("insert", insertCommand);
-            Console.WriteLine($"Command response: {response}");
+            var response = await client.ExecuteCommandAsync(
+                "insert",
+                "test",
+                new { _id = "doc1", message = "Hello, NoSQL!" });
+            Console.WriteLine($"Command response: Success={response.Success}");
 
             // Batch operations example
             Console.WriteLine("\nExecuting batch insert...");
