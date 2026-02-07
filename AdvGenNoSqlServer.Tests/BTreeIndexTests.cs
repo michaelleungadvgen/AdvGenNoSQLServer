@@ -131,7 +131,7 @@ public class BTreeIndexTests
         Assert.Throws<ArgumentNullException>(() => index.Insert(null!, "value"));
     }
 
-    [Fact(Skip = "Tree splitting edge case - 39 items work correctly, investigating larger datasets")]
+    [Fact]
     public void Insert_LargeNumberOfItems_MaintainsBTreeProperties()
     {
         // Using minDegree=4 (default) for stability with larger datasets
@@ -154,10 +154,10 @@ public class BTreeIndexTests
         }
     }
 
-    [Fact(Skip = "Tree splitting edge case - investigating")]
+    [Fact]
     public void Insert_ModerateNumberOfItems_MaintainsBTreeProperties()
     {
-        // Verified working: 25 items insert correctly
+        // Verified working: 35 items insert correctly
         var index = new BTreeIndex<int, string>("test_idx", "users", "age", minDegree: 4);
 
         for (int i = 0; i < 35; i++)
@@ -175,10 +175,10 @@ public class BTreeIndexTests
         }
     }
 
-    [Fact(Skip = "Tree splitting edge case - investigating")]
+    [Fact]
     public void Insert_SmallNumberOfItems_MaintainsBTreeProperties()
     {
-        // Verified working: 20 items insert correctly
+        // Verified working: 25 items insert correctly
         var index = new BTreeIndex<int, string>("test_idx", "users", "age", minDegree: 4);
 
         for (int i = 0; i < 25; i++)
@@ -196,7 +196,7 @@ public class BTreeIndexTests
         }
     }
 
-    [Fact(Skip = "Tree splitting edge case - investigating")]
+    [Fact]
     public void Insert_VerySmallNumberOfItems_MaintainsBTreeProperties()
     {
         var index = new BTreeIndex<int, string>("test_idx", "users", "age", minDegree: 4);
@@ -216,7 +216,7 @@ public class BTreeIndexTests
         }
     }
 
-    [Fact(Skip = "Descending insertion edge case - investigating tree splitting")]
+    [Fact]
     public void Insert_DescendingOrder_MaintainsCorrectness()
     {
         var index = new BTreeIndex<int, string>("test_idx", "users", "age");
@@ -234,7 +234,7 @@ public class BTreeIndexTests
         }
     }
 
-    [Fact(Skip = "Tree splitting edge case - investigating")]
+    [Fact]
     public void Insert_DescendingOrder_SmallSet_MaintainsCorrectness()
     {
         var index = new BTreeIndex<int, string>("test_idx", "users", "age");
@@ -252,7 +252,7 @@ public class BTreeIndexTests
         }
     }
 
-    [Fact(Skip = "Tree splitting edge case - investigating")]
+    [Fact]
     public void Insert_DescendingOrder_VerySmallSet_MaintainsCorrectness()
     {
         var index = new BTreeIndex<int, string>("test_idx", "users", "age");
@@ -270,7 +270,7 @@ public class BTreeIndexTests
         }
     }
 
-    [Fact(Skip = "Tree splitting edge case - investigating")]
+    [Fact]
     public void Insert_DescendingOrder_MinimalSet_MaintainsCorrectness()
     {
         var index = new BTreeIndex<int, string>("test_idx", "users", "age");
@@ -467,7 +467,7 @@ public class BTreeIndexTests
         Assert.False(index.ContainsKey(25));
     }
 
-    [Fact(Skip = "Complex tree structure deletion - investigating")]
+    [Fact(Skip = "Deletion with tree rebalancing - requires separate fix")]
     public void Delete_MultipleItems_MaintainsTreeStructure()
     {
         var index = new BTreeIndex<int, string>("test_idx", "users", "age", minDegree: 4);
@@ -498,7 +498,7 @@ public class BTreeIndexTests
         }
     }
 
-    [Fact(Skip = "Delete edge case - investigating")]
+    [Fact(Skip = "Deletion with tree rebalancing - requires separate fix")]
     public void Delete_SimpleItems_WorksCorrectly()
     {
         var index = new BTreeIndex<int, string>("test_idx", "users", "age", minDegree: 4);
@@ -546,7 +546,7 @@ public class BTreeIndexTests
 
     #region Range Query Tests
 
-    [Fact(Skip = "Tree splitting edge case - investigating")]
+    [Fact]
     public void RangeQuery_ValidRange_ReturnsCorrectItems()
     {
         var index = new BTreeIndex<int, string>("test_idx", "users", "age");
@@ -562,7 +562,7 @@ public class BTreeIndexTests
         Assert.Equal(20, results[5].Key);
     }
 
-    [Fact(Skip = "Tree splitting edge case - investigating")]
+    [Fact]
     public void RangeQuery_SmallSet_ReturnsCorrectItems()
     {
         var index = new BTreeIndex<int, string>("test_idx", "users", "age");

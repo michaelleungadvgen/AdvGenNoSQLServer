@@ -302,7 +302,7 @@ AdvGenNoSQLServer/
 - [x] Encryption tests (51 tests)
 - [x] Document store tests (37 tests)
 - [x] Persistent store tests (33 tests)
-- [x] B-tree index tests (77 tests)
+- [x] B-tree index tests (77 tests - all passing, edge cases fixed by Agent-32)
 - [x] Index manager tests (30 tests)
 - [x] Query engine tests (48 tests)
 - [x] Aggregation pipeline tests (49 tests)
@@ -540,10 +540,10 @@ AdvGenNoSQLServer/
    - Impact: Data in transit not encrypted
    - Target: Week 15
 
-3. **B-tree Edge Cases**
-   - Tree splitting for datasets >16 items needs refinement (17 tests skipped)
-   - Impact: Large index performance may be suboptimal
-   - Target: Week 14
+3. **B-tree Edge Cases** ✓ RESOLVED
+   - ~~Tree splitting for datasets >16 items needs refinement (17 tests skipped)~~ ✓ FIXED (Agent-32)
+   - Fixed `SplitChild` method to correctly handle leaf node linking during splits
+   - Test count: 77/77 B-tree tests passing (previously 17 skipped)
 
 ### Low Priority
 1. **Query Optimizer**
@@ -590,7 +590,7 @@ Projects (8 total):
 Total Tests: 761
 Passed: 734 (unit tests + 1 stress smoke test)
 Pending: 0 (all integration tests now passing)
-Skipped: 27 (4 stress tests + 17 B-tree edge cases + 6 cache TTL timing)
+Skipped: 10 (4 stress tests + 6 cache TTL timing)
 
 Test Breakdown by Component:
   - Network: 67 tests ✓

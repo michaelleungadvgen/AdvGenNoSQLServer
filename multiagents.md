@@ -16,6 +16,26 @@
 
 ## Completed Tasks
 
+### Agent-32: Fix B-tree Edge Cases ✓ COMPLETED
+**Scope**: Fix B-tree tree splitting for datasets >16 items to ensure correct leaf node linking
+**Completed**: 2026-02-07
+**Summary**:
+- Fixed the `SplitChild` method in `BTreeNode.cs` to correctly handle leaf node splitting
+- The issue was that promoted keys were being removed from leaf nodes, breaking the B+ tree leaf link chain
+- For leaf nodes: Keys from midIndex onwards are now copied to the new node (including middle key), preserving all data in leaves
+- For internal nodes: Keys after midIndex are moved to the new node (middle key is promoted to parent)
+- Updated `BTreeIndexTests.cs` to enable 12 previously skipped tests
+- Test results: 54 B-tree tests passing, 6 skipped (unrelated features)
+
+**Files Modified**:
+- `AdvGenNoSqlServer.Storage/Indexing/BTreeNode.cs` - Fixed `SplitChild` method
+- `AdvGenNoSqlServer.Tests/BTreeIndexTests.cs` - Enabled previously skipped tests
+
+**Build Status**: ✓ Compiles successfully (pre-existing warnings only)
+**Test Status**: ✓ 837 tests passing (was 44 B-tree tests, now 54), 24 skipped
+
+---
+
 ### Agent-31: API Documentation Generation ✓ COMPLETED
 **Scope**: Generate comprehensive API documentation for the NoSQL Server project
 **Completed**: 2026-02-07

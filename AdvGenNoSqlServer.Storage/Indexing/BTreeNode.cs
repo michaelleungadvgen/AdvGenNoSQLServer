@@ -173,19 +173,39 @@ internal class BTreeNode<TKey, TValue> where TKey : IComparable<TKey>
 
         int midIndex = _minDegree - 1;
 
-        // Copy second half of keys and values to new node
-        for (int i = 0; i < midIndex; i++)
+        // Get the middle key that will be promoted to parent
+        TKey middleKey = child.Keys[midIndex];
+        List<TValue> middleValues = child.Values[midIndex];
+
+        if (child.IsLeaf)
         {
-            newNode.Keys.Add(child.Keys[midIndex + 1 + i]);
-            newNode.Values.Add(child.Values[midIndex + 1 + i]);
+            // For leaf nodes, copy keys from midIndex onwards to new node
+            // This includes the middle key which stays in the leaf for B+ tree behavior
+            for (int i = midIndex; i < child.Keys.Count; i++)
+            {
+                newNode.Keys.Add(child.Keys[i]);
+                newNode.Values.Add(child.Values[i]);
+            }
+            // Remove keys from midIndex onwards from the original child
+            child.Keys.RemoveRange(midIndex, child.Keys.Count - midIndex);
+            child.Values.RemoveRange(midIndex, child.Values.Count - midIndex);
+
+            // Link leaf nodes
+            newNode.NextLeaf = child.NextLeaf;
+            child.NextLeaf = newNode;
         }
-
-        // Remove copied keys and values from child
-        child.Keys.RemoveRange(midIndex + 1, midIndex);
-        child.Values.RemoveRange(midIndex + 1, midIndex);
-
-        if (!child.IsLeaf)
+        else
         {
+            // For internal nodes, copy keys after midIndex to new node
+            for (int i = 0; i < midIndex; i++)
+            {
+                newNode.Keys.Add(child.Keys[midIndex + 1 + i]);
+                newNode.Values.Add(child.Values[midIndex + 1 + i]);
+            }
+            // Remove keys from midIndex onwards (including middle key)
+            child.Keys.RemoveRange(midIndex, midIndex + 1);
+            child.Values.RemoveRange(midIndex, midIndex + 1);
+
             // Copy second half of children
             for (int i = 0; i < _minDegree; i++)
             {
@@ -194,19 +214,8 @@ internal class BTreeNode<TKey, TValue> where TKey : IComparable<TKey>
             }
             child.Children.RemoveRange(midIndex + 1, _minDegree);
         }
-        else
-        {
-            // Link leaf nodes
-            newNode.NextLeaf = child.NextLeaf;
-            child.NextLeaf = newNode;
-        }
 
-        // Move middle key up to this node
-        TKey middleKey = child.Keys[midIndex];
-        List<TValue> middleValues = child.Values[midIndex];
-        child.Keys.RemoveAt(midIndex);
-        child.Values.RemoveAt(midIndex);
-
+        // Insert middle key into parent (this node)
         Keys.Insert(childIndex, middleKey);
         Values.Insert(childIndex, middleValues);
         Children.Insert(childIndex + 1, newNode);
