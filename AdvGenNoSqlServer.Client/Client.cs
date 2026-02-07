@@ -384,7 +384,9 @@ namespace AdvGenNoSqlServer.Client
             var header = _messageProtocol.ParseHeader(headerBuffer);
 
             if (!_messageProtocol.ValidateHeader(header))
+            {
                 throw new NoSqlProtocolException("Invalid message header received from server");
+            }
 
             // Read payload + checksum
             var payloadLength = header.PayloadLength;
@@ -431,7 +433,7 @@ namespace AdvGenNoSqlServer.Client
             while (totalRead < count)
             {
                 var read = await _networkStream.ReadAsync(
-                    buffer.AsMemory(totalRead, count - totalRead), 
+                    buffer.AsMemory(totalRead, count - totalRead),
                     cancellationToken);
 
                 if (read == 0)

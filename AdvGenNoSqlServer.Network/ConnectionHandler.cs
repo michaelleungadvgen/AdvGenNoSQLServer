@@ -99,13 +99,13 @@ namespace AdvGenNoSqlServer.Network
             try
             {
                 // Read the header (12 bytes)
+                // Note: ReadExactAsync returns a copied array, not a pooled one
                 var headerBuffer = await ReadExactAsync(MessageHeader.HeaderSize, cancellationToken);
                 if (headerBuffer == null)
                     return null;
 
                 // Parse header
                 var header = _protocol.ParseHeader(headerBuffer);
-                ArrayPool<byte>.Shared.Return(headerBuffer);
 
                 // Validate header
                 if (!_protocol.ValidateHeader(header))
@@ -126,17 +126,14 @@ namespace AdvGenNoSqlServer.Network
                 var checksumBuffer = await ReadExactAsync(4, cancellationToken);
                 if (checksumBuffer == null)
                 {
-                    if (payload != null) ArrayPool<byte>.Shared.Return(payload);
                     return null;
                 }
 
                 var checksum = BinaryPrimitives.ReadUInt32BigEndian(checksumBuffer);
-                ArrayPool<byte>.Shared.Return(checksumBuffer);
 
                 // Validate checksum
                 if (!_protocol.ValidateChecksum(payload ?? Array.Empty<byte>(), checksum))
                 {
-                    if (payload != null) ArrayPool<byte>.Shared.Return(payload);
                     throw new ProtocolException("Checksum validation failed");
                 }
 
@@ -212,9 +209,12 @@ namespace AdvGenNoSqlServer.Network
             try
             {
                 var data = _protocol.Serialize(message);
+                // Calculate actual message length: header (12) + payload + checksum (4)
+                // Note: ArrayPool.Rent may return a larger buffer than requested
+                var actualLength = MessageHeader.HeaderSize + message.PayloadLength + 4;
                 try
                 {
-                    await _stream.WriteAsync(data, cancellationToken);
+                    await _stream.WriteAsync(data.AsMemory(0, actualLength), cancellationToken);
                     await _stream.FlushAsync(cancellationToken);
                 }
                 finally

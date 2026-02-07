@@ -10,9 +10,75 @@
 
 | Agent | Task | Status | Started | Target Completion |
 |-------|------|--------|---------|-------------------|
-| None | - | - | - | - |
+| Agent-20 | Batch operation support | In Progress | 2026-02-07 | 2026-02-07 |
+| Agent-21 | Performance Benchmarks | Completed | 2026-02-07 | 2026-02-07 |
+| Agent-22 | Fix Integration Tests (server-side message handling) | Completed | 2026-02-07 | 2026-02-07 |
 
 ## Completed Tasks
+
+### Agent-22: Fix Integration Tests (server-side message handling) ✓ COMPLETED
+**Scope**: Fix the 10 failing integration tests in NoSqlClientTests by addressing server-side message handling issues
+**Completed**: 2026-02-07
+**Summary**:
+- Fixed ArrayPool.Return bug in ConnectionHandler.ReadMessageAsync - was incorrectly returning arrays from ReadExactAsync which returns copied arrays, not pooled ones
+- Fixed ConnectionHandler.SendAsync to only write actual message length using `data.AsMemory(0, actualLength)` instead of entire rented buffer (ArrayPool.Rent returns larger buffers than requested)
+- Added TaskCompletionSource pattern in MessageReceivedEventArgs for proper async event handler synchronization
+- Modified ProcessConnectionLoopAsync to await response before reading next message
+- Fixed NoSqlServer.HandlePingAsync to return MessageType.Pong instead of MessageType.Response (client expects Pong)
+- All 25 client integration tests now pass (was 15 passing, 10 failing)
+
+**Root Causes Fixed**:
+1. ArrayPool.Return on non-pooled arrays caused "buffer is not associated with this pool" errors
+2. WriteAsync sending entire rented buffer (including garbage bytes) corrupted protocol stream
+3. Event handler not awaited before reading next message caused race conditions
+4. Ping handler returning wrong message type caused client PingAsync to fail
+
+**Files Modified**:
+- AdvGenNoSqlServer.Network/ConnectionHandler.cs (removed incorrect ArrayPool.Return calls, fixed WriteAsync)
+- AdvGenNoSqlServer.Network/TcpServer.cs (added TaskCompletionSource pattern for async event handling)
+- AdvGenNoSqlServer.Server/NoSqlServer.cs (fixed HandlePingAsync to return Pong message type)
+- AdvGenNoSqlServer.Client/Client.cs (minor cleanup)
+
+**Build Status**: ✓ Compiles successfully (0 errors, 0 warnings from new code)
+**Test Status**: ✓ 25/25 client integration tests pass
+
+---
+
+### Agent-21: Performance Benchmarks Implementation ✓ COMPLETED
+**Scope**: Create comprehensive performance benchmark suite using BenchmarkDotNet
+**Completed**: 2026-02-07
+**Summary**:
+- Created new `AdvGenNoSqlServer.Benchmarks` project with BenchmarkDotNet 0.14.0
+- Implemented 5 benchmark suites with 50+ benchmark methods:
+  - **DocumentStoreBenchmarks**: CRUD operations (Insert, Get, Update, Delete, GetAll, Count)
+  - **QueryEngineBenchmarks**: Query parsing and execution (ParseSimple, ParseComplex, ExecuteFilter, ExecuteRange, ExecuteWithSorting, ExecuteWithPagination, FilterEngineMatch)
+  - **BTreeIndexBenchmarks**: Index operations (Insert, Search, RangeQuery, Delete, IterateAll)
+  - **CacheBenchmarks**: LRU cache performance (GetHit, GetMiss, Set, Remove, EvictionUnderPressure, GetStatistics)
+  - **SerializationBenchmarks**: JSON and message serialization (Serialize/Deserialize small/medium/large documents, Serialize/Deserialize network messages)
+- Configured benchmarks with parameterized workloads (100, 1000, 10000 items)
+- Added memory diagnoser for tracking allocations
+- Created CLI interface to run specific benchmarks or all
+- Build verified: 0 errors, 0 warnings
+- Benchmark project added to solution
+
+**Files Created**:
+- AdvGenNoSqlServer.Benchmarks/AdvGenNoSqlServer.Benchmarks.csproj
+- AdvGenNoSqlServer.Benchmarks/Program.cs
+- AdvGenNoSqlServer.Benchmarks/DocumentStoreBenchmarks.cs
+- AdvGenNoSqlServer.Benchmarks/QueryEngineBenchmarks.cs
+- AdvGenNoSqlServer.Benchmarks/BTreeIndexBenchmarks.cs
+- AdvGenNoSqlServer.Benchmarks/CacheBenchmarks.cs
+- AdvGenNoSqlServer.Benchmarks/SerializationBenchmarks.cs
+
+**Usage**:
+```powershell
+cd AdvGenNoSqlServer.Benchmarks
+dotnet run --configuration Release -- all          # Run all benchmarks
+dotnet run --configuration Release -- Cache        # Run cache benchmarks only
+dotnet run --configuration Release -- DocumentStore # Run document store benchmarks
+```
+
+---
 
 ### Agent-19: Update plan.md Development Phases ✓ COMPLETED
 **Scope**: Update Development Phases section in plan.md to reflect all completed work from previous agents

@@ -228,11 +228,20 @@ namespace AdvGenNoSqlServer.Network
             {
                 await foreach (var message in handler.ReadMessagesAsync(cancellationToken))
                 {
-                    MessageReceived?.Invoke(this, new MessageReceivedEventArgs(
-                        handler.ConnectionId, 
+                    var eventArgs = new MessageReceivedEventArgs(
+                        handler.ConnectionId,
                         handler.Client,
                         message,
-                        async (response) => await handler.SendAsync(response, cancellationToken)));
+                        async (response) =>
+                        {
+                            await handler.SendAsync(response, cancellationToken);
+                        });
+
+                    MessageReceived?.Invoke(this, eventArgs);
+
+                    // Wait for the event handler to send a response before reading the next message
+                    // This ensures the async event handler completes before we continue
+                    await eventArgs.WaitForResponseAsync(cancellationToken);
                 }
             }
             catch (OperationCanceledException)
@@ -242,6 +251,10 @@ namespace AdvGenNoSqlServer.Network
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"Connection error: {ex.Message}");
+                if (ex.InnerException != null)
+                {
+                    Console.Error.WriteLine($"Inner exception: {ex.InnerException.Message}");
+                }
             }
         }
 
@@ -341,6 +354,9 @@ namespace AdvGenNoSqlServer.Network
     /// </summary>
     public class MessageReceivedEventArgs : EventArgs
     {
+        private readonly TaskCompletionSource _responseSent = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly Func<NoSqlMessage, Task> _sendResponse;
+
         /// <summary>
         /// Connection ID that sent the message
         /// </summary>
@@ -357,20 +373,46 @@ namespace AdvGenNoSqlServer.Network
         public NoSqlMessage Message { get; }
 
         /// <summary>
-        /// Function to send a response
+        /// Function to send a response. Must be called by the event handler.
         /// </summary>
-        public Func<NoSqlMessage, Task> SendResponseAsync { get; }
+        public async Task SendResponseAsync(NoSqlMessage response)
+        {
+            try
+            {
+                await _sendResponse(response);
+            }
+            finally
+            {
+                _responseSent.TrySetResult();
+            }
+        }
+
+        /// <summary>
+        /// Waits for the response to be sent by the event handler
+        /// </summary>
+        internal Task WaitForResponseAsync(CancellationToken cancellationToken = default)
+        {
+            return _responseSent.Task.WaitAsync(cancellationToken);
+        }
+
+        /// <summary>
+        /// Marks the response as complete without sending (for handlers that don't need to respond)
+        /// </summary>
+        public void CompleteWithoutResponse()
+        {
+            _responseSent.TrySetResult();
+        }
 
         public MessageReceivedEventArgs(
-            string connectionId, 
-            TcpClient client, 
+            string connectionId,
+            TcpClient client,
             NoSqlMessage message,
             Func<NoSqlMessage, Task> sendResponse)
         {
             ConnectionId = connectionId;
             Client = client;
             Message = message;
-            SendResponseAsync = sendResponse;
+            _sendResponse = sendResponse;
         }
     }
 }

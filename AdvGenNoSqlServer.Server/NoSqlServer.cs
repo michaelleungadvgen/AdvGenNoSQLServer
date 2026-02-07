@@ -154,10 +154,14 @@ public class NoSqlServer : IHostedService, IDisposable
     private Task<NoSqlMessage> HandlePingAsync(NoSqlMessage message, string connectionId)
     {
         _logger.LogDebug("Processing ping for connection {ConnectionId}", connectionId);
-        
-        // Return pong as Response type (client expects Response, not Pong)
-        var responsePayload = new { pong = true };
-        var response = NoSqlMessage.Create(MessageType.Response, JsonSerializer.Serialize(responsePayload));
+
+        // Return Pong message type - client PingAsync() expects MessageType.Pong
+        var response = new NoSqlMessage
+        {
+            MessageType = MessageType.Pong,
+            Payload = Array.Empty<byte>(),
+            PayloadLength = 0
+        };
         return Task.FromResult(response);
     }
 
