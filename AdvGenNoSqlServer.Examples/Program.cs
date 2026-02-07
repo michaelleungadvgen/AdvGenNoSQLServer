@@ -61,8 +61,14 @@ class Program
     {
         Console.WriteLine("--- Document Storage Example ---\n");
 
-        // Create a persistent document store
+        // Create a persistent document store (use fresh directory each run)
         var dataPath = Path.Combine(Path.GetTempPath(), "AdvGenNoSqlExample");
+
+        // Clean up from previous runs
+        if (Directory.Exists(dataPath))
+        {
+            Directory.Delete(dataPath, recursive: true);
+        }
         Directory.CreateDirectory(dataPath);
 
         var store = new PersistentDocumentStore(dataPath);
