@@ -112,3 +112,5 @@ E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Tests\obj\Release\net9.0\refint\
 E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Tests\obj\Release\net9.0\AdvGenNoSqlServer.Tests.pdb
 E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Tests\obj\Release\net9.0\AdvGenNoSqlServer.Tests.genruntimeconfig.cache
 E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Tests\obj\Release\net9.0\ref\AdvGenNoSqlServer.Tests.dll
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Tests\bin\Release\net9.0\AdvGenNoSqlServer.Query.dll
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Tests\bin\Release\net9.0\AdvGenNoSqlServer.Query.pdb

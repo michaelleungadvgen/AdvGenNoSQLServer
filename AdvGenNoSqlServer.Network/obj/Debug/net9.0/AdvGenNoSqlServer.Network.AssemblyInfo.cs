@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("AdvGenNoSqlServer.Network")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+3ed43652ec15687cac21df69c00db73bceb5477d")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ecc6dbb1a002d3c4ce2d578364b494d12b82ff45")]
 [assembly: System.Reflection.AssemblyProductAttribute("AdvGenNoSqlServer.Network")]
 [assembly: System.Reflection.AssemblyTitleAttribute("AdvGenNoSqlServer.Network")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

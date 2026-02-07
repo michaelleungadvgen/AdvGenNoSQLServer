@@ -565,6 +565,20 @@
           "bin/placeholder/AdvGenNoSqlServer.Network.dll": {}
         }
       },
+      "AdvGenNoSqlServer.Query/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v9.0",
+        "dependencies": {
+          "AdvGenNoSqlServer.Core": "1.0.0",
+          "AdvGenNoSqlServer.Storage": "1.0.0"
+        },
+        "compile": {
+          "bin/placeholder/AdvGenNoSqlServer.Query.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/AdvGenNoSqlServer.Query.dll": {}
+        }
+      },
       "AdvGenNoSqlServer.Storage/1.0.0": {
         "type": "project",
         "framework": ".NETCoreApp,Version=v9.0",
@@ -1344,6 +1358,11 @@
       "path": "../AdvGenNoSqlServer.Network/AdvGenNoSqlServer.Network.csproj",
       "msbuildProject": "../AdvGenNoSqlServer.Network/AdvGenNoSqlServer.Network.csproj"
     },
+    "AdvGenNoSqlServer.Query/1.0.0": {
+      "type": "project",
+      "path": "../AdvGenNoSqlServer.Query/AdvGenNoSqlServer.Query.csproj",
+      "msbuildProject": "../AdvGenNoSqlServer.Query/AdvGenNoSqlServer.Query.csproj"
+    },
     "AdvGenNoSqlServer.Storage/1.0.0": {
       "type": "project",
       "path": "../AdvGenNoSqlServer.Storage/AdvGenNoSqlServer.Storage.csproj",
@@ -1355,6 +1374,7 @@
       "AdvGenNoSqlServer.Client >= 1.0.0",
       "AdvGenNoSqlServer.Core >= 1.0.0",
       "AdvGenNoSqlServer.Network >= 1.0.0",
+      "AdvGenNoSqlServer.Query >= 1.0.0",
       "AdvGenNoSqlServer.Storage >= 1.0.0",
       "Microsoft.Extensions.Caching.Memory >= 9.0.0",
       "Microsoft.NET.Test.Sdk >= 17.12.0",
@@ -1404,6 +1424,9 @@
             },
             "E:\\Projects\\AdvGenNoSQLServer\\AdvGenNoSqlServer.Network\\AdvGenNoSqlServer.Network.csproj": {
               "projectPath": "E:\\Projects\\AdvGenNoSQLServer\\AdvGenNoSqlServer.Network\\AdvGenNoSqlServer.Network.csproj"
+            },
+            "E:\\Projects\\AdvGenNoSQLServer\\AdvGenNoSqlServer.Query\\AdvGenNoSqlServer.Query.csproj": {
+              "projectPath": "E:\\Projects\\AdvGenNoSQLServer\\AdvGenNoSqlServer.Query\\AdvGenNoSqlServer.Query.csproj"
             },
             "E:\\Projects\\AdvGenNoSQLServer\\AdvGenNoSqlServer.Storage\\AdvGenNoSqlServer.Storage.csproj": {
               "projectPath": "E:\\Projects\\AdvGenNoSQLServer\\AdvGenNoSqlServer.Storage\\AdvGenNoSqlServer.Storage.csproj"

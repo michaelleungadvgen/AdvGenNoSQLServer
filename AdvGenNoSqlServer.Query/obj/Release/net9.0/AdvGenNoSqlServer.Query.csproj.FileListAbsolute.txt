@@ -9,3 +9,9 @@ E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Query\obj\Release\net9.0\AdvGenN
 E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Query\obj\Release\net9.0\refint\AdvGenNoSqlServer.Query.dll
 E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Query\obj\Release\net9.0\AdvGenNoSqlServer.Query.pdb
 E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Query\obj\Release\net9.0\ref\AdvGenNoSqlServer.Query.dll
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Query\obj\Release\net9.0\AdvGenNoSqlServer.Query.csproj.AssemblyReference.cache
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Query\bin\Release\net9.0\AdvGenNoSqlServer.Core.dll
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Query\bin\Release\net9.0\AdvGenNoSqlServer.Storage.dll
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Query\bin\Release\net9.0\AdvGenNoSqlServer.Core.pdb
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Query\bin\Release\net9.0\AdvGenNoSqlServer.Storage.pdb
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Query\obj\Release\net9.0\AdvGenNo.68BD0F8D.Up2Date

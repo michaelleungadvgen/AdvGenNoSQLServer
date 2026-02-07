@@ -11,6 +11,7 @@
           "AdvGenNoSqlServer.Client": "1.0.0",
           "AdvGenNoSqlServer.Core": "1.0.0",
           "AdvGenNoSqlServer.Network": "1.0.0",
+          "AdvGenNoSqlServer.Query": "1.0.0",
           "AdvGenNoSqlServer.Storage": "1.0.0",
           "Microsoft.Extensions.Caching.Memory": "9.0.0",
           "Microsoft.NET.Test.Sdk": "17.12.0",
@@ -444,6 +445,18 @@
           }
         }
       },
+      "AdvGenNoSqlServer.Query/1.0.0": {
+        "dependencies": {
+          "AdvGenNoSqlServer.Core": "1.0.0",
+          "AdvGenNoSqlServer.Storage": "1.0.0"
+        },
+        "runtime": {
+          "AdvGenNoSqlServer.Query.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
       "AdvGenNoSqlServer.Storage/1.0.0": {
         "dependencies": {
           "AdvGenNoSqlServer.Core": "1.0.0"
@@ -621,6 +634,11 @@
       "sha512": ""
     },
     "AdvGenNoSqlServer.Network/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "AdvGenNoSqlServer.Query/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

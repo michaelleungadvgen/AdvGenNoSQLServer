@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("AdvGenNoSqlServer.Host")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+82918c80fb4195d020521e8539cc65e7de8fb20d")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+362893750911f491c7201d4f3d7fca7ef3557678")]
 [assembly: System.Reflection.AssemblyProductAttribute("AdvGenNoSqlServer.Host")]
 [assembly: System.Reflection.AssemblyTitleAttribute("AdvGenNoSqlServer.Host")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

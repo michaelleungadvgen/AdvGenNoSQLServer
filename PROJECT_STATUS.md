@@ -29,7 +29,7 @@
 
 ## 2. Current Project Status
 
-### Overall Completion: **55%**
+### Overall Completion: **60%**
 
 | Phase | Status | Progress | Target Date |
 |-------|--------|----------|-------------|
@@ -37,7 +37,7 @@
 | Phase 2: Network & TCP | 🟢 **Complete** | 100% | ✓ Done |
 | Phase 3: Security | 🔴 **Not Started** | 0% | Week 5-6 |
 | Phase 4: Storage Engine | 🟡 **In Progress** | 35% | Week 7-8 |
-| Phase 5: Query Engine | 🔴 **Not Started** | 0% | Week 9-10 |
+| Phase 5: Query Engine | 🟡 **In Progress** | 40% | Week 9-10 |
 | Phase 6: Transactions | 🟡 **In Progress** | 75% | Week 11-12 |
 | Phase 7: Caching & Perf | 🔴 **Not Started** | 0% | Week 13-14 |
 | Phase 8: Testing & Hardening | 🔴 **Not Started** | 0% | Week 15-16 |
@@ -274,16 +274,21 @@ AdvGenNoSQLServer/
 - [ ] Query optimization
 - [ ] Garbage collection
 
-### 🔴 Query Engine (0% Complete)
+### 🟡 Query Engine (40% Complete)
 **Target**: Weeks 9-10
 
+**Completed**:
+- [x] Query model classes (Query, QueryFilter, SortField, QueryOptions)
+- [x] Query parser with MongoDB-like syntax support
+- [x] Query executor with filtering, sorting, pagination
+- [x] Filter engine with operators: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin, $and, $or, $exists
+- [x] Index-based query optimization
+- [x] Query statistics and execution plan support
+- [x] 48 comprehensive unit tests
+
 **Planned**:
-- [ ] Query parser
-- [ ] Query executor
-- [ ] Filter engine
-- [ ] Sort and pagination
 - [ ] Aggregation pipeline
-- [ ] Query optimizer
+- [ ] Query optimizer with plan generation
 
 ### 🟡 Transaction Management (75% Complete)
 **Target**: Weeks 11-12

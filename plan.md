@@ -610,7 +610,16 @@ Where third-party libraries have restrictive licenses, we implement custom solut
 - [x] Document store with CRUD operations
 - [x] File-based persistence
 - [x] B-tree indexing (basic implementation, 77 tests passing)
-- [ ] Query optimization with index selection
+- [x] Query optimization with index selection
+
+### Query Engine
+- [x] Query model classes (Query, QueryFilter, SortField, QueryOptions)
+- [x] Query parser with MongoDB-like syntax support
+- [x] Query executor with filtering, sorting, pagination
+- [x] Filter engine with comparison and logical operators
+- [x] Index-based query optimization
+- [ ] Aggregation pipeline
+- [ ] Query plan optimization
 
 ### Transactions
 - [x] Transaction coordinator (Two-Phase Commit, 41 tests)

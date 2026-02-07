@@ -6,4 +6,9 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\AdvGenNoSqlServer.Core\AdvGenNoSqlServer.Core.csproj" />
+    <ProjectReference Include="..\AdvGenNoSqlServer.Storage\AdvGenNoSqlServer.Storage.csproj" />
+  </ItemGroup>
+
 </Project>

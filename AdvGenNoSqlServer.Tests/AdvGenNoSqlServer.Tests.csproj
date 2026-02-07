@@ -19,6 +19,7 @@
     <ProjectReference Include="..\AdvGenNoSqlServer.Client\AdvGenNoSqlServer.Client.csproj" />
     <ProjectReference Include="..\AdvGenNoSqlServer.Core\AdvGenNoSqlServer.Core.csproj" />
     <ProjectReference Include="..\AdvGenNoSqlServer.Network\AdvGenNoSqlServer.Network.csproj" />
+    <ProjectReference Include="..\AdvGenNoSqlServer.Query\AdvGenNoSqlServer.Query.csproj" />
     <ProjectReference Include="..\AdvGenNoSqlServer.Storage\AdvGenNoSqlServer.Storage.csproj" />
   </ItemGroup>
 

@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("AdvGenNoSqlServer.Query")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+362893750911f491c7201d4f3d7fca7ef3557678")]
 [assembly: System.Reflection.AssemblyProductAttribute("AdvGenNoSqlServer.Query")]
 [assembly: System.Reflection.AssemblyTitleAttribute("AdvGenNoSqlServer.Query")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
