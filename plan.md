@@ -472,6 +472,7 @@ Build a **lightweight, high-performance NoSQL server** in C# with .NET featuring
 - ✓ Encryption/decryption services (EncryptionService with AES-256-GCM, 51 tests)
 - ✓ Authorization and permission checks (RoleManager, RBAC, 59 tests)
 - ✓ Audit logging (AuditLogger with file-based logging, 44 tests)
+- ✓ SSL/TLS support (TlsStreamHelper, certificate management, server/client SSL, 13 tests)
 
 ### Phase 4: Storage Engine (Weeks 7-8) ✓ COMPLETE
 - ✓ Document store implementation (DocumentStore with CRUD, 37 tests)
@@ -607,7 +608,7 @@ Where third-party libraries have restrictive licenses, we implement custom solut
 - [x] User authentication (username/password)
 - [x] Token generation and validation (JWT)
 - [x] Role-based access control
-- [ ] TLS/SSL support
+- [x] TLS/SSL support (TlsStreamHelper, certificate management, 13 tests)
 - [x] Encryption for sensitive data
 - [x] Audit logging (IAuditLogger, AuditLogger with file-based logging, 44 tests)
 
