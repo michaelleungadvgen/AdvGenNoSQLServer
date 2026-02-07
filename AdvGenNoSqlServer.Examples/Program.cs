@@ -247,10 +247,10 @@ class Program
             var pingResult = await client.PingAsync();
             Console.WriteLine($"Ping result: {(pingResult ? "Success" : "Failed")}");
 
-            // Execute a command
-            Console.WriteLine("\nExecuting insert command...");
+            // Execute a command (server supports: get, set, delete, exists)
+            Console.WriteLine("\nExecuting set command...");
             var response = await client.ExecuteCommandAsync(
-                "insert",
+                "set",
                 "test",
                 new { _id = "doc1", message = "Hello, NoSQL!" });
             Console.WriteLine($"Command response: Success={response.Success}");
