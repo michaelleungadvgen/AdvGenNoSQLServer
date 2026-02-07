@@ -205,7 +205,7 @@ Build a **lightweight, high-performance NoSQL server** in C# with .NET featuring
 - **Logging configuration**
 - **Security settings**
 - **JSON schema validation**
-- **Configuration hot-reload**
+- ✓ **Configuration hot-reload** (Agent-28 - FileSystemWatcher with debouncing)
 
 #### Implementation Details:
 ```csharp
