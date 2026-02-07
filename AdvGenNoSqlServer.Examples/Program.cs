@@ -3,6 +3,7 @@
 // See LICENSE.txt for license information.
 
 using AdvGenNoSqlServer.Client;
+using AdvGenNoSqlServer.Core.Models;
 using AdvGenNoSqlServer.Storage;
 using AdvGenNoSqlServer.Storage.Indexing;
 using System.Text.Json;
@@ -64,30 +65,38 @@ class Program
         var dataPath = Path.Combine(Path.GetTempPath(), "AdvGenNoSqlExample");
         Directory.CreateDirectory(dataPath);
 
-        using var store = new PersistentDocumentStore(dataPath);
+        var store = new PersistentDocumentStore(dataPath);
         await store.InitializeAsync();
 
         Console.WriteLine($"Data stored at: {dataPath}");
 
-        // Create a collection
-        store.CreateCollection("users");
-        Console.WriteLine("Created 'users' collection");
-
         // Insert documents
-        var user1 = new Dictionary<string, object>
+        var user1 = new Document
         {
-            ["_id"] = "user1",
-            ["name"] = "Alice",
-            ["email"] = "alice@example.com",
-            ["age"] = 30
+            Id = "user1",
+            Data = new Dictionary<string, object>
+            {
+                ["name"] = "Alice",
+                ["email"] = "alice@example.com",
+                ["age"] = 30
+            },
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            Version = 1
         };
 
-        var user2 = new Dictionary<string, object>
+        var user2 = new Document
         {
-            ["_id"] = "user2",
-            ["name"] = "Bob",
-            ["email"] = "bob@example.com",
-            ["age"] = 25
+            Id = "user2",
+            Data = new Dictionary<string, object>
+            {
+                ["name"] = "Bob",
+                ["email"] = "bob@example.com",
+                ["age"] = 25
+            },
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            Version = 1
         };
 
         await store.InsertAsync("users", user1);
@@ -96,11 +105,15 @@ class Program
 
         // Retrieve a document
         var retrieved = await store.GetAsync("users", "user1");
-        Console.WriteLine($"\nRetrieved user1: {JsonSerializer.Serialize(retrieved)}");
+        if (retrieved != null)
+        {
+            Console.WriteLine($"\nRetrieved user1: {JsonSerializer.Serialize(retrieved.Data)}");
+        }
 
         // Update a document
-        user1["age"] = 31;
-        await store.UpdateAsync("users", "user1", user1);
+        user1.Data!["age"] = 31;
+        user1.UpdatedAt = DateTime.UtcNow;
+        await store.UpdateAsync("users", user1);
         Console.WriteLine("Updated user1's age to 31");
 
         // Get all documents
@@ -108,7 +121,7 @@ class Program
         Console.WriteLine($"\nAll users ({allUsers.Count()}):");
         foreach (var user in allUsers)
         {
-            Console.WriteLine($"  - {user["name"]}: {user["email"]}");
+            Console.WriteLine($"  - {user.Data?["name"]}: {user.Data?["email"]}");
         }
 
         // Count documents
@@ -156,16 +169,22 @@ class Program
         }
         Console.WriteLine($"Inserted {users.Length} users");
 
-        // Search for a specific key
-        var searchResult = index.Search(15);
-        Console.WriteLine($"\nSearch for ID 15: {string.Join(", ", searchResult)}");
+        // Search for a specific key using TryGetValue
+        if (index.TryGetValue(15, out var foundValue))
+        {
+            Console.WriteLine($"\nSearch for ID 15: {foundValue}");
+        }
+
+        // Get all values for a key
+        var values = index.GetValues(15);
+        Console.WriteLine($"GetValues for ID 15: {string.Join(", ", values)}");
 
         // Range query
         var rangeResult = index.RangeQuery(10, 25);
         Console.WriteLine($"\nRange query (10-25):");
         foreach (var item in rangeResult)
         {
-            Console.WriteLine($"  ID {item.Key}: {string.Join(", ", item.Value)}");
+            Console.WriteLine($"  ID {item.Key}: {item.Value}");
         }
 
         // Get all items in order
@@ -173,7 +192,7 @@ class Program
         Console.WriteLine($"\nAll items in sorted order:");
         foreach (var item in allItems)
         {
-            Console.WriteLine($"  ID {item.Key}: {string.Join(", ", item.Value)}");
+            Console.WriteLine($"  ID {item.Key}: {item.Value}");
         }
 
         // Index statistics
@@ -206,7 +225,7 @@ class Program
         {
             ConnectionTimeout = 5000,
             EnableKeepAlive = true,
-            KeepAliveInterval = 30000
+            KeepAliveInterval = TimeSpan.FromSeconds(30)
         };
 
         using var client = new AdvGenNoSqlClient("localhost:9090", options);
@@ -223,12 +242,14 @@ class Program
             Console.WriteLine($"Ping result: {(pingResult ? "Success" : "Failed")}");
 
             // Execute a command
-            Console.WriteLine("\nExecuting command...");
-            var response = await client.ExecuteCommandAsync("insert", new
+            Console.WriteLine("\nExecuting insert command...");
+            var insertCommand = JsonSerializer.Serialize(new
             {
+                command = "insert",
                 collection = "test",
                 document = new { _id = "doc1", message = "Hello, NoSQL!" }
             });
+            var response = await client.ExecuteCommandAsync("insert", insertCommand);
             Console.WriteLine($"Command response: {response}");
 
             // Batch operations example
