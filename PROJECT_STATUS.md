@@ -29,7 +29,7 @@
 
 ## 2. Current Project Status
 
-### Overall Completion: **52%**
+### Overall Completion: **53%**
 
 | Phase | Status | Progress | Target Date |
 |-------|--------|----------|-------------|
@@ -38,7 +38,7 @@
 | Phase 3: Security | 🔴 **Not Started** | 0% | Week 5-6 |
 | Phase 4: Storage Engine | 🟡 **In Progress** | 35% | Week 7-8 |
 | Phase 5: Query Engine | 🔴 **Not Started** | 0% | Week 9-10 |
-| Phase 6: Transactions | 🔴 **Not Started** | 0% | Week 11-12 |
+| Phase 6: Transactions | 🟡 **In Progress** | 20% | Week 11-12 |
 | Phase 7: Caching & Perf | 🔴 **Not Started** | 0% | Week 13-14 |
 | Phase 8: Testing & Hardening | 🔴 **Not Started** | 0% | Week 15-16 |
 
@@ -285,16 +285,17 @@ AdvGenNoSQLServer/
 - [ ] Aggregation pipeline
 - [ ] Query optimizer
 
-### 🔴 Transaction Management (0% Complete)
+### 🟡 Transaction Management (20% Complete)
 **Target**: Weeks 11-12
+
+**Completed**:
+- [x] Lock manager with deadlock detection (wait-for graph algorithm, victim selection, 38 tests)
 
 **Planned**:
 - [ ] Transaction coordinator
-- [ ] Lock manager
 - [ ] Write-ahead logging (WAL)
 - [ ] Rollback mechanism
 - [ ] Isolation levels implementation
-- [ ] Deadlock detection and resolution
 
 ### 🟡 Caching & Performance (15% Complete)
 **Target**: Weeks 13-14

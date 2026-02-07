@@ -614,7 +614,7 @@ Where third-party libraries have restrictive licenses, we implement custom solut
 
 ### Transactions
 - [ ] Transaction coordinator
-- [ ] Lock manager with deadlock detection
+- [x] Lock manager with deadlock detection
 - [ ] Write-ahead logging
 - [ ] Rollback mechanism
 - [ ] Multiple isolation levels

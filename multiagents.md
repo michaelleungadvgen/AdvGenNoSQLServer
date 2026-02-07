@@ -16,6 +16,32 @@
 
 ## Task Details
 
+### Agent-11: Lock Manager with Deadlock Detection
+**Scope**: Implement a Lock Manager for transaction concurrency control with deadlock detection capability
+**Components**:
+- [ ] ILockManager interface with lock acquisition/release methods
+- [ ] LockManager implementation with support for:
+  - [ ] Shared (read) locks and Exclusive (write) locks
+  - [ ] Lock timeouts to prevent indefinite waiting
+  - [ ] Lock upgrade (read -> write) support
+- [ ] Deadlock detection using wait-for graph algorithm
+- [ ] Deadlock resolution (victim selection and abort)
+- [ ] Thread-safe implementation using concurrent collections
+- [ ] Unit tests for lock management and deadlock scenarios
+
+**Dependencies**:
+- Document model (exists)
+- TransactionManager (exists - may need minor updates)
+
+**Notes**:
+- Use ReaderWriterLockSlim or custom lock queue management
+- Implement wait-for graph for deadlock detection
+- Support lock timeouts to break deadlocks
+- Consider lock granularity (document-level vs collection-level)
+- Follow existing code patterns with license headers
+
+---
+
 ### Agent-5: JWT Token Provider Implementation
 **Scope**: Implement JWT (JSON Web Token) generation and validation for stateless authentication
 **Components**:
@@ -39,6 +65,31 @@
 - Use MIT-compatible dependencies only (no external JWT libraries)
 
 ## Completed Tasks
+
+### Agent-11: Lock Manager with Deadlock Detection ✓ COMPLETED
+**Scope**: Implement a Lock Manager for transaction concurrency control with deadlock detection capability
+**Completed**: 2026-02-07
+**Summary**:
+- Implemented ILockManager interface with comprehensive lock management methods
+- Created LockManager class with support for:
+  - Shared (read) locks and Exclusive (write) locks
+  - Lock timeouts to prevent indefinite waiting
+  - Lock upgrade (read -> write) support
+- Implemented deadlock detection using wait-for graph algorithm with cycle detection
+- Deadlock resolution with automatic victim selection (youngest transaction)
+- Background deadlock detection timer with configurable interval
+- Thread-safe implementation using ReaderWriterLockSlim with recursion support
+- 38 comprehensive unit tests (all passing)
+
+**Files Created**:
+- AdvGenNoSqlServer.Core/Transactions/ILockManager.cs (230 lines)
+- AdvGenNoSqlServer.Core/Transactions/LockManager.cs (550+ lines)
+- AdvGenNoSqlServer.Tests/LockManagerTests.cs (650+ lines, 38 tests)
+
+**Build Status**: ✓ Compiles successfully (0 errors, 0 warnings from new code)
+**Test Status**: ✓ 38/38 LockManager tests pass
+
+---
 
 ### Agent-10: Audit Logging Implementation ✓ COMPLETED
 **Scope**: Implement comprehensive audit logging system for security tracking
