@@ -94,6 +94,9 @@
         }
       },
       "AdvGenNoSqlServer.Network/1.0.0": {
+        "dependencies": {
+          "AdvGenNoSqlServer.Core": "1.0.0"
+        },
         "runtime": {
           "AdvGenNoSqlServer.Network.dll": {
             "assemblyVersion": "1.0.0.0",
@@ -102,6 +105,10 @@
         }
       },
       "AdvGenNoSqlServer.Query/1.0.0": {
+        "dependencies": {
+          "AdvGenNoSqlServer.Core": "1.0.0",
+          "AdvGenNoSqlServer.Storage": "1.0.0"
+        },
         "runtime": {
           "AdvGenNoSqlServer.Query.dll": {
             "assemblyVersion": "1.0.0.0",

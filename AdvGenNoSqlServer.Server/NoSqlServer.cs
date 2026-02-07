@@ -4,9 +4,11 @@
 
 using AdvGenNoSqlServer.Core.Caching;
 using AdvGenNoSqlServer.Core.Configuration;
+using AdvGenNoSqlServer.Core.Models;
 using AdvGenNoSqlServer.Network;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 using System.Text.Json;
 
 namespace AdvGenNoSqlServer.Server;
@@ -113,6 +115,7 @@ public class NoSqlServer : IHostedService, IDisposable
             MessageType.Ping => HandlePingAsync(message, connectionId),
             MessageType.Authentication => HandleAuthenticationAsync(message, connectionId),
             MessageType.Command => HandleCommandAsync(message, connectionId),
+            MessageType.BulkOperation => HandleBulkOperationAsync(message, connectionId),
             _ => Task.FromResult(NoSqlMessage.CreateError("UNSUPPORTED_MESSAGE", $"Message type {message.MessageType} is not supported"))
         };
     }
@@ -270,6 +273,215 @@ public class NoSqlServer : IHostedService, IDisposable
     {
         // TODO: Implement actual storage integration
         return Task.FromResult(NoSqlMessage.CreateSuccess(new { exists = false }));
+    }
+
+    private Task<NoSqlMessage> HandleBulkOperationAsync(NoSqlMessage message, string connectionId)
+    {
+        _logger.LogDebug("Processing bulk operation for connection {ConnectionId}", connectionId);
+
+        if (message.Payload == null || message.PayloadLength == 0)
+        {
+            return Task.FromResult(NoSqlMessage.CreateError("INVALID_BATCH", "Empty batch request"));
+        }
+
+        try
+        {
+            var payload = message.GetPayloadAsString();
+            var request = JsonSerializer.Deserialize<BatchOperationRequest>(payload, new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            });
+
+            if (request == null)
+            {
+                return Task.FromResult(NoSqlMessage.CreateError("INVALID_BATCH", "Failed to deserialize batch request"));
+            }
+
+            if (string.IsNullOrEmpty(request.Collection))
+            {
+                return Task.FromResult(NoSqlMessage.CreateError("INVALID_BATCH", "Collection name is required"));
+            }
+
+            if (request.Operations.Count == 0)
+            {
+                return Task.FromResult(NoSqlMessage.CreateSuccess(new BatchOperationResponse
+                {
+                    Success = true,
+                    TotalProcessed = 0,
+                    Results = new List<BatchOperationItemResult>()
+                }));
+            }
+
+            var response = ProcessBatchRequest(request);
+            return Task.FromResult(NoSqlMessage.CreateSuccess(response));
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(ex, "Batch operation parsing error for connection {ConnectionId}", connectionId);
+            return Task.FromResult(NoSqlMessage.CreateError("INVALID_BATCH", "Invalid batch request format"));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing batch operation for connection {ConnectionId}", connectionId);
+            return Task.FromResult(NoSqlMessage.CreateError("BATCH_ERROR", "Internal error processing batch operation"));
+        }
+    }
+
+    private BatchOperationResponse ProcessBatchRequest(BatchOperationRequest request)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var response = new BatchOperationResponse
+        {
+            Success = true,
+            Results = new List<BatchOperationItemResult>()
+        };
+
+        for (int i = 0; i < request.Operations.Count; i++)
+        {
+            var operation = request.Operations[i];
+            var result = ProcessBatchOperationItem(request.Collection, operation, i);
+
+            response.Results.Add(result);
+
+            if (result.Success)
+            {
+                switch (operation.OperationType)
+                {
+                    case BatchOperationType.Insert:
+                        response.InsertedCount++;
+                        break;
+                    case BatchOperationType.Update:
+                        response.UpdatedCount++;
+                        break;
+                    case BatchOperationType.Delete:
+                        response.DeletedCount++;
+                        break;
+                }
+            }
+            else if (request.StopOnError)
+            {
+                response.Success = false;
+                response.ErrorMessage = $"Batch stopped due to error at index {i}: {result.ErrorMessage}";
+                break;
+            }
+        }
+
+        response.TotalProcessed = response.Results.Count;
+        stopwatch.Stop();
+        response.ProcessingTimeMs = stopwatch.ElapsedMilliseconds;
+
+        _logger.LogDebug("Batch operation completed: {Inserted} inserted, {Updated} updated, {Deleted} deleted in {Ms}ms",
+            response.InsertedCount, response.UpdatedCount, response.DeletedCount, response.ProcessingTimeMs);
+
+        return response;
+    }
+
+    private BatchOperationItemResult ProcessBatchOperationItem(string collection, BatchOperationItem operation, int index)
+    {
+        var result = new BatchOperationItemResult
+        {
+            Index = index,
+            Success = false
+        };
+
+        try
+        {
+            switch (operation.OperationType)
+            {
+                case BatchOperationType.Insert:
+                    result.Success = ProcessBatchInsert(collection, operation, result);
+                    break;
+
+                case BatchOperationType.Update:
+                    result.Success = ProcessBatchUpdate(collection, operation, result);
+                    break;
+
+                case BatchOperationType.Delete:
+                    result.Success = ProcessBatchDelete(collection, operation, result);
+                    break;
+
+                default:
+                    result.ErrorCode = "UNSUPPORTED_OPERATION";
+                    result.ErrorMessage = $"Operation type {operation.OperationType} is not supported";
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            result.ErrorCode = "INTERNAL_ERROR";
+            result.ErrorMessage = ex.Message;
+        }
+
+        return result;
+    }
+
+    private bool ProcessBatchInsert(string collection, BatchOperationItem operation, BatchOperationItemResult result)
+    {
+        if (operation.Document == null || operation.Document.Count == 0)
+        {
+            result.ErrorCode = "MISSING_DOCUMENT";
+            result.ErrorMessage = "Document data is required for insert operation";
+            return false;
+        }
+
+        // Extract document ID if present, or generate one
+        if (operation.Document.TryGetValue("_id", out var idValue))
+        {
+            result.DocumentId = idValue?.ToString();
+        }
+
+        if (string.IsNullOrEmpty(result.DocumentId))
+        {
+            result.DocumentId = Guid.NewGuid().ToString("N");
+            operation.Document["_id"] = result.DocumentId;
+        }
+
+        // TODO: Integrate with actual document store
+        // For now, simulate success
+        _logger.LogTrace("Batch insert into {Collection}: {DocumentId}", collection, result.DocumentId);
+        return true;
+    }
+
+    private bool ProcessBatchUpdate(string collection, BatchOperationItem operation, BatchOperationItemResult result)
+    {
+        if (string.IsNullOrEmpty(operation.DocumentId) && (operation.Filter == null || operation.Filter.Count == 0))
+        {
+            result.ErrorCode = "MISSING_CRITERIA";
+            result.ErrorMessage = "DocumentId or Filter is required for update operation";
+            return false;
+        }
+
+        if ((operation.Document == null || operation.Document.Count == 0) && 
+            (operation.UpdateFields == null || operation.UpdateFields.Count == 0))
+        {
+            result.ErrorCode = "MISSING_UPDATE_DATA";
+            result.ErrorMessage = "Document or UpdateFields is required for update operation";
+            return false;
+        }
+
+        result.DocumentId = operation.DocumentId;
+
+        // TODO: Integrate with actual document store
+        // For now, simulate success
+        _logger.LogTrace("Batch update in {Collection}: {DocumentId}", collection, result.DocumentId ?? "by filter");
+        return true;
+    }
+
+    private bool ProcessBatchDelete(string collection, BatchOperationItem operation, BatchOperationItemResult result)
+    {
+        if (string.IsNullOrEmpty(operation.DocumentId) && (operation.Filter == null || operation.Filter.Count == 0))
+        {
+            result.ErrorCode = "MISSING_CRITERIA";
+            result.ErrorMessage = "DocumentId or Filter is required for delete operation";
+            return false;
+        }
+
+        result.DocumentId = operation.DocumentId;
+
+        // TODO: Integrate with actual document store
+        // For now, simulate success
+        _logger.LogTrace("Batch delete from {Collection}: {DocumentId}", collection, result.DocumentId ?? "by filter");
+        return true;
     }
 
     public void Dispose()

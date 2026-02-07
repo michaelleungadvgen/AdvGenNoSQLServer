@@ -2,6 +2,8 @@
 // Licensed under the MIT License.
 // See LICENSE.txt for license information.
 
+using System.Security.Cryptography.X509Certificates;
+
 namespace AdvGenNoSqlServer.Client
 {
     /// <summary>
@@ -23,6 +25,22 @@ namespace AdvGenNoSqlServer.Client
         /// Gets or sets a value indicating whether to use SSL.
         /// </summary>
         public bool UseSsl { get; set; } = false;
+
+        /// <summary>
+        /// Gets or sets the target host name for SSL certificate validation.
+        /// If not set, the server address will be used.
+        /// </summary>
+        public string? SslTargetHost { get; set; }
+
+        /// <summary>
+        /// Gets or sets the client certificate for mutual TLS (mTLS) authentication.
+        /// </summary>
+        public X509Certificate? ClientCertificate { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether to check certificate revocation list.
+        /// </summary>
+        public bool CheckCertificateRevocation { get; set; } = true;
 
         /// <summary>
         /// Gets or sets a value indicating whether keep-alive is enabled.

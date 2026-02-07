@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" Version="0.14.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AdvGenNoSqlServer.Core\AdvGenNoSqlServer.Core.csproj" />
+    <ProjectReference Include="..\AdvGenNoSqlServer.Storage\AdvGenNoSqlServer.Storage.csproj" />
+    <ProjectReference Include="..\AdvGenNoSqlServer.Query\AdvGenNoSqlServer.Query.csproj" />
+    <ProjectReference Include="..\AdvGenNoSqlServer.Network\AdvGenNoSqlServer.Network.csproj" />
+  </ItemGroup>
+
+</Project>

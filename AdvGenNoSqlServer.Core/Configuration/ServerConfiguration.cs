@@ -177,4 +177,55 @@ public class ServerConfiguration
     public int PrePopulatePoolSize { get; set; } = 10;
 
     #endregion
+
+    #region SSL/TLS Configuration
+
+    /// <summary>
+    /// Whether to enable SSL/TLS encryption for connections (default: false)
+    /// </summary>
+    public bool EnableSsl { get; set; } = false;
+
+    /// <summary>
+    /// Path to the SSL certificate file (PFX format)
+    /// </summary>
+    public string? SslCertificatePath { get; set; }
+
+    /// <summary>
+    /// Password for the SSL certificate file
+    /// </summary>
+    public string? SslCertificatePassword { get; set; }
+
+    /// <summary>
+    /// Thumbprint of the SSL certificate to use from the certificate store (Windows)
+    /// </summary>
+    public string? SslCertificateThumbprint { get; set; }
+
+    /// <summary>
+    /// Whether to use the certificate store instead of a file (default: false)
+    /// </summary>
+    public bool UseCertificateStore { get; set; } = false;
+
+    /// <summary>
+    /// SSL/TLS protocol version to use (default: TLS 1.2 and above)
+    /// </summary>
+    public System.Security.Authentication.SslProtocols SslProtocols { get; set; } = 
+        System.Security.Authentication.SslProtocols.Tls12 | 
+        System.Security.Authentication.SslProtocols.Tls13;
+
+    /// <summary>
+    /// Whether to require client certificates for mutual TLS (mTLS) (default: false)
+    /// </summary>
+    public bool RequireClientCertificate { get; set; } = false;
+
+    /// <summary>
+    /// Whether to check certificate revocation list (default: true)
+    /// </summary>
+    public bool CheckCertificateRevocation { get; set; } = true;
+
+    /// <summary>
+    /// Target host name for certificate validation (used by clients)
+    /// </summary>
+    public string? SslTargetHost { get; set; }
+
+    #endregion
 }

@@ -4,7 +4,10 @@
 
 using System.Buffers;
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Cryptography.X509Certificates;
+using AdvGenNoSqlServer.Core.Models;
 using AdvGenNoSqlServer.Network;
 
 namespace AdvGenNoSqlServer.Client
@@ -75,6 +78,8 @@ namespace AdvGenNoSqlServer.Client
         private readonly MessageProtocol _messageProtocol;
         private TcpClient? _tcpClient;
         private NetworkStream? _networkStream;
+        private Stream? _stream;
+        private SslStream? _sslStream;
         private readonly SemaphoreSlim _sendLock = new(1, 1);
         private readonly SemaphoreSlim _receiveLock = new(1, 1);
         private bool _isConnected;
@@ -85,6 +90,16 @@ namespace AdvGenNoSqlServer.Client
         /// Gets whether the client is currently connected to the server
         /// </summary>
         public bool IsConnected => _isConnected && _tcpClient?.Connected == true;
+
+        /// <summary>
+        /// Gets whether the connection is using SSL/TLS encryption
+        /// </summary>
+        public bool IsSecure => _sslStream?.IsAuthenticated == true;
+
+        /// <summary>
+        /// Gets SSL/TLS connection information (null if not using SSL)
+        /// </summary>
+        public SslStream? SslStream => _sslStream;
 
         /// <summary>
         /// Event raised when the client connects to the server
@@ -156,6 +171,19 @@ namespace AdvGenNoSqlServer.Client
                 // Connect to server
                 await _tcpClient.ConnectAsync(_serverAddress, _serverPort);
                 _networkStream = _tcpClient.GetStream();
+                _stream = _networkStream;
+
+                // Enable SSL if configured
+                if (_options.UseSsl)
+                {
+                    _sslStream = await TlsStreamHelper.CreateClientSslStreamAsync(
+                        _tcpClient,
+                        _options.SslTargetHost ?? _serverAddress,
+                        _options.ClientCertificate,
+                        _options.CheckCertificateRevocation,
+                        cancellationToken);
+                    _stream = _sslStream;
+                }
 
                 // Perform handshake
                 await PerformHandshakeAsync(cancellationToken);
@@ -324,7 +352,7 @@ namespace AdvGenNoSqlServer.Client
 
         private async Task<NoSqlMessage> SendAndReceiveAsync(NoSqlMessage message, CancellationToken cancellationToken)
         {
-            if (_networkStream == null)
+            if (_stream == null)
                 throw new InvalidOperationException("Not connected to server");
 
             // Serialize message
@@ -340,10 +368,10 @@ namespace AdvGenNoSqlServer.Client
                 await _sendLock.WaitAsync(cancellationToken);
                 try
                 {
-                    await _networkStream.WriteAsync(
+                    await _stream.WriteAsync(
                         serializedMessage.AsMemory(0, messageLength), 
                         cancellationToken);
-                    await _networkStream.FlushAsync(cancellationToken);
+                    await _stream.FlushAsync(cancellationToken);
                 }
                 finally
                 {
@@ -374,7 +402,7 @@ namespace AdvGenNoSqlServer.Client
 
         private async Task<NoSqlMessage> ReceiveMessageAsync(CancellationToken cancellationToken)
         {
-            if (_networkStream == null)
+            if (_stream == null)
                 throw new InvalidOperationException("Not connected to server");
 
             // Read header (12 bytes)
@@ -426,13 +454,13 @@ namespace AdvGenNoSqlServer.Client
 
         private async Task ReadExactAsync(byte[] buffer, int count, CancellationToken cancellationToken)
         {
-            if (_networkStream == null)
+            if (_stream == null)
                 throw new InvalidOperationException("Not connected to server");
 
             var totalRead = 0;
             while (totalRead < count)
             {
-                var read = await _networkStream.ReadAsync(
+                var read = await _stream.ReadAsync(
                     buffer.AsMemory(totalRead, count - totalRead),
                     cancellationToken);
 
@@ -518,12 +546,277 @@ namespace AdvGenNoSqlServer.Client
 
         private void CleanupConnection()
         {
+            _sslStream?.Dispose();
+            _sslStream = null;
+
+            _stream = null;
+
             _networkStream?.Dispose();
             _networkStream = null;
 
             _tcpClient?.Dispose();
             _tcpClient = null;
         }
+
+        #region Batch Operations
+
+        /// <summary>
+        /// Inserts multiple documents in a single batch operation
+        /// </summary>
+        /// <param name="collection">The collection to insert into</param>
+        /// <param name="documents">The documents to insert</param>
+        /// <param name="options">Optional batch operation options</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>Batch operation response with results</returns>
+        public async Task<BatchOperationResponse> BatchInsertAsync(
+            string collection,
+            IEnumerable<object> documents,
+            BatchOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            EnsureConnected();
+
+            var ops = new List<BatchOperationItem>();
+            foreach (var doc in documents)
+            {
+                var docDict = ConvertToDictionary(doc);
+                ops.Add(new BatchOperationItem
+                {
+                    OperationType = BatchOperationType.Insert,
+                    Document = docDict
+                });
+            }
+
+            var request = new BatchOperationRequest
+            {
+                Collection = collection,
+                Operations = ops,
+                StopOnError = options?.StopOnError ?? false,
+                UseTransaction = options?.UseTransaction ?? true
+            };
+
+            return await ExecuteBatchAsync(request, options, cancellationToken);
+        }
+
+        /// <summary>
+        /// Updates multiple documents in a single batch operation
+        /// </summary>
+        /// <param name="collection">The collection to update</param>
+        /// <param name="updates">List of (documentId, updateFields) tuples</param>
+        /// <param name="options">Optional batch operation options</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>Batch operation response with results</returns>
+        public async Task<BatchOperationResponse> BatchUpdateAsync(
+            string collection,
+            IEnumerable<(string DocumentId, Dictionary<string, object> UpdateFields)> updates,
+            BatchOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            EnsureConnected();
+
+            var ops = new List<BatchOperationItem>();
+            foreach (var (documentId, updateFields) in updates)
+            {
+                ops.Add(new BatchOperationItem
+                {
+                    OperationType = BatchOperationType.Update,
+                    DocumentId = documentId,
+                    UpdateFields = updateFields
+                });
+            }
+
+            var request = new BatchOperationRequest
+            {
+                Collection = collection,
+                Operations = ops,
+                StopOnError = options?.StopOnError ?? false,
+                UseTransaction = options?.UseTransaction ?? true
+            };
+
+            return await ExecuteBatchAsync(request, options, cancellationToken);
+        }
+
+        /// <summary>
+        /// Deletes multiple documents in a single batch operation
+        /// </summary>
+        /// <param name="collection">The collection to delete from</param>
+        /// <param name="documentIds">The document IDs to delete</param>
+        /// <param name="options">Optional batch operation options</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>Batch operation response with results</returns>
+        public async Task<BatchOperationResponse> BatchDeleteAsync(
+            string collection,
+            IEnumerable<string> documentIds,
+            BatchOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            EnsureConnected();
+
+            var ops = new List<BatchOperationItem>();
+            foreach (var docId in documentIds)
+            {
+                ops.Add(new BatchOperationItem
+                {
+                    OperationType = BatchOperationType.Delete,
+                    DocumentId = docId
+                });
+            }
+
+            var request = new BatchOperationRequest
+            {
+                Collection = collection,
+                Operations = ops,
+                StopOnError = options?.StopOnError ?? false,
+                UseTransaction = options?.UseTransaction ?? true
+            };
+
+            return await ExecuteBatchAsync(request, options, cancellationToken);
+        }
+
+        /// <summary>
+        /// Executes a batch operation request
+        /// </summary>
+        /// <param name="request">The batch operation request</param>
+        /// <param name="options">Optional batch options</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>Batch operation response</returns>
+        public async Task<BatchOperationResponse> ExecuteBatchAsync(
+            BatchOperationRequest request,
+            BatchOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            EnsureConnected();
+
+            if (request.Operations.Count == 0)
+            {
+                return new BatchOperationResponse
+                {
+                    Success = true,
+                    TotalProcessed = 0,
+                    Results = new List<BatchOperationItemResult>()
+                };
+            }
+
+            // Check batch size limit
+            var maxBatchSize = options?.MaxBatchSize ?? 1000;
+            if (request.Operations.Count > maxBatchSize)
+            {
+                throw new ArgumentException($"Batch size ({request.Operations.Count}) exceeds maximum allowed ({maxBatchSize})");
+            }
+
+            // Serialize the batch request
+            var json = System.Text.Json.JsonSerializer.Serialize(request, new System.Text.Json.JsonSerializerOptions
+            {
+                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+            });
+
+            var message = new NoSqlMessage
+            {
+                MessageType = MessageType.BulkOperation,
+                Payload = System.Text.Encoding.UTF8.GetBytes(json),
+                PayloadLength = System.Text.Encoding.UTF8.GetByteCount(json)
+            };
+
+            var response = await SendAndReceiveAsync(message, cancellationToken);
+
+            // Parse the batch response
+            var responseJson = response.GetPayloadAsString();
+            if (string.IsNullOrEmpty(responseJson))
+            {
+                return new BatchOperationResponse
+                {
+                    Success = false,
+                    ErrorMessage = "Empty response from server"
+                };
+            }
+
+            try
+            {
+                var batchResponse = System.Text.Json.JsonSerializer.Deserialize<BatchOperationResponse>(responseJson, new System.Text.Json.JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+                });
+
+                return batchResponse ?? new BatchOperationResponse
+                {
+                    Success = false,
+                    ErrorMessage = "Failed to deserialize response"
+                };
+            }
+            catch (System.Text.Json.JsonException ex)
+            {
+                return new BatchOperationResponse
+                {
+                    Success = false,
+                    ErrorMessage = $"Failed to parse response: {ex.Message}"
+                };
+            }
+        }
+
+        /// <summary>
+        /// Splits a large set of documents into manageable batches and executes them sequentially
+        /// </summary>
+        /// <param name="collection">The target collection</param>
+        /// <param name="documents">The documents to insert</param>
+        /// <param name="batchSize">Size of each batch (default 1000)</param>
+        /// <param name="options">Optional batch options</param>
+        /// <param name="progressCallback">Optional callback for progress reporting</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>Combined batch operation response</returns>
+        public async Task<BatchOperationResponse> BulkInsertAsync(
+            string collection,
+            IEnumerable<object> documents,
+            int batchSize = 1000,
+            BatchOptions? options = null,
+            Action<int, int>? progressCallback = null,
+            CancellationToken cancellationToken = default)
+        {
+            EnsureConnected();
+
+            var allDocs = documents.ToList();
+            var totalDocs = allDocs.Count;
+            var combinedResponse = new BatchOperationResponse
+            {
+                Success = true,
+                Results = new List<BatchOperationItemResult>()
+            };
+
+            for (int i = 0; i < totalDocs; i += batchSize)
+            {
+                var batch = allDocs.Skip(i).Take(batchSize);
+                var response = await BatchInsertAsync(collection, batch, options, cancellationToken);
+
+                combinedResponse.InsertedCount += response.InsertedCount;
+                combinedResponse.TotalProcessed += response.TotalProcessed;
+                combinedResponse.Results.AddRange(response.Results);
+
+                if (!response.Success && (options?.StopOnError ?? false))
+                {
+                    combinedResponse.Success = false;
+                    combinedResponse.ErrorMessage = response.ErrorMessage;
+                    combinedResponse.ErrorCode = response.ErrorCode;
+                    break;
+                }
+
+                progressCallback?.Invoke(Math.Min(i + batchSize, totalDocs), totalDocs);
+            }
+
+            return combinedResponse;
+        }
+
+        private static Dictionary<string, object> ConvertToDictionary(object obj)
+        {
+            if (obj is Dictionary<string, object> dict)
+            {
+                return dict;
+            }
+
+            var json = System.Text.Json.JsonSerializer.Serialize(obj);
+            var result = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(json);
+            return result ?? new Dictionary<string, object>();
+        }
+
+        #endregion
 
         /// <summary>
         /// Disposes the client and releases all resources

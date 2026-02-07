@@ -19,6 +19,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AdvGenNoSqlServer.Tests", "
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AdvGenNoSqlServer.Server", "AdvGenNoSqlServer.Server\AdvGenNoSqlServer.Server.csproj", "{A2F3D1A1-143E-4D66-B00F-1B0C1A1B1B1B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AdvGenNoSqlServer.Benchmarks", "AdvGenNoSqlServer.Benchmarks\AdvGenNoSqlServer.Benchmarks.csproj", "{1F829969-A5D3-4A9A-909E-6E6FB1463AED}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -125,6 +127,18 @@ Global
 		{A2F3D1A1-143E-4D66-B00F-1B0C1A1B1B1B}.Release|x64.Build.0 = Release|Any CPU
 		{A2F3D1A1-143E-4D66-B00F-1B0C1A1B1B1B}.Release|x86.ActiveCfg = Release|Any CPU
 		{A2F3D1A1-143E-4D66-B00F-1B0C1A1B1B1B}.Release|x86.Build.0 = Release|Any CPU
+		{1F829969-A5D3-4A9A-909E-6E6FB1463AED}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1F829969-A5D3-4A9A-909E-6E6FB1463AED}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1F829969-A5D3-4A9A-909E-6E6FB1463AED}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{1F829969-A5D3-4A9A-909E-6E6FB1463AED}.Debug|x64.Build.0 = Debug|Any CPU
+		{1F829969-A5D3-4A9A-909E-6E6FB1463AED}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{1F829969-A5D3-4A9A-909E-6E6FB1463AED}.Debug|x86.Build.0 = Debug|Any CPU
+		{1F829969-A5D3-4A9A-909E-6E6FB1463AED}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1F829969-A5D3-4A9A-909E-6E6FB1463AED}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1F829969-A5D3-4A9A-909E-6E6FB1463AED}.Release|x64.ActiveCfg = Release|Any CPU
+		{1F829969-A5D3-4A9A-909E-6E6FB1463AED}.Release|x64.Build.0 = Release|Any CPU
+		{1F829969-A5D3-4A9A-909E-6E6FB1463AED}.Release|x86.ActiveCfg = Release|Any CPU
+		{1F829969-A5D3-4A9A-909E-6E6FB1463AED}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

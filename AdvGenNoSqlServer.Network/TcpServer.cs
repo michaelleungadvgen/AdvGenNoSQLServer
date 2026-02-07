@@ -197,28 +197,61 @@ namespace AdvGenNoSqlServer.Network
         private async Task HandleConnectionAsync(TcpClient client, CancellationToken cancellationToken)
         {
             var connectionId = Guid.NewGuid().ToString("N");
-            var handler = new ConnectionHandler(connectionId, client, _messageProtocol, Configuration);
-
-            if (!_connectionPool.TryAcquire())
-            {
-                await SendConnectionRejectedAsync(handler, "Server at maximum capacity");
-                handler.Dispose();
-                return;
-            }
-
-            _activeConnections.TryAdd(connectionId, handler);
-            ConnectionEstablished?.Invoke(this, new ConnectionEventArgs(connectionId, client));
+            ConnectionHandler? handler = null;
 
             try
             {
+                // Perform SSL handshake if SSL is enabled
+                Stream stream;
+                if (Configuration.EnableSsl)
+                {
+                    try
+                    {
+                        var sslStream = await TlsStreamHelper.CreateServerSslStreamAsync(
+                            client, Configuration, cancellationToken);
+                        stream = sslStream;
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.Error.WriteLine($"SSL handshake failed for connection {connectionId}: {ex.Message}");
+                        // Send plain text error if SSL fails
+                        await SendSslErrorAsync(client, "SSL handshake failed");
+                        client.Dispose();
+                        return;
+                    }
+                }
+                else
+                {
+                    stream = client.GetStream();
+                }
+
+                handler = new ConnectionHandler(connectionId, client, stream, _messageProtocol, Configuration);
+
+                if (!_connectionPool.TryAcquire())
+                {
+                    await SendConnectionRejectedAsync(handler, "Server at maximum capacity");
+                    handler.Dispose();
+                    return;
+                }
+
+                _activeConnections.TryAdd(connectionId, handler);
+                ConnectionEstablished?.Invoke(this, new ConnectionEventArgs(connectionId, client, handler.IsSecure));
+
                 await ProcessConnectionLoopAsync(handler, cancellationToken);
             }
             finally
             {
-                _activeConnections.TryRemove(connectionId, out _);
-                _connectionPool.Release();
-                ConnectionClosed?.Invoke(this, new ConnectionEventArgs(connectionId, client));
-                handler.Dispose();
+                if (handler != null)
+                {
+                    _activeConnections.TryRemove(connectionId, out _);
+                    _connectionPool.Release();
+                    ConnectionClosed?.Invoke(this, new ConnectionEventArgs(connectionId, client, handler?.IsSecure ?? false));
+                    handler?.Dispose();
+                }
+                else
+                {
+                    client.Dispose();
+                }
             }
         }
 
@@ -268,6 +301,20 @@ namespace AdvGenNoSqlServer.Network
                     Payload = System.Text.Encoding.UTF8.GetBytes($"{{\"error\":\"{reason}\"}}")
                 };
                 await handler.SendAsync(rejectionMessage, CancellationToken.None);
+            }
+            catch { /* Best effort */ }
+        }
+
+        private async Task SendSslErrorAsync(TcpClient client, string reason)
+        {
+            try
+            {
+                // Send a plain text error before SSL is established
+                var stream = client.GetStream();
+                var errorMessage = $"HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\n\r\nSSL/TLS Required: {reason}";
+                var errorBytes = System.Text.Encoding.UTF8.GetBytes(errorMessage);
+                await stream.WriteAsync(errorBytes);
+                await stream.FlushAsync();
             }
             catch { /* Best effort */ }
         }
@@ -342,10 +389,16 @@ namespace AdvGenNoSqlServer.Network
         /// </summary>
         public TcpClient Client { get; }
 
-        public ConnectionEventArgs(string connectionId, TcpClient client)
+        /// <summary>
+        /// Whether the connection is using SSL/TLS encryption
+        /// </summary>
+        public bool IsSecure { get; }
+
+        public ConnectionEventArgs(string connectionId, TcpClient client, bool isSecure = false)
         {
             ConnectionId = connectionId;
             Client = client;
+            IsSecure = isSecure;
         }
     }
 

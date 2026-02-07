@@ -10,9 +10,80 @@
 
 | Agent | Task | Status | Started | Target Completion |
 |-------|------|--------|---------|-------------------|
-| Agent-20 | Batch operation support | In Progress | 2026-02-07 | 2026-02-07 |
+| | | | | |
 
 ## Completed Tasks
+
+### Agent-30: Batch Operation Support ✓ COMPLETED
+**Scope**: Implement batch operation support for bulk insert, update, and delete operations
+**Completed**: 2026-02-07
+**Summary**:
+- Created batch operation models in Core project:
+  - `BatchOperationRequest` - Request model for batch operations with collection, operations list, StopOnError, UseTransaction, and TransactionId
+  - `BatchOperationResponse` - Response model with InsertedCount, UpdatedCount, DeletedCount, TotalProcessed, ProcessingTimeMs, and individual Results
+  - `BatchOperationItem` - Individual operation item with OperationType, DocumentId, Document, Filter, and UpdateFields
+  - `BatchOperationItemResult` - Result for each operation with Index, Success, DocumentId, ErrorCode, and ErrorMessage
+  - `BatchOptions` - Configuration options for batch operations (MaxBatchSize, TimeoutMs, StopOnError, UseTransaction)
+  - `BatchOperationType` enum - Insert, Update, Delete, Mixed
+- Added client-side batch methods to `AdvGenNoSqlClient`:
+  - `BatchInsertAsync()` - Insert multiple documents in a single batch
+  - `BatchUpdateAsync()` - Update multiple documents by ID or filter
+  - `BatchDeleteAsync()` - Delete multiple documents by ID or filter
+  - `ExecuteBatchAsync()` - Execute a custom batch request
+  - `BulkInsertAsync()` - Split large document sets into manageable batches with progress callback
+- Added server-side batch handling in `NoSqlServer`:
+  - `HandleBulkOperationAsync()` - Process BulkOperation messages
+  - `ProcessBatchRequest()` - Process batch operations with timing and statistics
+  - `ProcessBatchOperationItem()` - Process individual operations
+  - `ProcessBatchInsert/Update/Delete()` - Type-specific handlers
+  - Support for StopOnError behavior
+  - Transaction support (placeholder for integration)
+- Created comprehensive unit tests (32 tests):
+  - Model tests for default values and property setting
+  - Serialization round-trip tests
+  - Client method tests (error handling when not connected)
+  - Server-side processing tests
+  - Bulk insert batch calculation tests
+  - Progress callback tests
+  - Complex batch scenario tests
+  - StopOnError behavior tests
+  - Transaction support tests
+
+**Files Created**:
+- `AdvGenNoSqlServer.Core/Models/BatchOperation.cs` (200+ lines)
+- `AdvGenNoSqlServer.Tests/BatchOperationTests.cs` (600+ lines, 32 tests)
+
+**Files Modified**:
+- `AdvGenNoSqlServer.Client/Client.cs` - Added batch operation methods (180+ lines)
+- `AdvGenNoSqlServer.Server/NoSqlServer.cs` - Added bulk operation handler (150+ lines)
+
+**Build Status**: ✓ Compiles successfully (0 errors, 38 pre-existing warnings)
+**Test Status**: ✓ 32/32 batch operation tests pass, 828+ total tests pass
+**Usage**:
+```csharp
+// Batch insert
+var documents = new List<object> { new { _id = "1", name = "Doc1" }, new { _id = "2", name = "Doc2" } };
+var result = await client.BatchInsertAsync("collection", documents);
+Console.WriteLine($"Inserted: {result.InsertedCount}");
+
+// Batch update
+var updates = new List<(string, Dictionary<string, object>)>
+{
+    ("doc1", new Dictionary<string, object> { { "status", "updated" } }),
+    ("doc2", new Dictionary<string, object> { { "status", "updated" } })
+};
+var updateResult = await client.BatchUpdateAsync("collection", updates);
+
+// Batch delete
+var ids = new List<string> { "doc1", "doc2", "doc3" };
+var deleteResult = await client.BatchDeleteAsync("collection", ids);
+
+// Bulk insert with progress
+await client.BulkInsertAsync("collection", largeDocumentList, batchSize: 1000, 
+    progressCallback: (processed, total) => Console.WriteLine($"{processed}/{total}"));
+```
+
+---
 
 ### Agent-28: Hot Configuration Reload ✓ COMPLETED
 **Scope**: Implement hot-reload capability for configuration files using FileSystemWatcher

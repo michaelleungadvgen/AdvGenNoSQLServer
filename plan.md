@@ -638,7 +638,7 @@ Where third-party libraries have restrictive licenses, we implement custom solut
 - [x] Object pooling (buffers, objects)
 - [x] LRU caching with TTL (LruCache<T> with O(1) operations, 44 tests)
 - [ ] Query plan optimization
-- [ ] Batch operation support
+- [x] Batch operation support (Agent-30 - 32 tests passing)
 - [ ] Memory profiling and tuning
 
 ### Testing

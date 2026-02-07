@@ -8,6 +8,7 @@ using System.Buffers;
 using System.Buffers.Binary;
 using System.IO;
 using System.IO.Pipelines;
+using System.Net.Security;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -17,11 +18,12 @@ namespace AdvGenNoSqlServer.Network
 {
     /// <summary>
     /// Handles a single TCP connection with message framing and protocol handling
+    /// Supports both plain TCP and SSL/TLS encrypted connections
     /// </summary>
     public class ConnectionHandler : IDisposable
     {
         private readonly TcpClient _client;
-        private readonly NetworkStream _stream;
+        private readonly Stream _stream;
         private readonly MessageProtocol _protocol;
         private readonly ServerConfiguration _configuration;
         private readonly PipeReader _reader;
@@ -55,7 +57,17 @@ namespace AdvGenNoSqlServer.Network
         public string RemoteAddress => _client.Client?.RemoteEndPoint?.ToString() ?? "unknown";
 
         /// <summary>
-        /// Creates a new connection handler
+        /// Whether the connection is using SSL/TLS encryption
+        /// </summary>
+        public bool IsSecure => _stream is SslStream;
+
+        /// <summary>
+        /// SSL/TLS connection information (null if not using SSL)
+        /// </summary>
+        public SslStream? SslStream => _stream as SslStream;
+
+        /// <summary>
+        /// Creates a new connection handler (plain TCP)
         /// </summary>
         public ConnectionHandler(
             string connectionId,
@@ -73,6 +85,53 @@ namespace AdvGenNoSqlServer.Network
             _writer = PipeWriter.Create(_stream);
             _writeLock = new SemaphoreSlim(1, 1);
             ConnectedAt = DateTime.UtcNow;
+        }
+
+        /// <summary>
+        /// Creates a new connection handler with SSL stream
+        /// </summary>
+        public ConnectionHandler(
+            string connectionId,
+            TcpClient client,
+            Stream stream,
+            MessageProtocol protocol,
+            ServerConfiguration configuration)
+        {
+            ConnectionId = connectionId ?? throw new ArgumentNullException(nameof(connectionId));
+            _client = client ?? throw new ArgumentNullException(nameof(client));
+            _stream = stream ?? throw new ArgumentNullException(nameof(stream));
+            _protocol = protocol ?? throw new ArgumentNullException(nameof(protocol));
+            _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+
+            _reader = PipeReader.Create(_stream);
+            _writer = PipeWriter.Create(_stream);
+            _writeLock = new SemaphoreSlim(1, 1);
+            ConnectedAt = DateTime.UtcNow;
+        }
+
+        /// <summary>
+        /// Performs SSL/TLS handshake for the connection
+        /// </summary>
+        public async Task<bool> EnableSslAsync(CancellationToken cancellationToken = default)
+        {
+            if (_stream is SslStream)
+                return true; // Already SSL
+
+            if (!_configuration.EnableSsl)
+                return false; // SSL not enabled in configuration
+
+            try
+            {
+                var sslStream = await TlsStreamHelper.CreateServerSslStreamAsync(
+                    _client, _configuration, cancellationToken);
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"SSL handshake failed: {ex.Message}");
+                return false;
+            }
         }
 
         /// <summary>
@@ -99,7 +158,6 @@ namespace AdvGenNoSqlServer.Network
             try
             {
                 // Read the header (12 bytes)
-                // Note: ReadExactAsync returns a copied array, not a pooled one
                 var headerBuffer = await ReadExactAsync(MessageHeader.HeaderSize, cancellationToken);
                 if (headerBuffer == null)
                     return null;
@@ -173,7 +231,7 @@ namespace AdvGenNoSqlServer.Network
                 while (totalRead < count)
                 {
                     var read = await _stream.ReadAsync(
-                        buffer.AsMemory(totalRead, count - totalRead), 
+                        buffer.AsMemory(totalRead, count - totalRead),
                         cancellationToken);
 
                     if (read == 0)
@@ -210,7 +268,6 @@ namespace AdvGenNoSqlServer.Network
             {
                 var data = _protocol.Serialize(message);
                 // Calculate actual message length: header (12) + payload + checksum (4)
-                // Note: ArrayPool.Rent may return a larger buffer than requested
                 var actualLength = MessageHeader.HeaderSize + message.PayloadLength + 4;
                 try
                 {
@@ -273,6 +330,16 @@ namespace AdvGenNoSqlServer.Network
 
             try
             {
+                // Close SSL stream properly if using SSL
+                if (_stream is SslStream sslStream)
+                {
+                    try
+                    {
+                        sslStream.ShutdownAsync().Wait(TimeSpan.FromSeconds(5));
+                    }
+                    catch { /* Best effort */ }
+                }
+
                 _client.Close();
             }
             catch { /* Best effort */ }

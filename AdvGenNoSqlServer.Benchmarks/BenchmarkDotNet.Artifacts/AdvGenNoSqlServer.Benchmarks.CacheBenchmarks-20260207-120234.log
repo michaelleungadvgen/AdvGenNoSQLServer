@@ -1,0 +1,27 @@
+// Validating benchmarks:
+// ***** BenchmarkRunner: Start   *****
+// ***** Found 21 benchmark(s) in total *****
+// ***** Building 1 exe(s) in Parallel: Start   *****
+// start dotnet  restore /p:UseSharedCompilation=false /p:BuildInParallel=false /m:1 /p:Deterministic=true /p:Optimize=true /p:IntermediateOutputPath="E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Benchmarks\bin\Release\net9.0\87f999d8-b68a-4628-a2d3-cbf4bed8357d\obj\Release\net9.0/" /p:OutDir="E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Benchmarks\bin\Release\net9.0\87f999d8-b68a-4628-a2d3-cbf4bed8357d\bin\Release\net9.0/" /p:OutputPath="E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Benchmarks\bin\Release\net9.0\87f999d8-b68a-4628-a2d3-cbf4bed8357d\bin\Release\net9.0/" in E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Benchmarks\bin\Release\net9.0\87f999d8-b68a-4628-a2d3-cbf4bed8357d
+// command took 0.7 sec and exited with 0
+// start dotnet  build -c Release --no-restore /p:UseSharedCompilation=false /p:BuildInParallel=false /m:1 /p:Deterministic=true /p:Optimize=true /p:IntermediateOutputPath="E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Benchmarks\bin\Release\net9.0\87f999d8-b68a-4628-a2d3-cbf4bed8357d\obj\Release\net9.0/" /p:OutDir="E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Benchmarks\bin\Release\net9.0\87f999d8-b68a-4628-a2d3-cbf4bed8357d\bin\Release\net9.0/" /p:OutputPath="E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Benchmarks\bin\Release\net9.0\87f999d8-b68a-4628-a2d3-cbf4bed8357d\bin\Release\net9.0/" --output "E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Benchmarks\bin\Release\net9.0\87f999d8-b68a-4628-a2d3-cbf4bed8357d\bin\Release\net9.0/" in E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Benchmarks\bin\Release\net9.0\87f999d8-b68a-4628-a2d3-cbf4bed8357d
+// command took 8.01 sec and exited with 0
+// ***** Done, took 00:00:08 (8.75 sec)   *****
+// Found 21 benchmarks:
+//   CacheBenchmarks.CacheGetHit: Job-XBBMCX(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=100]
+//   CacheBenchmarks.CacheGetMiss: Job-XBBMCX(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=100]
+//   CacheBenchmarks.CacheSet: Job-XBBMCX(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=100]
+//   CacheBenchmarks.CacheSetExisting: Job-XBBMCX(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=100]
+//   CacheBenchmarks.CacheRemove: Job-XBBMCX(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=100]
+//   CacheBenchmarks.CacheEvictionUnderPressure: Job-XBBMCX(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=100]
+//   CacheBenchmarks.CacheGetStatistics: Job-XBBMCX(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=100]
+//   CacheBenchmarks.CacheGetHit: Job-XBBMCX(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=1000]
+//   CacheBenchmarks.CacheGetMiss: Job-XBBMCX(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=1000]
+//   CacheBenchmarks.CacheSet: Job-XBBMCX(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=1000]
+//   CacheBenchmarks.CacheSetExisting: Job-XBBMCX(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=1000]
+//   CacheBenchmarks.CacheRemove: Job-XBBMCX(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=1000]
+//   CacheBenchmarks.CacheEvictionUnderPressure: Job-XBBMCX(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=1000]
+//   CacheBenchmarks.CacheGetStatistics: Job-XBBMCX(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=1000]
+//   CacheBenchmarks.CacheGetHit: Job-XBBMCX(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=10000]
+//   CacheBenchmarks.CacheGetMiss: Job-XBBMCX(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=10000]
+//   CacheBenchmarks.CacheSet: Job-XBBMCX(Runtime=.NET 9.0, IterationCount=5, L
