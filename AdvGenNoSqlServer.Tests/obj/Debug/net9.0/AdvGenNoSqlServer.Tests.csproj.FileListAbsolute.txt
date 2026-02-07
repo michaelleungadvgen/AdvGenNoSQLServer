@@ -112,3 +112,5 @@ E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Tests\bin\Debug\net9.0\Microsoft
 E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Tests\bin\Debug\net9.0\Microsoft.Extensions.Primitives.dll
 E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Tests\bin\Debug\net9.0\AdvGenNoSqlServer.Storage.dll
 E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Tests\bin\Debug\net9.0\AdvGenNoSqlServer.Storage.pdb
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Tests\bin\Debug\net9.0\AdvGenNoSqlServer.Query.dll
+E:\Projects\AdvGenNoSQLServer\AdvGenNoSqlServer.Tests\bin\Debug\net9.0\AdvGenNoSqlServer.Query.pdb

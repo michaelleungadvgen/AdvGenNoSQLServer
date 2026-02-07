@@ -618,7 +618,7 @@ Where third-party libraries have restrictive licenses, we implement custom solut
 - [x] Query executor with filtering, sorting, pagination
 - [x] Filter engine with comparison and logical operators
 - [x] Index-based query optimization
-- [ ] Aggregation pipeline
+- [x] Aggregation pipeline ($match, $group, $project, $sort, $limit, $skip)
 - [ ] Query plan optimization
 
 ### Transactions

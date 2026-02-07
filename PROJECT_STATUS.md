@@ -274,7 +274,7 @@ AdvGenNoSQLServer/
 - [ ] Query optimization
 - [ ] Garbage collection
 
-### 🟡 Query Engine (40% Complete)
+### 🟡 Query Engine (60% Complete)
 **Target**: Weeks 9-10
 
 **Completed**:
@@ -284,10 +284,12 @@ AdvGenNoSQLServer/
 - [x] Filter engine with operators: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin, $and, $or, $exists
 - [x] Index-based query optimization
 - [x] Query statistics and execution plan support
-- [x] 48 comprehensive unit tests
+- [x] Aggregation pipeline with stages: $match, $group, $project, $sort, $limit, $skip
+- [x] Aggregation operators: sum, avg, min, max, count, first, last, push, addToSet
+- [x] Fluent API builder for aggregation pipelines
+- [x] 97 comprehensive unit tests (48 query + 49 aggregation)
 
 **Planned**:
-- [ ] Aggregation pipeline
 - [ ] Query optimizer with plan generation
 
 ### 🟡 Transaction Management (75% Complete)
