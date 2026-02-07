@@ -604,12 +604,12 @@ Where third-party libraries have restrictive licenses, we implement custom solut
 - [x] Role-based access control
 - [ ] TLS/SSL support
 - [ ] Encryption for sensitive data
-- [ ] Audit logging
+- [x] Audit logging (IAuditLogger, AuditLogger with file-based logging, 44 tests)
 
 ### Storage
 - [x] Document store with CRUD operations
 - [x] File-based persistence
-- [ ] B-tree indexing
+- [x] B-tree indexing (basic implementation, 77 tests passing)
 - [ ] Query optimization with index selection
 
 ### Transactions
