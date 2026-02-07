@@ -629,7 +629,7 @@ Where third-party libraries have restrictive licenses, we implement custom solut
 - [x] Multiple isolation levels (ReadUncommitted, ReadCommitted, RepeatableRead, Serializable)
 
 ### Performance
-- [ ] Object pooling (buffers, objects)
+- [x] Object pooling (buffers, objects)
 - [x] LRU caching with TTL (LruCache<T> with O(1) operations, 44 tests)
 - [ ] Query plan optimization
 - [ ] Batch operation support

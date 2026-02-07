@@ -143,4 +143,38 @@ public class ServerConfiguration
     public string? KeyStorePath { get; set; }
 
     #endregion
+
+    #region Pooling Configuration
+
+    /// <summary>
+    /// Whether to enable object pooling (default: true)
+    /// </summary>
+    public bool EnableObjectPooling { get; set; } = true;
+
+    /// <summary>
+    /// Maximum number of objects to keep in each object pool (default: 100)
+    /// </summary>
+    public int MaxObjectPoolSize { get; set; } = 100;
+
+    /// <summary>
+    /// Maximum number of byte arrays to keep per bucket in the buffer pool (default: 100)
+    /// </summary>
+    public int MaxBufferArraysPerBucket { get; set; } = 100;
+
+    /// <summary>
+    /// Maximum size of byte arrays to pool (default: 1MB)
+    /// </summary>
+    public int MaxPooledBufferSize { get; set; } = 1024 * 1024;
+
+    /// <summary>
+    /// Whether to pre-populate object pools on startup (default: false)
+    /// </summary>
+    public bool PrePopulateObjectPools { get; set; } = false;
+
+    /// <summary>
+    /// Number of objects to pre-allocate for each pool when PrePopulateObjectPools is true (default: 10)
+    /// </summary>
+    public int PrePopulatePoolSize { get; set; } = 10;
+
+    #endregion
 }
