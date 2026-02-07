@@ -87,7 +87,7 @@ public class BTreeIndexTests
         Assert.Equal(80, allItems[6].Key);
     }
 
-    [Fact(Skip = "Unique index duplicate detection requires tree-wide check - implementation pending")]
+    [Fact]
     public void Insert_UniqueIndex_DuplicateKey_ThrowsDuplicateKeyException()
     {
         var index = new BTreeIndex<int, string>("test_idx", "users", "id", isUnique: true);
@@ -96,7 +96,7 @@ public class BTreeIndexTests
         Assert.Throws<DuplicateKeyException>(() => index.Insert(1, "user2"));
     }
 
-    [Fact(Skip = "Unique index duplicate detection - implementation pending")]
+    [Fact]
     public void Insert_UniqueIndex_SameNodeDuplicateKey_ThrowsDuplicateKeyException()
     {
         // Duplicate detection works within the same leaf node

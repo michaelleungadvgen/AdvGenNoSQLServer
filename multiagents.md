@@ -10,7 +10,7 @@
 
 | Agent | Task | Status | Started | Target Completion |
 |-------|------|--------|---------|-------------------|
-| | | | | |
+| Agent-34 | Host Application Implementation | In Progress | 2026-02-07 | 2026-02-07 |
 
 ## Completed Tasks
 
@@ -419,7 +419,24 @@ dotnet test AdvGenNoSqlServer.Tests --filter "FullyQualifiedName~SecurityPenetra
 ```
 
 ---
-| Agent-25 | Fix B-tree Edge Cases | In Progress | 2026-02-07 | 2026-02-07 |
+
+### Agent-25: B-tree Unique Index Duplicate Detection ✓ COMPLETED
+**Scope**: Fix unique index duplicate key detection to properly throw DuplicateKeyException
+**Completed**: 2026-02-07
+**Summary**:
+- Fixed InsertIntoLeaf method in BTreeNode.cs to throw DuplicateKeyException for unique indexes instead of returning false
+- This ensures unique index violations are properly reported to callers
+- Enabled 2 previously skipped unique index tests
+- Test results: 56 B-tree tests passing, 4 skipped (concurrent insertion and deletion rebalancing)
+
+**Files Modified**:
+- `AdvGenNoSqlServer.Storage/Indexing/BTreeNode.cs` - Fixed unique index duplicate handling
+- `AdvGenNoSqlServer.Tests/BTreeIndexTests.cs` - Enabled unique index tests
+
+**Build Status**: ✓ Compiles successfully
+**Test Status**: ✓ 56/60 B-tree tests pass, 4 skipped (complex concurrent/rebalancing scenarios)
+
+---
 
 ## Completed Tasks
 

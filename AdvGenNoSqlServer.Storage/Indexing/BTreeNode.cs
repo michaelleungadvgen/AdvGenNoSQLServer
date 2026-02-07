@@ -147,7 +147,7 @@ internal class BTreeNode<TKey, TValue> where TKey : IComparable<TKey>
             // Key exists
             if (isUnique)
             {
-                return false;
+                throw new DuplicateKeyException($"Duplicate key '{key}' in unique index");
             }
             // Add value to existing key
             Values[index].Add(value);
