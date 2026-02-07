@@ -615,8 +615,8 @@ Where third-party libraries have restrictive licenses, we implement custom solut
 ### Transactions
 - [ ] Transaction coordinator
 - [x] Lock manager with deadlock detection
-- [ ] Write-ahead logging
-- [ ] Rollback mechanism
+- [x] Write-ahead logging (WAL)
+- [x] Rollback mechanism (via WAL)
 - [ ] Multiple isolation levels
 
 ### Performance
@@ -1085,7 +1085,7 @@ Create a file documenting all dependencies with:
 ### File Headers
 All source files must include:
 ```csharp
-// Copyright (c) 2026 [Your Organization]
+// Copyright (c) 2026 AdvanGeneration Pty. Ltd.
 // Licensed under the MIT License.
 // See LICENSE.txt for license information.
 ```

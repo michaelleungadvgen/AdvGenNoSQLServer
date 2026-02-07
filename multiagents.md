@@ -16,6 +16,36 @@
 
 ## Task Details
 
+### Agent-12: Write-Ahead Log (WAL) Implementation
+**Scope**: Implement Write-Ahead Logging system for transaction durability and crash recovery
+**Components**:
+- [ ] IWriteAheadLog interface with log entry management
+- [ ] WriteAheadLog implementation with:
+  - [ ] Append-only log file format with binary serialization
+  - [ ] Log entry types (BeginTransaction, Commit, Rollback, Insert, Update, Delete)
+  - [ ] CRC32 checksums for log entry validation
+  - [ ] Log sequence numbers (LSN) for ordering
+  - [ ] Force-write (fsync) support for durability
+- [ ] WAL Log Entry structure with transaction ID, operation type, before/after images
+- [ ] Log replay/recovery mechanism for crash recovery
+- [ ] Log truncation/checkpointing to manage file size
+- [ ] Thread-safe append operations
+- [ ] Unit tests for all WAL operations
+
+**Dependencies**:
+- TransactionManager (exists)
+- Document model (exists)
+- LockManager (exists - completed by Agent-11)
+
+**Notes**:
+- Use binary format for efficiency (not JSON)
+- Implement proper file flushing for durability guarantees
+- Support log rotation to prevent unbounded file growth
+- Must be compatible with LockManager for transaction coordination
+- Follow existing code patterns with license headers
+
+---
+
 ### Agent-11: Lock Manager with Deadlock Detection
 **Scope**: Implement a Lock Manager for transaction concurrency control with deadlock detection capability
 **Components**:
@@ -65,6 +95,34 @@
 - Use MIT-compatible dependencies only (no external JWT libraries)
 
 ## Completed Tasks
+
+### Agent-12: Write-Ahead Log (WAL) Implementation ✓ COMPLETED
+**Scope**: Implement Write-Ahead Logging system for transaction durability and crash recovery
+**Completed**: 2026-02-07
+**Summary**:
+- Implemented IWriteAheadLog interface with comprehensive log entry management
+- Created WriteAheadLog class with:
+  - Append-only log file format with binary serialization
+  - Log entry types: BeginTransaction, Commit, Rollback, Insert, Update, Delete, Checkpoint
+  - CRC32 checksums for log entry validation
+  - Log sequence numbers (LSN) for ordering
+  - Force-write (fsync) support for durability
+  - Log file rotation when max file size is reached
+- WAL Log Entry structure with transaction ID, operation type, before/after images
+- Log replay/recovery mechanism for crash recovery
+- Checkpoint support for log truncation
+- Thread-safe append operations using SemaphoreSlim
+- 27 comprehensive unit tests (all passing)
+
+**Files Created**:
+- AdvGenNoSqlServer.Core/Transactions/IWriteAheadLog.cs (331 lines)
+- AdvGenNoSqlServer.Core/Transactions/WriteAheadLog.cs (850+ lines)
+- AdvGenNoSqlServer.Tests/WriteAheadLogTests.cs (680+ lines, 27 tests)
+
+**Build Status**: ✓ Compiles successfully (0 errors, 0 warnings from new code)
+**Test Status**: ✓ 27/27 WAL tests pass
+
+---
 
 ### Agent-11: Lock Manager with Deadlock Detection ✓ COMPLETED
 **Scope**: Implement a Lock Manager for transaction concurrency control with deadlock detection capability
