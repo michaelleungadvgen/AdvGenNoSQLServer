@@ -14,6 +14,28 @@
 
 ## Completed Tasks
 
+### Agent-35: Create config-schema.json ✓ COMPLETED
+**Scope**: Create JSON Schema validation file for server configuration
+**Completed**: 2026-02-09
+**Summary**:
+- Created comprehensive JSON Schema (draft-07) for ServerConfiguration validation
+- Includes all 40+ configuration properties with:
+  - Type definitions (string, integer, boolean)
+  - Default values matching ServerConfiguration.cs
+  - Validation constraints (minimum, maximum, minLength, pattern)
+  - Descriptions from XML documentation
+- Added conditional validation (e.g., SSL requires certificate path or thumbprint)
+- Included example configurations (minimal, development, production with SSL)
+- Supports additionalProperties: false for strict validation
+
+**Files Created**:
+- AdvGenNoSqlServer.Server/config-schema.json (comprehensive JSON Schema)
+
+**Build Status**: ✓ Test project compiles successfully (0 errors)
+**Test Status**: ✓ 874/896 tests pass (22 skipped - pre-existing)
+
+---
+
 ## Completed Tasks
 
 ### Agent-33: Garbage Collection for Deleted Documents ✓ COMPLETED

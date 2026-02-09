@@ -1,0 +1,285 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/advgeneration/advgennosqlserver/config-schema.json",
+  "title": "AdvGenNoSQL Server Configuration",
+  "description": "Configuration schema for AdvGenNoSQL Server - a lightweight, high-performance NoSQL database server",
+  "type": "object",
+  "properties": {
+    "host": {
+      "type": "string",
+      "description": "The host IP address to bind to",
+      "default": "0.0.0.0",
+      "examples": ["0.0.0.0", "127.0.0.1", "localhost"]
+    },
+    "port": {
+      "type": "integer",
+      "description": "The port number the server will listen on",
+      "default": 9091,
+      "minimum": 1,
+      "maximum": 65535,
+      "examples": [9090, 9091, 27017]
+    },
+    "maxConcurrentConnections": {
+      "type": "integer",
+      "description": "The maximum number of concurrent connections",
+      "default": 10000,
+      "minimum": 1,
+      "maximum": 1000000
+    },
+    "connectionTimeoutSeconds": {
+      "type": "integer",
+      "description": "Connection timeout duration in seconds",
+      "default": 30,
+      "minimum": 1,
+      "maximum": 3600
+    },
+    "keepAliveIntervalSeconds": {
+      "type": "integer",
+      "description": "Keep-alive interval for connections in seconds",
+      "default": 60,
+      "minimum": 1,
+      "maximum": 3600
+    },
+    "receiveBufferSize": {
+      "type": "integer",
+      "description": "Size of the receive buffer in bytes",
+      "default": 65536,
+      "minimum": 1024,
+      "maximum": 10485760
+    },
+    "sendBufferSize": {
+      "type": "integer",
+      "description": "Size of the send buffer in bytes",
+      "default": 65536,
+      "minimum": 1024,
+      "maximum": 10485760
+    },
+    "maxCacheSize": {
+      "type": "integer",
+      "description": "Maximum number of items in the cache (legacy property, use maxCacheItemCount instead)",
+      "default": 1000,
+      "minimum": 0
+    },
+    "maxCacheItemCount": {
+      "type": "integer",
+      "description": "Maximum number of items to store in the cache",
+      "default": 10000,
+      "minimum": 0
+    },
+    "maxCacheSizeInBytes": {
+      "type": "integer",
+      "description": "Maximum size of the cache in bytes",
+      "default": 104857600,
+      "minimum": 0
+    },
+    "defaultCacheTtlMilliseconds": {
+      "type": "integer",
+      "description": "Default TTL for cache items in milliseconds",
+      "default": 1800000,
+      "minimum": 0
+    },
+    "cacheTimeoutMinutes": {
+      "type": "integer",
+      "description": "Timeout for cache items in minutes (legacy property)",
+      "default": 30,
+      "minimum": 0
+    },
+    "storagePath": {
+      "type": "string",
+      "description": "The base path for file storage",
+      "default": "data"
+    },
+    "enableDetailedLogging": {
+      "type": "boolean",
+      "description": "Whether to enable detailed logging",
+      "default": false
+    },
+    "databaseTimeoutSeconds": {
+      "type": "integer",
+      "description": "Timeout for database operations in seconds",
+      "default": 30,
+      "minimum": 1,
+      "maximum": 3600
+    },
+    "masterPassword": {
+      "type": "string",
+      "description": "Master password for server authentication (should be stored securely)",
+      "minLength": 8
+    },
+    "requireAuthentication": {
+      "type": "boolean",
+      "description": "Whether authentication is required for server connections",
+      "default": true
+    },
+    "tokenExpirationHours": {
+      "type": "integer",
+      "description": "Token expiration time in hours",
+      "default": 24,
+      "minimum": 1,
+      "maximum": 8760
+    },
+    "jwtSecretKey": {
+      "type": "string",
+      "description": "Secret key for JWT token signing (should be at least 32 characters)",
+      "minLength": 32
+    },
+    "jwtIssuer": {
+      "type": "string",
+      "description": "JWT token issuer",
+      "default": "AdvGenNoSqlServer"
+    },
+    "jwtAudience": {
+      "type": "string",
+      "description": "JWT token audience",
+      "default": "AdvGenNoSqlClient"
+    },
+    "enableJwtAuthentication": {
+      "type": "boolean",
+      "description": "Whether to enable JWT authentication",
+      "default": true
+    },
+    "encryptionKey": {
+      "type": "string",
+      "description": "Master encryption key for data at rest (Base64 encoded, 32 bytes for AES-256)"
+    },
+    "encryptionKeyId": {
+      "type": "string",
+      "description": "Identifier for the current encryption key (for key rotation support)"
+    },
+    "enableFieldEncryption": {
+      "type": "boolean",
+      "description": "Whether to enable encryption for sensitive fields",
+      "default": false
+    },
+    "keyStorePath": {
+      "type": "string",
+      "description": "Path to the key store file for encrypted key storage"
+    },
+    "enableObjectPooling": {
+      "type": "boolean",
+      "description": "Whether to enable object pooling",
+      "default": true
+    },
+    "maxObjectPoolSize": {
+      "type": "integer",
+      "description": "Maximum number of objects to keep in each object pool",
+      "default": 100,
+      "minimum": 1
+    },
+    "maxBufferArraysPerBucket": {
+      "type": "integer",
+      "description": "Maximum number of byte arrays to keep per bucket in the buffer pool",
+      "default": 100,
+      "minimum": 1
+    },
+    "maxPooledBufferSize": {
+      "type": "integer",
+      "description": "Maximum size of byte arrays to pool in bytes",
+      "default": 1048576,
+      "minimum": 1024
+    },
+    "prePopulateObjectPools": {
+      "type": "boolean",
+      "description": "Whether to pre-populate object pools on startup",
+      "default": false
+    },
+    "prePopulatePoolSize": {
+      "type": "integer",
+      "description": "Number of objects to pre-allocate for each pool when prePopulateObjectPools is true",
+      "default": 10,
+      "minimum": 1
+    },
+    "enableSsl": {
+      "type": "boolean",
+      "description": "Whether to enable SSL/TLS encryption for connections",
+      "default": false
+    },
+    "sslCertificatePath": {
+      "type": "string",
+      "description": "Path to the SSL certificate file (PFX format)"
+    },
+    "sslCertificatePassword": {
+      "type": "string",
+      "description": "Password for the SSL certificate file"
+    },
+    "sslCertificateThumbprint": {
+      "type": "string",
+      "description": "Thumbprint of the SSL certificate to use from the certificate store (Windows)",
+      "pattern": "^[A-Fa-f0-9]{40}$"
+    },
+    "useCertificateStore": {
+      "type": "boolean",
+      "description": "Whether to use the certificate store instead of a file",
+      "default": false
+    },
+    "sslProtocols": {
+      "type": "string",
+      "description": "SSL/TLS protocol version to use",
+      "enum": ["Tls", "Tls11", "Tls12", "Tls13", "Tls12,Tls13"],
+      "default": "Tls12,Tls13"
+    },
+    "requireClientCertificate": {
+      "type": "boolean",
+      "description": "Whether to require client certificates for mutual TLS (mTLS)",
+      "default": false
+    },
+    "checkCertificateRevocation": {
+      "type": "boolean",
+      "description": "Whether to check certificate revocation list",
+      "default": true
+    },
+    "sslTargetHost": {
+      "type": "string",
+      "description": "Target host name for certificate validation (used by clients)"
+    }
+  },
+  "additionalProperties": false,
+  "dependencies": {
+    "enableSsl": {
+      "oneOf": [
+        {
+          "properties": {
+            "enableSsl": { "const": false }
+          }
+        },
+        {
+          "properties": {
+            "enableSsl": { "const": true }
+          },
+          "anyOf": [
+            { "required": ["sslCertificatePath"] },
+            { "required": ["sslCertificateThumbprint"] }
+          ]
+        }
+      ]
+    }
+  },
+  "examples": [
+    {
+      "$comment": "Minimal configuration",
+      "port": 9091,
+      "storagePath": "data"
+    },
+    {
+      "$comment": "Development configuration",
+      "port": 9090,
+      "maxConcurrentConnections": 100,
+      "enableDetailedLogging": true,
+      "requireAuthentication": false,
+      "storagePath": "./dev-data"
+    },
+    {
+      "$comment": "Production configuration with SSL",
+      "host": "0.0.0.0",
+      "port": 9090,
+      "maxConcurrentConnections": 10000,
+      "enableSsl": true,
+      "sslCertificatePath": "/etc/nosql-server/cert.pfx",
+      "sslCertificatePassword": "secure-password",
+      "requireAuthentication": true,
+      "jwtSecretKey": "your-secure-jwt-secret-key-at-least-32-chars",
+      "enableFieldEncryption": true,
+      "storagePath": "/var/lib/nosql-server/data"
+    }
+  ]
+}
