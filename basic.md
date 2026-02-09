@@ -1,8 +1,272 @@
-michaelleungadvgen: According to cs nosql server in C#
+# AdvGenNoSQL Server - Getting Started Guide
 
-GitHub Copilot: # Building a C# NoSQL Server - Complete Guide
+**Project**: AdvGenNoSQL Server
+**Framework**: .NET 9.0
+**License**: MIT License
 
-This guide walks through building a custom NoSQL database server in C# from scratch, covering architecture, implementation, and deployment considerations.
+This guide provides a quick start for using the AdvGenNoSQL Server project with real working code examples.
+
+---
+
+## Quick Start - Real Working Examples
+
+### Prerequisites
+- .NET 9.0 SDK
+- Visual Studio 2022 or VS Code
+
+### Build and Run Tests
+```powershell
+# Clone and build
+cd "E:\Projects\AdvGenNoSQLServer"
+dotnet build AdvGenNoSqlServer.sln -c Release
+
+# Run all tests (874+ tests)
+dotnet test AdvGenNoSqlServer.Tests/AdvGenNoSqlServer.Tests.csproj -c Release
+```
+
+### Example 1: Document Storage Operations
+```csharp
+using AdvGenNoSqlServer.Core.Models;
+using AdvGenNoSqlServer.Storage;
+using System.Text.Json;
+
+// Create a persistent document store
+var dataPath = Path.Combine(Path.GetTempPath(), "AdvGenNoSqlData");
+var store = new PersistentDocumentStore(dataPath);
+await store.InitializeAsync();
+
+// Create and insert a document
+var user = new Document
+{
+    Id = "user1",
+    Data = new Dictionary<string, object>
+    {
+        ["name"] = "Alice",
+        ["email"] = "alice@example.com",
+        ["age"] = 30
+    },
+    CreatedAt = DateTime.UtcNow,
+    UpdatedAt = DateTime.UtcNow,
+    Version = 1
+};
+
+await store.InsertAsync("users", user);
+Console.WriteLine("Inserted user");
+
+// Retrieve a document
+var retrieved = await store.GetAsync("users", "user1");
+Console.WriteLine($"Retrieved: {JsonSerializer.Serialize(retrieved?.Data)}");
+
+// Update a document
+user.Data["age"] = 31;
+await store.UpdateAsync("users", user);
+
+// Get all documents in collection
+var allUsers = await store.GetAllAsync("users");
+Console.WriteLine($"Total users: {allUsers.Count()}");
+
+// Delete a document
+await store.DeleteAsync("users", "user1");
+
+// Save changes to disk
+await store.SaveChangesAsync();
+```
+
+### Example 2: B-Tree Index Operations
+```csharp
+using AdvGenNoSqlServer.Storage.Indexing;
+
+// Create a B-tree index
+var index = new BTreeIndex<int, string>("user_id_idx", "users", "id", minDegree: 3);
+
+// Insert items
+index.Insert(10, "Alice");
+index.Insert(20, "Bob");
+index.Insert(5, "Charlie");
+index.Insert(15, "Diana");
+
+// Search for a key
+if (index.TryGetValue(15, out var value))
+{
+    Console.WriteLine($"Found: {value}"); // Output: Found: Diana
+}
+
+// Range query
+var range = index.RangeQuery(10, 20);
+foreach (var item in range)
+{
+    Console.WriteLine($"ID {item.Key}: {item.Value}");
+}
+
+// Get all sorted
+var all = index.GetAll();
+Console.WriteLine($"Total items: {index.Count}, Height: {index.Height}");
+```
+
+### Example 3: Client Connection to Server
+```csharp
+using AdvGenNoSqlServer.Client;
+
+var options = new AdvGenNoSqlClientOptions
+{
+    ConnectionTimeout = 5000,
+    EnableKeepAlive = true,
+    KeepAliveInterval = TimeSpan.FromSeconds(30)
+};
+
+using var client = new AdvGenNoSqlClient("localhost:9091", options);
+
+// Connect
+await client.ConnectAsync();
+Console.WriteLine("Connected!");
+
+// Ping server
+var pingOk = await client.PingAsync();
+Console.WriteLine($"Ping: {(pingOk ? "OK" : "Failed")}");
+
+// Execute command
+var response = await client.ExecuteCommandAsync(
+    "set", "test", new { _id = "doc1", message = "Hello!" });
+Console.WriteLine($"Success: {response.Success}");
+
+// Batch insert
+var docs = new List<object>
+{
+    new { _id = "batch1", name = "Doc 1" },
+    new { _id = "batch2", name = "Doc 2" }
+};
+var batchResult = await client.BatchInsertAsync("test", docs);
+Console.WriteLine($"Inserted: {batchResult.InsertedCount}");
+
+// Disconnect
+await client.DisconnectAsync();
+```
+
+### Example 4: Query Engine with MongoDB-like Syntax
+```csharp
+using AdvGenNoSqlServer.Query.Parsing;
+using AdvGenNoSqlServer.Query.Execution;
+using AdvGenNoSqlServer.Query.Filtering;
+
+// Parse a MongoDB-like query
+var parser = new QueryParser();
+var query = parser.Parse(@"{
+    ""collection"": ""users"",
+    ""filter"": { ""age"": { ""$gte"": 18 } },
+    ""sort"": [{ ""field"": ""name"", ""direction"": ""asc"" }],
+    ""options"": { ""skip"": 0, ""limit"": 10 }
+}");
+
+// Create executor with document store
+var filterEngine = new FilterEngine();
+var executor = new QueryExecutor(store, filterEngine, null);
+
+// Execute query
+var result = await executor.ExecuteAsync(query);
+Console.WriteLine($"Found {result.Documents.Count()} documents");
+Console.WriteLine($"Execution time: {result.Stats.ExecutionTimeMs}ms");
+```
+
+### Example 5: JWT Authentication
+```csharp
+using AdvGenNoSqlServer.Core.Authentication;
+
+var tokenProvider = new JwtTokenProvider(
+    secretKey: "your-32-character-secret-key-here!",
+    issuer: "AdvGenNoSqlServer",
+    audience: "AdvGenNoSqlClient");
+
+// Generate token
+var token = tokenProvider.GenerateToken(
+    username: "admin",
+    roles: new[] { "Admin", "User" },
+    permissions: new[] { "read", "write" },
+    expirationHours: 24);
+
+Console.WriteLine($"Token: {token}");
+
+// Validate token
+var isValid = tokenProvider.ValidateToken(token);
+Console.WriteLine($"Valid: {isValid}");
+
+// Extract username
+var username = tokenProvider.GetUsername(token);
+Console.WriteLine($"Username: {username}");
+```
+
+### Example 6: Aggregation Pipeline
+```csharp
+using AdvGenNoSqlServer.Query.Aggregation;
+using AdvGenNoSqlServer.Query.Aggregation.Stages;
+
+// Build aggregation pipeline
+var pipeline = new AggregationPipelineBuilder()
+    .Match(new Dictionary<string, object> { ["status"] = "active" })
+    .Group(
+        "_id", "$department",
+        new Dictionary<string, object>
+        {
+            ["totalSalary"] = new { op = "sum", field = "salary" },
+            ["avgSalary"] = new { op = "avg", field = "salary" },
+            ["count"] = new { op = "count" }
+        })
+    .Sort("totalSalary", descending: true)
+    .Limit(10)
+    .Build();
+
+// Execute pipeline
+var result = await pipeline.ExecuteAsync(documents);
+Console.WriteLine($"Groups: {result.Documents.Count()}");
+```
+
+### Run the Examples Project
+```powershell
+cd AdvGenNoSqlServer.Examples
+dotnet run -- storage   # Storage operations
+dotnet run -- index     # B-tree index operations
+dotnet run -- client    # Client connection (requires server running)
+dotnet run -- all       # Run all examples
+```
+
+### Start the Server
+```powershell
+cd AdvGenNoSqlServer.Server
+dotnet run
+# Server listens on port 9091 by default
+```
+
+---
+
+## Project Architecture
+
+The AdvGenNoSQL Server consists of these components:
+
+| Component | Purpose | Status |
+|-----------|---------|--------|
+| **AdvGenNoSqlServer.Core** | Models, Authentication, Caching, Transactions | Complete |
+| **AdvGenNoSqlServer.Network** | TCP Server, Connection Handling, Protocol | Complete |
+| **AdvGenNoSqlServer.Storage** | Document Store, B-tree Index, Persistence | Complete |
+| **AdvGenNoSqlServer.Query** | Parser, Executor, Filter Engine, Aggregation | Complete |
+| **AdvGenNoSqlServer.Client** | Client Library with TCP support | Complete |
+| **AdvGenNoSqlServer.Server** | Server Application | Complete |
+
+---
+
+## Additional Resources
+
+- [API Documentation](Documentation/API.md)
+- [User Guide](Documentation/UserGuide.md)
+- [Developer Guide](Documentation/DeveloperGuide.md)
+- [Performance Tuning](Documentation/PerformanceTuning.md)
+- [Project Status](PROJECT_STATUS.md)
+
+---
+
+# Appendix: Generic NoSQL Server Implementation Guide
+
+The following sections contain generic implementation guidance for building a NoSQL server from scratch. The AdvGenNoSQL Server project above has already implemented these concepts.
+
+---
 
 ## Prerequisites
 
@@ -14,7 +278,7 @@ This guide walks through building a custom NoSQL database server in C# from scra
 - Concurrency and thread safety concepts
 
 ### Development Environment
-- **.NET 8.0 or later** (recommended for performance improvements)
+- **.NET 9.0 or later** (recommended for performance improvements)
 - **Visual Studio 2022** or **Visual Studio Code** with C# extension
 - **Git** for version control
 - **Docker** (optional, for containerization)

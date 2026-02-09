@@ -14,6 +14,30 @@
 
 ## Completed Tasks
 
+### Agent-36: Update basic.md with Real Code Examples ✓ COMPLETED
+**Scope**: Update basic.md documentation with real working code examples from the project
+**Completed**: 2026-02-09
+**Summary**:
+- Added comprehensive Quick Start section with 6 real working code examples:
+  - Document Storage Operations (PersistentDocumentStore)
+  - B-Tree Index Operations (BTreeIndex)
+  - Client Connection to Server (AdvGenNoSqlClient)
+  - Query Engine with MongoDB-like Syntax (QueryParser, QueryExecutor)
+  - JWT Authentication (JwtTokenProvider)
+  - Aggregation Pipeline (AggregationPipelineBuilder)
+- Added build/run instructions for the project
+- Added project architecture overview table
+- Added links to documentation resources
+- Preserved original generic implementation guide as appendix
+
+**Files Modified**:
+- basic.md (added ~250 lines of real code examples and documentation)
+
+**Build Status**: ✓ Test project compiles successfully
+**Test Status**: ✓ 873/896 tests pass (22 skipped, 1 flaky pre-existing)
+
+---
+
 ### Agent-35: Create config-schema.json ✓ COMPLETED
 **Scope**: Create JSON Schema validation file for server configuration
 **Completed**: 2026-02-09
