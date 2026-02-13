@@ -21,11 +21,16 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Microsoft Extensions for Hosting and Configuration -->
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\AdvGenNoSqlServer.Core\AdvGenNoSqlServer.Core.csproj" />
     <ProjectReference Include="..\AdvGenNoSqlServer.Storage\AdvGenNoSqlServer.Storage.csproj" />
     <ProjectReference Include="..\AdvGenNoSqlServer.Network\AdvGenNoSqlServer.Network.csproj" />
     <ProjectReference Include="..\AdvGenNoSqlServer.Query\AdvGenNoSqlServer.Query.csproj" />
-    <ProjectReference Include="..\AdvGenNoSqlServer.Server\AdvGenNoSqlServer.Server.csproj" />
   </ItemGroup>
 
   <ItemGroup>
