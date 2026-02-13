@@ -222,13 +222,17 @@ AdvGenNoSQLServer/
 - [x] `csharp-nosql-server-guide.md` - Architecture guide
 
 ### ✓ Example Application
-- [x] Console application with 6 examples:
+- [x] Console application with 11 examples:
   - Connection management
   - Authentication
   - CRUD operations
   - Query operations
   - Transaction management
   - Batch operations
+  - **Multi-database operations (NEW - Agent-41)**
+  - **RBAC setup and enforcement (NEW - Agent-41)**
+  - **Multi-tenant isolation (NEW - Agent-41)**
+  - **Cross-database analytics (NEW - Agent-41)**
 
 ### ✓ License & Compliance
 - [x] MIT License file
@@ -498,7 +502,7 @@ AdvGenNoSQLServer/
 | plan.md | ✓ Complete | 100% | Comprehensive 35-section plan (updated by Agent-19) |
 | PROJECT_STATUS.md | ✓ Complete | 100% | This file (updated by Agent-10) |
 | multiagents.md | ✓ Complete | 100% | Multi-agent task tracking |
-| Example Console App | ✓ Complete | 100% | 6 examples with output |
+| Example Console App | ✓ Complete | 100% | 11 examples with multi-db & RBAC (Agent-41) |
 | appsettings.Development.json | ✓ Complete | 100% | Development config |
 | appsettings.Production.json | ✓ Complete | 100% | Production config |
 | appsettings.Testing.json | ✓ Complete | 100% | Testing config |
