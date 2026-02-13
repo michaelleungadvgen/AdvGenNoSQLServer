@@ -100,6 +100,282 @@ Build a **lightweight, high-performance NoSQL server** in C# with .NET featuring
 
 ---
 
+### 3.2.1 Transport Security (TLS Enforcement)
+**Responsibility:** Secure all TCP communication with mandatory encryption
+
+#### Current State vs Target State
+
+| Feature | Current | Target |
+|---------|---------|--------|
+| TLS Version | TLS 1.2+ (optional) | TLS 1.3 (enforced) |
+| Encryption | Optional (`EnableSSL`) | Mandatory (`RequireEncryption`) |
+| Client Certs | Not supported | Optional (mTLS for high security) |
+| Certificate Pinning | Not implemented | Supported |
+| ALPN | Not implemented | Supported |
+
+#### TLS Configuration Schema
+```json
+{
+  "Transport": {
+    "RequireEncryption": true,
+    "MinimumTlsVersion": "Tls13",
+    "AllowedTlsVersions": ["Tls12", "Tls13"],
+
+    "ServerCertificate": {
+      "Path": "/etc/nosql/certs/server.pfx",
+      "Password": "${CERT_PASSWORD}",
+      "ReloadOnChange": true
+    },
+
+    "ClientCertificate": {
+      "Mode": "None",
+      "CaCertificatePath": "/etc/nosql/certs/ca.crt",
+      "ValidateChain": true,
+      "AllowedThumbprints": [],
+      "RevocationMode": "Online"
+    },
+
+    "CertificatePinning": {
+      "Enabled": false,
+      "Pins": [
+        {
+          "Thumbprint": "SHA256:...",
+          "ExpiresAt": "2027-01-01T00:00:00Z"
+        }
+      ]
+    },
+
+    "CipherSuites": [
+      "TLS_AES_256_GCM_SHA384",
+      "TLS_AES_128_GCM_SHA256",
+      "TLS_CHACHA20_POLY1305_SHA256"
+    ],
+
+    "ALPN": {
+      "Enabled": true,
+      "Protocols": ["nosql/1.0", "nosql/1.1"]
+    },
+
+    "HSTS": {
+      "Enabled": true,
+      "MaxAge": 31536000,
+      "IncludeSubdomains": true
+    }
+  }
+}
+```
+
+#### Client Certificate Modes
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| `None` | No client certificate required | Public APIs, development |
+| `Optional` | Accept if provided, validate | Mixed environments |
+| `Required` | Must provide valid certificate | High security, internal services |
+
+#### TLS Security Interface
+```csharp
+// AdvGenNoSqlServer.Network/Security/ITlsProvider.cs
+public interface ITlsProvider
+{
+    Task<SslStream> WrapServerStreamAsync(Stream innerStream, CancellationToken ct = default);
+    Task<SslStream> WrapClientStreamAsync(Stream innerStream, string targetHost, CancellationToken ct = default);
+    bool ValidateCertificate(X509Certificate2 certificate, X509Chain chain, SslPolicyErrors errors);
+    bool IsCertificatePinned(X509Certificate2 certificate);
+}
+
+// AdvGenNoSqlServer.Network/Security/TlsOptions.cs
+public class TlsOptions
+{
+    public bool RequireEncryption { get; set; } = true;
+    public SslProtocols MinimumTlsVersion { get; set; } = SslProtocols.Tls13;
+    public SslProtocols AllowedTlsVersions { get; set; } = SslProtocols.Tls12 | SslProtocols.Tls13;
+
+    public X509Certificate2? ServerCertificate { get; set; }
+    public ClientCertificateMode ClientCertificateMode { get; set; } = ClientCertificateMode.None;
+    public X509Certificate2? CaCertificate { get; set; }
+
+    public bool EnableCertificatePinning { get; set; } = false;
+    public List<CertificatePin> CertificatePins { get; set; } = new();
+
+    public List<TlsCipherSuite> CipherSuites { get; set; } = new()
+    {
+        TlsCipherSuite.TLS_AES_256_GCM_SHA384,
+        TlsCipherSuite.TLS_AES_128_GCM_SHA256,
+        TlsCipherSuite.TLS_CHACHA20_POLY1305_SHA256
+    };
+
+    public bool EnableAlpn { get; set; } = true;
+    public List<string> AlpnProtocols { get; set; } = new() { "nosql/1.0" };
+}
+
+public enum ClientCertificateMode
+{
+    None,
+    Optional,
+    Required
+}
+
+public record CertificatePin(string Thumbprint, DateTime? ExpiresAt);
+```
+
+#### TLS Handshake Flow
+```
+┌──────────┐                                           ┌──────────┐
+│  Client  │                                           │  Server  │
+└────┬─────┘                                           └────┬─────┘
+     │                                                      │
+     │  1. TCP Connect                                      │
+     │ ────────────────────────────────────────────────────►│
+     │                                                      │
+     │  2. ClientHello (TLS 1.3, cipher suites, ALPN)      │
+     │ ────────────────────────────────────────────────────►│
+     │                                                      │
+     │                    3. Check: RequireEncryption?      │
+     │                       If client didn't start TLS:    │
+     │                       → Reject connection            │
+     │                                                      │
+     │  4. ServerHello + Certificate + CertificateVerify   │
+     │ ◄────────────────────────────────────────────────────│
+     │                                                      │
+     │  5. Client validates server cert:                    │
+     │     - Chain validation                               │
+     │     - Certificate pinning (if enabled)               │
+     │     - Hostname verification                          │
+     │                                                      │
+     │  6. ClientCertificate (if mTLS required)            │
+     │ ────────────────────────────────────────────────────►│
+     │                                                      │
+     │                    7. Server validates client cert:  │
+     │                       - Chain validation             │
+     │                       - Thumbprint allowlist         │
+     │                       - Revocation check             │
+     │                                                      │
+     │  8. Finished (encrypted application data)           │
+     │ ◄───────────────────────────────────────────────────►│
+     │                                                      │
+```
+
+#### Connection Rejection for Non-TLS
+```csharp
+public class SecureConnectionHandler
+{
+    private readonly TlsOptions _options;
+
+    public async Task<Stream> AcceptConnectionAsync(TcpClient client, CancellationToken ct)
+    {
+        var stream = client.GetStream();
+
+        if (_options.RequireEncryption)
+        {
+            // Check if client is attempting TLS handshake
+            var buffer = new byte[1];
+            var read = await stream.ReadAsync(buffer, 0, 1, ct);
+
+            // TLS handshake starts with 0x16 (ContentType.Handshake)
+            if (read == 0 || buffer[0] != 0x16)
+            {
+                // Send error message and close
+                await SendErrorAndCloseAsync(stream, "TLS_REQUIRED",
+                    "This server requires TLS encryption. Please connect using TLS.", ct);
+                throw new TlsRequiredException("Client attempted non-TLS connection");
+            }
+
+            // Proceed with TLS handshake
+            return await WrapWithTlsAsync(stream, buffer, ct);
+        }
+
+        return stream;
+    }
+}
+```
+
+#### Certificate Pinning Implementation
+```csharp
+public class CertificatePinValidator
+{
+    private readonly List<CertificatePin> _pins;
+
+    public bool Validate(X509Certificate2 certificate)
+    {
+        if (_pins.Count == 0)
+            return true; // Pinning disabled
+
+        var thumbprint = ComputeThumbprint(certificate);
+        var now = DateTime.UtcNow;
+
+        foreach (var pin in _pins)
+        {
+            // Check if pin has expired
+            if (pin.ExpiresAt.HasValue && pin.ExpiresAt.Value < now)
+                continue;
+
+            if (string.Equals(thumbprint, pin.Thumbprint, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static string ComputeThumbprint(X509Certificate2 cert)
+    {
+        using var sha256 = SHA256.Create();
+        var hash = sha256.ComputeHash(cert.RawData);
+        return "SHA256:" + Convert.ToBase64String(hash);
+    }
+}
+```
+
+#### ALPN (Application-Layer Protocol Negotiation)
+```csharp
+// Server-side ALPN configuration
+var sslOptions = new SslServerAuthenticationOptions
+{
+    ServerCertificate = serverCert,
+    ApplicationProtocols = new List<SslApplicationProtocol>
+    {
+        new SslApplicationProtocol("nosql/1.1"),
+        new SslApplicationProtocol("nosql/1.0")
+    },
+    EnabledSslProtocols = SslProtocols.Tls13 | SslProtocols.Tls12
+};
+
+// After handshake, check negotiated protocol
+var negotiatedProtocol = sslStream.NegotiatedApplicationProtocol;
+if (negotiatedProtocol == default)
+{
+    // Client doesn't support our protocols
+    throw new ProtocolNegotiationException("No common protocol found");
+}
+```
+
+#### Implementation Tasks
+
+| # | Task | Description | Est. Effort |
+|---|------|-------------|-------------|
+| 37 | RequireEncryption option | Reject non-TLS connections | 2h |
+| 38 | TLS 1.3 enforcement | Upgrade minimum version | 2h |
+| 39 | Client certificate support | mTLS for high security | 4h |
+| 40 | Certificate pinning | Thumbprint validation | 3h |
+| 41 | ALPN support | Protocol negotiation | 2h |
+| 42 | Certificate hot-reload | Reload certs without restart | 3h |
+| 43 | Cipher suite configuration | Restrict weak ciphers | 2h |
+
+**Total Transport Security Effort: ~18 hours**
+
+#### Security Checklist
+
+- [ ] Enforce TLS 1.3 as minimum (TLS 1.2 fallback optional)
+- [ ] Reject non-TLS connections when `RequireEncryption=true`
+- [ ] Disable weak cipher suites (RC4, DES, 3DES, MD5)
+- [ ] Implement certificate chain validation
+- [ ] Support certificate pinning for sensitive deployments
+- [ ] Implement ALPN for protocol versioning
+- [ ] Support certificate hot-reload
+- [ ] Log TLS handshake failures for debugging
+- [ ] Monitor certificate expiration
+
+---
+
 ### 3.3 Transaction Management Layer (AdvGenNoSqlServer.Core/Transactions)
 **Responsibility:** ACID compliance and multi-document transactions
 
@@ -662,7 +938,7 @@ Where third-party libraries have restrictive licenses, we implement custom solut
 - [x] Unique indexes (Agent-42 - Unique constraint enforcement on single-field indexes)
 - [x] Compound/Composite indexes (Agent-42 - Multi-field B-tree indexes with unique support)
 - [ ] Partial/Sparse indexes
-- [ ] Cursor-based pagination
+- [x] Cursor-based pagination ✓ (Agent-45 - 42 tests)
 - [ ] Projections
 - [ ] Slow query logging
 - [ ] EXPLAIN/Query plan analysis
@@ -2353,6 +2629,8 @@ while (await cursor.HasMoreAsync())
 | `KILL_CURSOR` | Close cursor | `KILL_CURSOR cursor_id` |
 | `LIST_CURSORS` | List active cursors | `LIST_CURSORS` |
 
+**Note**: Cursor-based pagination implemented with 42 tests (Agent-45)
+
 ### 39.3 Cursor Configuration
 ```json
 {
@@ -3607,4 +3885,13 @@ Week 7-8:
 - [ ] 35. Conflict Resolution (LWW, merge strategies)
 - [ ] 36. CLUSTER commands (INFO, NODES, JOIN, LEAVE)
 
-**Grand Total: ~266 hours (6-7 weeks full-time)**
+#### P1 - Transport Security (18h total)
+- [ ] 37. RequireEncryption option (reject non-TLS)
+- [ ] 38. TLS 1.3 enforcement
+- [ ] 39. Client certificate support (mTLS)
+- [ ] 40. Certificate pinning
+- [ ] 41. ALPN protocol negotiation
+- [ ] 42. Certificate hot-reload
+- [ ] 43. Cipher suite configuration
+
+**Grand Total: ~284 hours (7-8 weeks full-time)**

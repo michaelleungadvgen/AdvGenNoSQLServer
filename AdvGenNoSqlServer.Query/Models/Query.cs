@@ -255,4 +255,27 @@ public class QueryOptions
     /// Maximum time in milliseconds to wait for query execution
     /// </summary>
     public int? TimeoutMs { get; set; }
+
+    /// <summary>
+    /// Whether to use cursor-based pagination instead of skip/limit
+    /// When true, a cursor ID will be returned for fetching subsequent batches
+    /// </summary>
+    public bool UseCursor { get; set; }
+
+    /// <summary>
+    /// Cursor ID for continuing a cursor-based query
+    /// Use this to fetch the next batch from a previously created cursor
+    /// </summary>
+    public string? CursorId { get; set; }
+
+    /// <summary>
+    /// Batch size for cursor-based pagination
+    /// Default is 101 documents per batch
+    /// </summary>
+    public int? CursorBatchSize { get; set; }
+
+    /// <summary>
+    /// Cursor timeout in minutes (default: 10 minutes)
+    /// </summary>
+    public int? CursorTimeoutMinutes { get; set; }
 }
