@@ -14,6 +14,37 @@
 
 ## Completed Tasks
 
+### Agent-39: HybridDocumentStore Tests ✓ COMPLETED
+**Scope**: Write comprehensive tests for HybridDocumentStore and fix bug in FlushAsync
+**Completed**: 2026-02-13
+**Summary**:
+- Created HybridDocumentStoreTests.cs with 47 comprehensive tests covering:
+  - Initialization tests (4 tests)
+  - Insert tests (4 tests)
+  - Get tests (5 tests)
+  - Update tests (5 tests)
+  - Delete tests (4 tests)
+  - Exists tests (3 tests)
+  - Count tests (3 tests)
+  - Collection management tests (5 tests)
+  - Flush and save tests (3 tests)
+  - Validation tests (7 tests)
+  - Concurrent access tests (2 tests)
+  - Dispose tests (2 tests)
+- Fixed bug in HybridDocumentStore.FlushAsync: Channel.Reader.Count is not supported for unbounded channels
+- Added Interlocked counter for tracking pending writes
+
+**Files Created**:
+- AdvGenNoSqlServer.Tests/HybridDocumentStoreTests.cs (47 tests)
+
+**Files Modified**:
+- AdvGenNoSqlServer.Storage/HybridDocumentStore.cs (fixed pending writes counter)
+
+**Build Status**: ✓ Compiles successfully (0 errors)
+**Test Status**: ✓ 47/47 HybridDocumentStore tests pass, 921/943 total tests pass (22 skipped)
+
+---
+
 ### Agent-38: Update PROJECT_STATUS.md ✓ COMPLETED
 **Scope**: Update PROJECT_STATUS.md to reflect all completed work from previous agents
 **Completed**: 2026-02-10
