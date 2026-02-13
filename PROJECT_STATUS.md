@@ -166,6 +166,7 @@ AdvGenNoSQLServer/
 │   ├── PersistentDocumentStoreTests.cs   # 🟢 Persistence tests (33 tests)
 │   ├── BTreeIndexTests.cs                # 🟢 B-tree index tests (77 tests)
 │   ├── IndexManagerTests.cs              # 🟢 Index manager tests (30 tests)
+│   ├── CompoundAndUniqueIndexTests.cs    # 🟢 Compound & unique index tests (40 tests - Agent-42)
 │   ├── QueryEngineTests.cs               # 🟢 Query tests (48 tests)
 │   ├── AggregationPipelineTests.cs       # 🟢 Aggregation tests (49 tests)
 │   ├── ObjectPoolTests.cs                # 🟢 Object pooling tests (61 tests)
@@ -591,15 +592,15 @@ Projects (8 total):
 
 ### Test Status
 ```
-Total Tests: 896
-Passed: 872 (unit tests + stress/load smoke tests)
+Total Tests: 983
+Passed: 960 (unit tests + stress/load smoke tests)
 Pending: 0 (all integration tests now passing)
-Skipped: 24 (4 stress tests + 5 load tests + 6 cache TTL timing + others)
+Skipped: 22 (4 stress tests + 5 load tests + 6 cache TTL timing + others)
 
 Test Breakdown by Component:
   - Network: 67 tests ✓
   - Security: 200 tests ✓ (59 RBAC + 46 JWT + 44 Audit + 51 Encryption)
-  - Storage: 177 tests ✓ (37 DocStore + 33 Persistent + 77 BTree + 30 IndexMgr)
+  - Storage: 217 tests ✓ (37 DocStore + 33 Persistent + 77 BTree + 30 IndexMgr + 40 Compound/Unique)
   - Query: 97 tests ✓ (48 Query + 49 Aggregation)
   - Transactions: 106 tests ✓ (38 Lock + 27 WAL + 41 Coordinator)
   - Caching: 105 tests ✓ (44 LRU + 61 ObjectPool)
@@ -609,6 +610,8 @@ Test Breakdown by Component:
   - Load Tests: 6 tests ✓ (1 smoke + 5 scenarios - Agent-26)
   - SSL/TLS: 13 tests ✓ (Agent-27)
   - Hot Reload: 17 tests ✓ (Agent-28)
+  - Batch Operations: 32 tests ✓ (Agent-30)
+  - HybridDocumentStore: 47 tests ✓ (Agent-39)
 ```
 
 ### Build Command

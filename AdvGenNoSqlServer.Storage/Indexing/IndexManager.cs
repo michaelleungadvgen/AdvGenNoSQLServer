@@ -10,6 +10,7 @@ namespace AdvGenNoSqlServer.Storage.Indexing;
 /// <summary>
 /// Manages indexes for document collections
 /// Provides centralized index creation, deletion, and query capabilities
+/// Supports both single-field and compound (multi-field) indexes
 /// </summary>
 public class IndexManager
 {
@@ -53,6 +54,149 @@ public class IndexManager
             
             return index;
         }
+    }
+
+    /// <summary>
+    /// Creates a new compound (multi-field) B-tree index for a collection
+    /// </summary>
+    /// <param name="collectionName">The collection name</param>
+    /// <param name="fieldNames">The fields to index (in order of significance)</param>
+    /// <param name="isUnique">Whether the index enforces uniqueness</param>
+    /// <param name="keySelector">Function to extract compound key values from a document</param>
+    /// <param name="minDegree">The B-tree minimum degree</param>
+    /// <returns>The created compound index</returns>
+    public IBTreeIndex<CompoundIndexKey, string> CreateCompoundIndex(
+        string collectionName,
+        string[] fieldNames,
+        bool isUnique,
+        Func<Document, object?[]> keySelector,
+        int minDegree = 4)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(collectionName, nameof(collectionName));
+        ArgumentNullException.ThrowIfNull(fieldNames, nameof(fieldNames));
+        if (fieldNames.Length < 2)
+            throw new ArgumentException("Compound index must have at least 2 fields", nameof(fieldNames));
+        if (fieldNames.Any(string.IsNullOrWhiteSpace))
+            throw new ArgumentException("All field names must be non-empty", nameof(fieldNames));
+        ArgumentNullException.ThrowIfNull(keySelector, nameof(keySelector));
+
+        lock (_lock)
+        {
+            var collectionIndex = _collectionIndexes.GetOrAdd(collectionName, _ => new CollectionIndexes(collectionName));
+            
+            string indexName = $"{collectionName}_{string.Join("_", fieldNames)}_idx";
+            string indexKey = string.Join("+", fieldNames);
+            
+            if (collectionIndex.HasIndex(indexKey))
+            {
+                throw new InvalidOperationException($"Compound index already exists for fields '{indexKey}' in collection '{collectionName}'");
+            }
+
+            var index = new BTreeIndex<CompoundIndexKey, string>(indexName, collectionName, indexKey, isUnique, minDegree);
+            collectionIndex.AddCompoundIndex(indexKey, index, keySelector, fieldNames);
+            
+            return index;
+        }
+    }
+
+    /// <summary>
+    /// Creates a compound index with two fields (convenience method)
+    /// </summary>
+    /// <typeparam name="T1">Type of the first field</typeparam>
+    /// <typeparam name="T2">Type of the second field</typeparam>
+    /// <param name="collectionName">The collection name</param>
+    /// <param name="field1">The first field name</param>
+    /// <param name="field2">The second field name</param>
+    /// <param name="isUnique">Whether the index enforces uniqueness</param>
+    /// <param name="selector1">Function to extract the first field value</param>
+    /// <param name="selector2">Function to extract the second field value</param>
+    /// <param name="minDegree">The B-tree minimum degree</param>
+    /// <returns>The created compound index</returns>
+    public IBTreeIndex<CompoundIndexKey, string> CreateCompoundIndex<T1, T2>(
+        string collectionName,
+        string field1,
+        string field2,
+        bool isUnique,
+        Func<Document, T1> selector1,
+        Func<Document, T2> selector2,
+        int minDegree = 4) where T1 : IComparable<T1> where T2 : IComparable<T2>
+    {
+        return CreateCompoundIndex(
+            collectionName,
+            new[] { field1, field2 },
+            isUnique,
+            doc => new object?[] { selector1(doc), selector2(doc) },
+            minDegree);
+    }
+
+    /// <summary>
+    /// Creates a compound index with three fields (convenience method)
+    /// </summary>
+    /// <typeparam name="T1">Type of the first field</typeparam>
+    /// <typeparam name="T2">Type of the second field</typeparam>
+    /// <typeparam name="T3">Type of the third field</typeparam>
+    /// <param name="collectionName">The collection name</param>
+    /// <param name="field1">The first field name</param>
+    /// <param name="field2">The second field name</param>
+    /// <param name="field3">The third field name</param>
+    /// <param name="isUnique">Whether the index enforces uniqueness</param>
+    /// <param name="selector1">Function to extract the first field value</param>
+    /// <param name="selector2">Function to extract the second field value</param>
+    /// <param name="selector3">Function to extract the third field value</param>
+    /// <param name="minDegree">The B-tree minimum degree</param>
+    /// <returns>The created compound index</returns>
+    public IBTreeIndex<CompoundIndexKey, string> CreateCompoundIndex<T1, T2, T3>(
+        string collectionName,
+        string field1,
+        string field2,
+        string field3,
+        bool isUnique,
+        Func<Document, T1> selector1,
+        Func<Document, T2> selector2,
+        Func<Document, T3> selector3,
+        int minDegree = 4) 
+        where T1 : IComparable<T1> 
+        where T2 : IComparable<T2>
+        where T3 : IComparable<T3>
+    {
+        return CreateCompoundIndex(
+            collectionName,
+            new[] { field1, field2, field3 },
+            isUnique,
+            doc => new object?[] { selector1(doc), selector2(doc), selector3(doc) },
+            minDegree);
+    }
+
+    /// <summary>
+    /// Gets a compound index for a collection
+    /// </summary>
+    /// <param name="collectionName">The collection name</param>
+    /// <param name="fieldNames">The field names that make up the compound index</param>
+    /// <returns>The compound index if found, null otherwise</returns>
+    public IBTreeIndex<CompoundIndexKey, string>? GetCompoundIndex(string collectionName, params string[] fieldNames)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(collectionName, nameof(collectionName));
+        ArgumentNullException.ThrowIfNull(fieldNames, nameof(fieldNames));
+        
+        string indexKey = string.Join("+", fieldNames);
+        
+        if (_collectionIndexes.TryGetValue(collectionName, out var collectionIndex))
+        {
+            return collectionIndex.GetCompoundIndex(indexKey);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Checks if a compound index exists for the specified fields
+    /// </summary>
+    /// <param name="collectionName">The collection name</param>
+    /// <param name="fieldNames">The field names that make up the compound index</param>
+    /// <returns>True if compound index exists, false otherwise</returns>
+    public bool HasCompoundIndex(string collectionName, params string[] fieldNames)
+    {
+        return GetCompoundIndex(collectionName, fieldNames) != null;
     }
 
     /// <summary>
@@ -226,6 +370,11 @@ public class IndexManager
             _indexes[fieldName] = new IndexWrapper<TKey>(index, keySelector);
         }
 
+        public void AddCompoundIndex(string indexKey, IBTreeIndex<CompoundIndexKey, string> index, Func<Document, object?[]> keySelector, string[] fieldNames)
+        {
+            _indexes[indexKey] = new CompoundIndexWrapper(index, keySelector, fieldNames);
+        }
+
         public bool RemoveIndex(string fieldName)
         {
             return _indexes.TryRemove(fieldName, out _);
@@ -241,6 +390,15 @@ public class IndexManager
             if (_indexes.TryGetValue(fieldName, out var wrapper) && wrapper is IndexWrapper<TKey> typedWrapper)
             {
                 return typedWrapper.Index;
+            }
+            return null;
+        }
+
+        public IBTreeIndex<CompoundIndexKey, string>? GetCompoundIndex(string indexKey)
+        {
+            if (_indexes.TryGetValue(indexKey, out var wrapper) && wrapper is CompoundIndexWrapper compoundWrapper)
+            {
+                return compoundWrapper.Index;
             }
             return null;
         }
@@ -276,12 +434,20 @@ public class IndexManager
 
         public IEnumerable<IndexStats> GetStats()
         {
-            return _indexes.Select(kvp => new IndexStats
+            return _indexes.Select(kvp =>
             {
-                FieldName = kvp.Key,
-                EntryCount = kvp.Value.Count,
-                Height = kvp.Value.Height,
-                IndexType = kvp.Value.IsUnique ? "Unique B-Tree" : "B-Tree"
+                bool isCompound = kvp.Value is CompoundIndexWrapper;
+                string indexType = kvp.Value.IsUnique 
+                    ? (isCompound ? "Unique Compound B-Tree" : "Unique B-Tree")
+                    : (isCompound ? "Compound B-Tree" : "B-Tree");
+                
+                return new IndexStats
+                {
+                    FieldName = kvp.Key,
+                    EntryCount = kvp.Value.Count,
+                    Height = kvp.Value.Height,
+                    IndexType = indexType
+                };
             });
         }
     }
@@ -340,6 +506,71 @@ public class IndexManager
                 var key = _keySelector(document);
                 if (key != null)
                 {
+                    Index.Delete(key, document.Id);
+                }
+            }
+            catch
+            {
+                // Ignore errors during removal
+            }
+        }
+
+        public void UpdateDocument(Document oldDocument, Document newDocument)
+        {
+            RemoveDocument(oldDocument);
+            IndexDocument(newDocument);
+        }
+    }
+
+    /// <summary>
+    /// Wrapper for compound (multi-field) indexes
+    /// </summary>
+    private class CompoundIndexWrapper : IIndexWrapper
+    {
+        private readonly Func<Document, object?[]> _keySelector;
+        private readonly string[] _fieldNames;
+
+        public IBTreeIndex<CompoundIndexKey, string> Index { get; }
+        public int Count => Index.Count;
+        public int Height => Index.Height;
+        public bool IsUnique => Index.IsUnique;
+
+        public CompoundIndexWrapper(IBTreeIndex<CompoundIndexKey, string> index, Func<Document, object?[]> keySelector, string[] fieldNames)
+        {
+            Index = index;
+            _keySelector = keySelector;
+            _fieldNames = fieldNames;
+        }
+
+        public void IndexDocument(Document document)
+        {
+            try
+            {
+                var values = _keySelector(document);
+                if (values != null && values.Length > 0)
+                {
+                    var key = new CompoundIndexKey(values);
+                    Index.Insert(key, document.Id);
+                }
+            }
+            catch (DuplicateKeyException)
+            {
+                throw; // Re-throw duplicate key exceptions for unique compound indexes
+            }
+            catch
+            {
+                // Ignore documents that don't have all indexed fields
+            }
+        }
+
+        public void RemoveDocument(Document document)
+        {
+            try
+            {
+                var values = _keySelector(document);
+                if (values != null && values.Length > 0)
+                {
+                    var key = new CompoundIndexKey(values);
                     Index.Delete(key, document.Id);
                 }
             }

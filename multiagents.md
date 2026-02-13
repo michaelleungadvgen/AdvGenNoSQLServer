@@ -16,6 +16,49 @@
 
 ## Completed Tasks
 
+### Agent-42: Compound & Unique Index Support ✓ COMPLETED
+**Scope**: Implement compound (multi-field) indexes and unique index constraint enforcement
+**Completed**: 2026-02-13
+**Summary**:
+- Created `CompoundIndexKey` struct for multi-field index keys:
+  - Lexicographical comparison for multi-field ordering
+  - Supports null value handling
+  - Implements IComparable and IEquatable
+  - Helper extension methods for creating compound keys
+  
+- Extended `IndexManager` with compound index support:
+  - `CreateCompoundIndex()` with array of field names
+  - `CreateCompoundIndex<T1,T2>()` generic convenience method for 2 fields
+  - `CreateCompoundIndex<T1,T2,T3>()` generic convenience method for 3 fields
+  - `GetCompoundIndex()` to retrieve compound indexes
+  - `HasCompoundIndex()` to check for existence
+  
+- Added `CompoundIndexWrapper` internal class:
+  - Integrates with existing index management infrastructure
+  - Handles document indexing/removal/updates for compound keys
+  - Properly propagates DuplicateKeyException for unique compound indexes
+  
+- Index stats now show "Compound B-Tree" or "Unique Compound B-Tree" types
+
+**Files Created**:
+- `AdvGenNoSqlServer.Storage/Indexing/CompoundIndexKey.cs` (220+ lines)
+- `AdvGenNoSqlServer.Tests/CompoundAndUniqueIndexTests.cs` (40 comprehensive tests)
+
+**Files Modified**:
+- `AdvGenNoSqlServer.Storage/Indexing/IndexManager.cs` (added compound index methods)
+
+**Build Status**: ✓ Compiles successfully (0 errors)
+**Test Status**: ✓ 40/40 new tests pass, 960/961 total tests pass (1 pre-existing flaky network test)
+
+**Features Implemented**:
+- Compound (multi-field) B-tree indexes
+- Unique constraint enforcement on compound keys
+- Multi-tenant email uniqueness (same email, different tenants allowed)
+- Range queries on compound indexes
+- Index statistics for compound indexes
+
+---
+
 ### Agent-41: Multi-Database & RBAC Examples ✓ COMPLETED
 **Scope**: Create comprehensive examples demonstrating multi-database operations and role-based access control (RBAC)
 **Completed**: 2026-02-13

@@ -659,8 +659,8 @@ Where third-party libraries have restrictive licenses, we implement custom solut
 - [ ] Full-Text Search indexes
 - [ ] Geospatial indexes and queries
 - [ ] TTL indexes for document expiration
-- [ ] Unique indexes
-- [ ] Compound/Composite indexes
+- [x] Unique indexes (Agent-42 - Unique constraint enforcement on single-field indexes)
+- [x] Compound/Composite indexes (Agent-42 - Multi-field B-tree indexes with unique support)
 - [ ] Partial/Sparse indexes
 - [ ] Cursor-based pagination
 - [ ] Projections
@@ -674,10 +674,11 @@ Where third-party libraries have restrictive licenses, we implement custom solut
 - [ ] Upsert operations
 - [ ] Write Concern configuration
 - [ ] Read Preference (for replication)
+- [ ] P2P, That is allow to connect with other AdvGenNoSqlServer
 - [ ] Blazor Web Admin App
 
 ### Testing
-- [x] Unit tests for all components (766+ tests passing)
+- [x] Unit tests for all components (960+ tests passing)
 - [x] Client integration tests (25/25 tests pass - Agent-22 fixed server-side message handling)
 - [x] Performance benchmarks (BenchmarkDotNet, 5 benchmark suites, 50+ methods)
 - [x] Stress tests (4 stress scenarios + smoke test - Agent-23)
@@ -2904,6 +2905,492 @@ var databases = await client.ListDatabasesAsync();
 
 ---
 
+## 47. Peer-to-Peer (P2P) Cluster Architecture
+
+### 47.1 Overview
+
+Enable multiple AdvGenNoSqlServer instances to connect, synchronize, and operate as a distributed cluster. This provides:
+- **High Availability**: Automatic failover when nodes go down
+- **Scalability**: Distribute load across multiple nodes
+- **Data Redundancy**: Replicate data for durability
+- **Geographic Distribution**: Deploy nodes in different regions
+
+### 47.2 Cluster Topology
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        Cluster: "production"                     │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│    ┌──────────────┐     ┌──────────────┐     ┌──────────────┐   │
+│    │   Node A     │◄───►│   Node B     │◄───►│   Node C     │   │
+│    │  (Leader)    │     │  (Follower)  │     │  (Follower)  │   │
+│    │  10.0.0.1    │     │  10.0.0.2    │     │  10.0.0.3    │   │
+│    └──────────────┘     └──────────────┘     └──────────────┘   │
+│           │                    │                    │            │
+│           └────────────────────┼────────────────────┘            │
+│                                │                                  │
+│                    ┌───────────▼───────────┐                     │
+│                    │   Gossip Protocol     │                     │
+│                    │   (Node Discovery)    │                     │
+│                    └───────────────────────┘                     │
+│                                                                   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 47.3 Cluster Modes
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| **Leader-Follower** | One leader handles writes, followers replicate | Strong consistency, simple |
+| **Multi-Leader** | Multiple nodes accept writes | High write throughput, eventual consistency |
+| **Leaderless** | Any node handles any operation | Maximum availability, conflict resolution needed |
+
+### 47.4 Core Components
+
+#### 47.4.1 Node Identity
+```csharp
+public class NodeIdentity
+{
+    public required string NodeId { get; set; }           // Unique GUID
+    public required string ClusterId { get; set; }        // Cluster membership
+    public required string Host { get; set; }             // IP or hostname
+    public required int Port { get; set; }                // TCP port
+    public required int P2PPort { get; set; }             // Inter-node port (separate from client port)
+    public byte[] PublicKey { get; set; } = Array.Empty<byte>();  // For node authentication
+    public string[] Tags { get; set; } = Array.Empty<string>();   // e.g., "primary", "analytics", "region-us"
+    public DateTime JoinedAt { get; set; }
+    public NodeState State { get; set; } = NodeState.Joining;
+}
+
+public enum NodeState
+{
+    Joining,      // Node is joining cluster
+    Syncing,      // Node is catching up on data
+    Active,       // Node is fully operational
+    Leaving,      // Node is gracefully departing
+    Dead          // Node is unreachable
+}
+```
+
+#### 47.4.2 Cluster Manager Interface
+```csharp
+// AdvGenNoSqlServer.Core/Abstractions/IClusterManager.cs
+public interface IClusterManager
+{
+    // Cluster membership
+    Task<ClusterInfo> GetClusterInfoAsync(CancellationToken ct = default);
+    Task JoinClusterAsync(string seedNode, JoinOptions options, CancellationToken ct = default);
+    Task LeaveClusterAsync(LeaveOptions options, CancellationToken ct = default);
+
+    // Node management
+    Task<IReadOnlyList<NodeInfo>> GetNodesAsync(CancellationToken ct = default);
+    Task<NodeInfo?> GetNodeAsync(string nodeId, CancellationToken ct = default);
+    Task RemoveNodeAsync(string nodeId, CancellationToken ct = default);
+
+    // Leader election
+    Task<NodeInfo> GetLeaderAsync(CancellationToken ct = default);
+    Task RequestLeaderElectionAsync(CancellationToken ct = default);
+
+    // Events
+    event EventHandler<NodeJoinedEventArgs> NodeJoined;
+    event EventHandler<NodeLeftEventArgs> NodeLeft;
+    event EventHandler<LeaderChangedEventArgs> LeaderChanged;
+}
+
+public class ClusterInfo
+{
+    public required string ClusterId { get; set; }
+    public required string ClusterName { get; set; }
+    public required NodeInfo Leader { get; set; }
+    public required IReadOnlyList<NodeInfo> Nodes { get; set; }
+    public ClusterHealth Health { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+```
+
+### 47.5 Node Discovery
+
+#### 47.5.1 Discovery Methods
+
+| Method | Description | Configuration |
+|--------|-------------|---------------|
+| **Static Seeds** | Predefined list of seed nodes | `Seeds: ["10.0.0.1:9092", "10.0.0.2:9092"]` |
+| **DNS** | DNS SRV records for node discovery | `DnsName: "nodes.nosql.local"` |
+| **Multicast** | UDP multicast for LAN discovery | `MulticastGroup: "239.255.0.1:9093"` |
+| **Kubernetes** | K8s headless service discovery | `K8sNamespace: "nosql", K8sService: "nosql-headless"` |
+| **Consul/etcd** | Service registry integration | `ConsulAddress: "http://consul:8500"` |
+
+#### 47.5.2 Gossip Protocol
+```csharp
+// Gossip message for node state propagation
+public class GossipMessage
+{
+    public required string SenderId { get; set; }
+    public required long Generation { get; set; }       // Monotonic counter
+    public required long Version { get; set; }          // State version
+    public required Dictionary<string, NodeState> NodeStates { get; set; }
+    public required Dictionary<string, long> Heartbeats { get; set; }
+    public byte[] Signature { get; set; } = Array.Empty<byte>();  // Signed by sender
+}
+
+public interface IGossipProtocol
+{
+    Task BroadcastAsync(GossipMessage message, CancellationToken ct = default);
+    Task<GossipMessage> ReceiveAsync(CancellationToken ct = default);
+    Task SyncWithPeerAsync(string nodeId, CancellationToken ct = default);
+}
+```
+
+### 47.6 Data Replication
+
+#### 47.6.1 Replication Strategies
+
+| Strategy | Description | Consistency |
+|----------|-------------|-------------|
+| **Synchronous** | Wait for all replicas before acknowledging | Strong |
+| **Semi-Synchronous** | Wait for majority (quorum) | Strong |
+| **Asynchronous** | Acknowledge immediately, replicate in background | Eventual |
+
+#### 47.6.2 Replication Interface
+```csharp
+public interface IReplicationManager
+{
+    // Configure replication
+    Task SetReplicationFactorAsync(string collection, int factor, CancellationToken ct = default);
+
+    // Replicate operations
+    Task ReplicateWriteAsync(ReplicationEvent evt, CancellationToken ct = default);
+    Task<ReplicationAck> WaitForAcksAsync(string operationId, int requiredAcks, TimeSpan timeout, CancellationToken ct = default);
+
+    // Sync
+    Task<SyncStatus> GetSyncStatusAsync(string nodeId, CancellationToken ct = default);
+    Task RequestFullSyncAsync(string nodeId, CancellationToken ct = default);
+}
+
+public class ReplicationEvent
+{
+    public required string OperationId { get; set; }
+    public required string SourceNodeId { get; set; }
+    public required OperationType Type { get; set; }    // Insert, Update, Delete
+    public required string Collection { get; set; }
+    public required string DocumentId { get; set; }
+    public Document? Document { get; set; }
+    public required long SequenceNumber { get; set; }   // From WAL
+    public required DateTime Timestamp { get; set; }
+    public required byte[] Checksum { get; set; }
+}
+```
+
+#### 47.6.3 Conflict Resolution
+```csharp
+public enum ConflictResolutionStrategy
+{
+    LastWriteWins,        // Use timestamp (default)
+    FirstWriteWins,       // Keep original
+    HighestVersion,       // Use ETag/version
+    MergeFields,          // Merge non-conflicting fields
+    Custom                // User-defined resolver
+}
+
+public interface IConflictResolver
+{
+    Document Resolve(Document local, Document remote, ConflictContext context);
+}
+
+// Example: Last-Write-Wins resolver
+public class LastWriteWinsResolver : IConflictResolver
+{
+    public Document Resolve(Document local, Document remote, ConflictContext context)
+    {
+        return local.UpdatedAt >= remote.UpdatedAt ? local : remote;
+    }
+}
+```
+
+### 47.7 Security (Inter-Node Communication)
+
+#### 47.7.1 Security Architecture
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    P2P Security Layers                           │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│   ┌─────────────────────────────────────────────────────────┐   │
+│   │  Layer 4: Application-Level Authentication               │   │
+│   │  - Cluster secret/token validation                       │   │
+│   │  - Node identity verification                             │   │
+│   └─────────────────────────────────────────────────────────┘   │
+│                           │                                       │
+│   ┌─────────────────────────────────────────────────────────┐   │
+│   │  Layer 3: Message Signing                                 │   │
+│   │  - HMAC-SHA256 or Ed25519 signatures                     │   │
+│   │  - Replay attack prevention (nonce/timestamp)            │   │
+│   └─────────────────────────────────────────────────────────┘   │
+│                           │                                       │
+│   ┌─────────────────────────────────────────────────────────┐   │
+│   │  Layer 2: Transport Encryption (mTLS)                    │   │
+│   │  - Mutual TLS with client certificates                   │   │
+│   │  - TLS 1.3 only                                          │   │
+│   └─────────────────────────────────────────────────────────┘   │
+│                           │                                       │
+│   ┌─────────────────────────────────────────────────────────┐   │
+│   │  Layer 1: Network Isolation                               │   │
+│   │  - Dedicated P2P port (separate from client port)        │   │
+│   │  - Firewall rules / Network policies                     │   │
+│   └─────────────────────────────────────────────────────────┘   │
+│                                                                   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### 47.7.2 Mutual TLS (mTLS)
+```csharp
+public class P2PSecurityOptions
+{
+    // mTLS Configuration
+    public bool RequireMutualTls { get; set; } = true;
+    public string CertificatePath { get; set; } = "";
+    public string PrivateKeyPath { get; set; } = "";
+    public string CaCertificatePath { get; set; } = "";          // CA that signed all node certs
+    public bool ValidateCertificateChain { get; set; } = true;
+    public string[] AllowedCertificateThumbprints { get; set; } = Array.Empty<string>();
+
+    // Cluster Secret (additional layer)
+    public string ClusterSecret { get; set; } = "";              // Shared secret for cluster membership
+    public string ClusterSecretHashAlgorithm { get; set; } = "SHA256";
+
+    // Message Security
+    public bool SignMessages { get; set; } = true;
+    public string SignatureAlgorithm { get; set; } = "Ed25519"; // or "HMAC-SHA256"
+    public TimeSpan MessageMaxAge { get; set; } = TimeSpan.FromMinutes(5);  // Anti-replay
+}
+```
+
+#### 47.7.3 Node Authentication Flow
+```
+┌──────────┐                                      ┌──────────┐
+│  Node A  │                                      │  Node B  │
+└────┬─────┘                                      └────┬─────┘
+     │                                                  │
+     │  1. TCP Connect to P2P Port                     │
+     │ ─────────────────────────────────────────────► │
+     │                                                  │
+     │  2. TLS Handshake (present client cert)         │
+     │ ◄───────────────────────────────────────────── │
+     │                                                  │
+     │  3. Verify cert signed by cluster CA            │
+     │  4. Check cert thumbprint in allowlist          │
+     │                                                  │
+     │  5. Send: JoinRequest + ClusterSecretHash       │
+     │ ─────────────────────────────────────────────► │
+     │                                                  │
+     │  6. Verify cluster secret hash                  │
+     │  7. Verify node not already in cluster          │
+     │                                                  │
+     │  8. Send: JoinAccepted + ClusterState           │
+     │ ◄───────────────────────────────────────────── │
+     │                                                  │
+     │  9. Gossip: Announce new node to cluster        │
+     │ ◄───────────────────────────────────────────── │
+     │                                                  │
+```
+
+#### 47.7.4 Security Interfaces
+```csharp
+// AdvGenNoSqlServer.Core/Abstractions/IP2PAuthenticator.cs
+public interface IP2PAuthenticator
+{
+    Task<AuthResult> AuthenticateNodeAsync(X509Certificate2 certificate, string clusterSecretHash, CancellationToken ct = default);
+    Task<bool> IsNodeAuthorizedAsync(string nodeId, P2POperation operation, CancellationToken ct = default);
+    byte[] SignMessage(byte[] message);
+    bool VerifySignature(byte[] message, byte[] signature, string nodeId);
+}
+
+public enum P2POperation
+{
+    Join,
+    Leave,
+    Replicate,
+    Query,
+    Admin
+}
+
+// AdvGenNoSqlServer.Core/Abstractions/IP2PEncryption.cs
+public interface IP2PEncryption
+{
+    byte[] Encrypt(byte[] plaintext, string targetNodeId);
+    byte[] Decrypt(byte[] ciphertext, string sourceNodeId);
+    Task RotateKeysAsync(CancellationToken ct = default);
+}
+```
+
+### 47.8 Consensus Protocol (Raft)
+
+#### 47.8.1 Raft Implementation
+```csharp
+public interface IRaftConsensus
+{
+    NodeRole CurrentRole { get; }
+    string? CurrentLeader { get; }
+    long CurrentTerm { get; }
+
+    Task<bool> ProposeAsync(LogEntry entry, CancellationToken ct = default);
+    Task<VoteResult> RequestVoteAsync(VoteRequest request, CancellationToken ct = default);
+    Task<AppendResult> AppendEntriesAsync(AppendRequest request, CancellationToken ct = default);
+}
+
+public enum NodeRole
+{
+    Follower,
+    Candidate,
+    Leader
+}
+
+public class RaftConfiguration
+{
+    public TimeSpan HeartbeatInterval { get; set; } = TimeSpan.FromMilliseconds(150);
+    public TimeSpan ElectionTimeoutMin { get; set; } = TimeSpan.FromMilliseconds(300);
+    public TimeSpan ElectionTimeoutMax { get; set; } = TimeSpan.FromMilliseconds(500);
+    public int MaxEntriesPerAppend { get; set; } = 100;
+}
+```
+
+### 47.9 Configuration
+
+#### 47.9.1 P2P Configuration Schema
+```json
+{
+  "Cluster": {
+    "Enabled": true,
+    "ClusterId": "production-cluster",
+    "ClusterName": "Production NoSQL Cluster",
+    "NodeId": "node-001",
+    "Mode": "LeaderFollower",
+
+    "Network": {
+      "P2PPort": 9092,
+      "BindAddress": "0.0.0.0",
+      "AdvertiseAddress": "10.0.0.1",
+      "ConnectionTimeout": 5000,
+      "HeartbeatInterval": 1000,
+      "DeadNodeTimeout": 30000
+    },
+
+    "Discovery": {
+      "Method": "StaticSeeds",
+      "Seeds": ["10.0.0.2:9092", "10.0.0.3:9092"],
+      "DnsName": "",
+      "MulticastGroup": "",
+      "RefreshInterval": 30000
+    },
+
+    "Replication": {
+      "Strategy": "SemiSynchronous",
+      "ReplicationFactor": 3,
+      "WriteQuorum": 2,
+      "ReadQuorum": 1,
+      "SyncTimeout": 5000
+    },
+
+    "Security": {
+      "RequireMutualTls": true,
+      "CertificatePath": "/etc/nosql/certs/node.crt",
+      "PrivateKeyPath": "/etc/nosql/certs/node.key",
+      "CaCertificatePath": "/etc/nosql/certs/ca.crt",
+      "ClusterSecret": "${CLUSTER_SECRET}",
+      "SignMessages": true,
+      "SignatureAlgorithm": "Ed25519"
+    },
+
+    "ConflictResolution": {
+      "Strategy": "LastWriteWins",
+      "CustomResolverClass": ""
+    }
+  }
+}
+```
+
+### 47.10 P2P Commands
+
+| Command | Description | Syntax |
+|---------|-------------|--------|
+| `CLUSTER INFO` | Get cluster information | `CLUSTER INFO` |
+| `CLUSTER NODES` | List all nodes | `CLUSTER NODES` |
+| `CLUSTER JOIN` | Join a cluster | `CLUSTER JOIN seed_node` |
+| `CLUSTER LEAVE` | Leave cluster gracefully | `CLUSTER LEAVE` |
+| `CLUSTER FAILOVER` | Force leader election | `CLUSTER FAILOVER` |
+| `CLUSTER REPLICATE` | Force replication sync | `CLUSTER REPLICATE node_id` |
+| `CLUSTER FORGET` | Remove dead node | `CLUSTER FORGET node_id` |
+
+### 47.11 Implementation Phases
+
+#### Phase 1: Foundation (P3 Priority)
+- [ ] Create `NodeIdentity` and `ClusterInfo` models
+- [ ] Implement P2P TCP listener (separate port)
+- [ ] Implement mTLS for inter-node communication
+- [ ] Implement cluster secret validation
+- [ ] Basic node registration
+
+**Effort: ~20 hours**
+
+#### Phase 2: Discovery & Gossip
+- [ ] Implement static seed discovery
+- [ ] Implement gossip protocol for state propagation
+- [ ] Implement failure detection (heartbeats)
+- [ ] Handle node join/leave events
+
+**Effort: ~16 hours**
+
+#### Phase 3: Leader Election
+- [ ] Implement Raft consensus protocol
+- [ ] Leader election and term management
+- [ ] Log replication infrastructure
+- [ ] Leader failover handling
+
+**Effort: ~24 hours**
+
+#### Phase 4: Data Replication
+- [ ] Implement `IReplicationManager`
+- [ ] WAL-based change streaming to followers
+- [ ] Write quorum acknowledgement
+- [ ] Conflict detection and resolution
+
+**Effort: ~20 hours**
+
+#### Phase 5: Operations
+- [ ] CLUSTER commands implementation
+- [ ] Admin UI for cluster monitoring
+- [ ] Metrics and alerting
+- [ ] Documentation and runbooks
+
+**Effort: ~16 hours**
+
+**Total P2P Effort: ~96 hours**
+
+### 47.12 Security Checklist
+
+- [ ] Separate P2P port from client port
+- [ ] mTLS with cluster CA
+- [ ] Certificate thumbprint validation
+- [ ] Cluster secret hashing (not plaintext)
+- [ ] Message signing (Ed25519/HMAC)
+- [ ] Replay attack prevention (nonce + timestamp)
+- [ ] Rate limiting on join requests
+- [ ] Audit logging for all P2P operations
+- [ ] Secure cluster secret rotation
+- [ ] Network segmentation (P2P on private network)
+
+### 47.13 References
+
+- [Raft Consensus Algorithm](https://raft.github.io/)
+- [CockroachDB Distributed Architecture](https://www.cockroachlabs.com/docs/stable/architecture/overview.html)
+- [MongoDB Replica Set](https://www.mongodb.com/docs/manual/replication/)
+- [RavenDB Clustering](https://ravendb.net/docs/article-page/5.4/csharp/server/clustering/overview)
+- [etcd Raft Implementation](https://etcd.io/docs/v3.5/learning/design-learner/)
+- [HashiCorp Serf (Gossip)](https://www.serf.io/docs/internals/gossip.html)
+
+---
+
 **Last Updated**: February 13, 2026
 **License**: MIT License
 **Status**: Planning Phase - Architecture Complete
@@ -3112,4 +3599,12 @@ Week 7-8:
 - [ ] 29. Field-Level Encryption
 - [ ] 30. Document Revisions
 
-**Grand Total: ~170 hours (4-5 weeks full-time)**
+#### P3 - P2P Cluster (96h total)
+- [ ] 31. P2P Foundation (mTLS, cluster secret, node identity)
+- [ ] 32. Node Discovery (static seeds, gossip protocol)
+- [ ] 33. Leader Election (Raft consensus)
+- [ ] 34. Data Replication (WAL streaming, quorum)
+- [ ] 35. Conflict Resolution (LWW, merge strategies)
+- [ ] 36. CLUSTER commands (INFO, NODES, JOIN, LEAVE)
+
+**Grand Total: ~266 hours (6-7 weeks full-time)**
