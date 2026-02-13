@@ -658,7 +658,7 @@ Where third-party libraries have restrictive licenses, we implement custom solut
 - [ ] Change Streams/Subscriptions
 - [ ] Full-Text Search indexes
 - [ ] Geospatial indexes and queries
-- [ ] TTL indexes for document expiration
+- [x] TTL indexes for document expiration (Agent-43 - TtlIndexService with background cleanup, 33 tests)
 - [x] Unique indexes (Agent-42 - Unique constraint enforcement on single-field indexes)
 - [x] Compound/Composite indexes (Agent-42 - Multi-field B-tree indexes with unique support)
 - [ ] Partial/Sparse indexes
@@ -674,7 +674,7 @@ Where third-party libraries have restrictive licenses, we implement custom solut
 - [ ] Upsert operations
 - [ ] Write Concern configuration
 - [ ] Read Preference (for replication)
-- [ ] P2P, That is allow to connect with other AdvGenNoSqlServer
+- [ ] P2P, That is allow to connect with other AdvGenNoSqlServer please reference Section 47 ,47. Peer-to-Peer (P2P) Cluster Architecture to acccording the plan in there
 - [ ] Blazor Web Admin App
 
 ### Testing

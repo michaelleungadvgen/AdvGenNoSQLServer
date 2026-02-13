@@ -144,13 +144,16 @@ AdvGenNoSQLServer/
 │   ├── InMemoryDocumentCollection.cs     # 🟢 Collection implementation (complete)
 │   ├── IPersistentDocumentStore.cs       # 🟢 Persistence interface (complete)
 │   ├── PersistentDocumentStore.cs        # 🟢 JSON file persistence (complete)
+│   ├── TtlDocumentStore.cs               # 🟢 TTL-enabled document store (Agent-43)
 │   └── Indexing/
 │       ├── IBTreeIndex.cs                # 🟢 B-tree interface (complete)
 │       ├── BTreeIndex.cs                 # 🟢 O(log n) B-tree (complete)
 │       ├── BTreeNode.cs                  # 🟢 Internal node structure (complete)
-│       └── IndexManager.cs               # 🟢 Multi-index management (complete)
+│       ├── IndexManager.cs               # 🟢 Multi-index management (complete)
+│       ├── ITtlIndexService.cs           # 🟢 TTL index interface (Agent-43)
+│       └── TtlIndexService.cs            # 🟢 TTL index implementation (Agent-43)
 │
-├── AdvGenNoSqlServer.Tests/              # 🟢 Test suite (90% complete - 723+ tests)
+├── AdvGenNoSqlServer.Tests/              # 🟢 Test suite (90% complete - 993+ tests)
 │   ├── NoSqlClientTests.cs               # 🟢 Client tests (25 tests)
 │   ├── NetworkTests.cs                   # 🟢 TCP/Network tests (67 tests)
 │   ├── CacheManagerTests.cs              # 🟢 Cache tests (44 tests)
@@ -167,6 +170,7 @@ AdvGenNoSQLServer/
 │   ├── BTreeIndexTests.cs                # 🟢 B-tree index tests (77 tests)
 │   ├── IndexManagerTests.cs              # 🟢 Index manager tests (30 tests)
 │   ├── CompoundAndUniqueIndexTests.cs    # 🟢 Compound & unique index tests (40 tests - Agent-42)
+│   ├── TtlIndexTests.cs                  # 🟢 TTL index tests (33 tests - Agent-43)
 │   ├── QueryEngineTests.cs               # 🟢 Query tests (48 tests)
 │   ├── AggregationPipelineTests.cs       # 🟢 Aggregation tests (49 tests)
 │   ├── ObjectPoolTests.cs                # 🟢 Object pooling tests (61 tests)
@@ -355,7 +359,7 @@ AdvGenNoSQLServer/
 **Remaining**:
 - [ ] SSL/TLS transport encryption
 
-### 🟢 Storage Engine (90% Complete)
+### 🟢 Storage Engine (95% Complete)
 **Status**: ✓ COMPLETE (optimization pending)
 
 **Completed**:
@@ -364,6 +368,7 @@ AdvGenNoSQLServer/
 - [x] B-tree indexing (IBTreeIndex, BTreeIndex with O(log n) operations) (77 tests)
 - [x] Index management (IndexManager for multi-index support) (30 tests)
 - [x] Garbage collection for deleted documents (Tombstone, GarbageCollector, GarbageCollectedDocumentStore) (35 tests)
+- [x] TTL indexes for document expiration (TtlIndexService, TtlDocumentStore) (33 tests)
 
 **Remaining**:
 - [ ] Query optimizer integration

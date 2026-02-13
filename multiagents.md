@@ -16,6 +16,59 @@
 
 ## Completed Tasks
 
+### Agent-43: TTL Indexes for Document Expiration ✓ COMPLETED
+**Scope**: Implement TTL (Time-To-Live) indexes for automatic document expiration
+**Completed**: 2026-02-13
+**Summary**:
+- Created `ITtlIndexService` interface for TTL index management:
+  - TTL index configuration with collection name, expire field, default expiration
+  - Document registration/unregistration for expiration tracking
+  - Background cleanup service with configurable intervals
+  - Statistics tracking (documents expired, tracked, cleanup runs)
+  - Events for document expiration notifications
+
+- Created `TtlIndexService` implementation:
+  - Priority queue (min-heap) for efficient expiration tracking
+  - Support for DateTime, DateTimeOffset, Unix timestamps, and string date formats
+  - Default expiration for documents without expire field
+  - Thread-safe operations using ConcurrentDictionary
+  - Manual and automatic cleanup modes
+
+- Created `TtlDocumentStore` wrapper:
+  - Wraps existing IDocumentStore with TTL capabilities
+  - Automatic registration on insert/update
+  - Automatic unregistration on delete
+  - Integration with document store operations
+
+- Created comprehensive unit tests (33 tests):
+  - TTL index configuration tests
+  - TTL index service tests (create, drop, get)
+  - Document registration tests (various date formats)
+  - Cleanup tests (expired documents, multiple collections)
+  - Event handling tests
+  - Statistics tests
+  - TtlDocumentStore integration tests
+
+**Files Created**:
+- `AdvGenNoSqlServer.Storage/Indexing/ITtlIndexService.cs` (interface and configuration)
+- `AdvGenNoSqlServer.Storage/Indexing/TtlIndexService.cs` (implementation)
+- `AdvGenNoSqlServer.Storage/TtlDocumentStore.cs` (document store wrapper)
+- `AdvGenNoSqlServer.Tests/TtlIndexTests.cs` (33 comprehensive tests)
+
+**Build Status**: ✓ Compiles successfully (0 errors)
+**Test Status**: ✓ 33/33 TTL index tests pass, 993/1016 total tests pass (22 skipped, 1 pre-existing flaky network test)
+
+**Features Implemented**:
+- TTL index creation with custom configuration
+- Multiple date/time format support for expiration fields
+- Default expiration for documents without explicit expire time
+- Background cleanup service with configurable intervals
+- Manual cleanup triggering
+- Statistics and event notifications
+- Document store wrapper for seamless integration
+
+---
+
 ### Agent-42: Compound & Unique Index Support ✓ COMPLETED
 **Scope**: Implement compound (multi-field) indexes and unique index constraint enforcement
 **Completed**: 2026-02-13
