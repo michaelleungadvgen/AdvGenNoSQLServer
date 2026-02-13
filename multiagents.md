@@ -12,6 +12,50 @@
 |-------|------|--------|---------|-------------------|
 | None | - | - | - | - |
 
+---
+
+## Completed Tasks
+
+### Agent-41: Multi-Database & RBAC Examples ✓ COMPLETED
+**Scope**: Create comprehensive examples demonstrating multi-database operations and role-based access control (RBAC)
+**Completed**: 2026-02-13
+**Summary**:
+- Created MultiDatabaseAndRbacExamples.cs with 5 comprehensive examples:
+  - **Multi-Database Operations**: Creating isolated HR, Sales, and Engineering databases
+  - **RBAC Setup**: Creating custom roles (DepartmentAdmin, DataAnalyst, BackupOperator)
+  - **RBAC Permissions**: Permission checking and enforcement demonstration
+  - **Multi-Tenant Isolation**: Tenant A/B database isolation with access control
+  - **Cross-Database Analytics**: Analytics queries across multiple databases
+- Updated Program.cs with interactive menu system:
+  - Option 1: Basic Examples (Simulated)
+  - Option 2: Multi-Database & RBAC Examples (Real Components)
+  - Option 3: Run All Examples
+  - Option 4: Exit
+- Created Example.ConsoleApp.csproj with references to Core and Storage projects
+- Updated README.md with comprehensive documentation for new examples
+
+**Files Created**:
+- Example.ConsoleApp/MultiDatabaseAndRbacExamples.cs (28KB+ with 5 examples)
+- Example.ConsoleApp/Example.ConsoleApp.csproj (project file)
+
+**Files Modified**:
+- Example.ConsoleApp/Program.cs (added menu system and example integration)
+- Example.ConsoleApp/README.md (added documentation for new examples)
+
+**Build Status**: ✓ Compiles successfully (0 errors, 8 warnings - pre-existing async patterns)
+**Test Status**: ✓ Examples run successfully with real server components
+**Features Demonstrated**:
+- Multiple database creation and isolation
+- Role-based access control with custom roles
+- User permission checking
+- Multi-tenant data isolation
+- Cross-database analytics
+
+**Dependencies**:
+- Uses PersistentDocumentStore for file-based storage
+- Uses RoleManager and Permissions from Core.Authentication
+- Uses Document model from Core.Models
+
 ## Completed Tasks
 
 ### Agent-40: Host Application Implementation ✓ COMPLETED

@@ -3,51 +3,115 @@
 // See LICENSE.txt for license information.
 
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace AdvGenNoSqlServer.Example.ConsoleApp
 {
     /// <summary>
-    /// Simple Console Application Example demonstrating how to use the NoSQL Server
+    /// NoSQL Server Console Application Examples
     /// 
-    /// This example shows:
-    /// - Connecting to the NoSQL server
-    /// - Authentication
-    /// - CRUD operations (Create, Read, Update, Delete)
-    /// - Querying documents
+    /// This application demonstrates:
+    /// - Basic CRUD operations
+    /// - Authentication and security
+    /// - Query operations
     /// - Transaction management
-    /// - Error handling
+    /// - Batch operations
+    /// - Multi-database operations (NEW)
+    /// - Role-based access control (RBAC) (NEW)
     /// </summary>
     class Program
     {
         static async Task Main(string[] args)
         {
             Console.WriteLine("╔════════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║     NoSQL Server - Console Application Example             ║");
+            Console.WriteLine("║     AdvGenNoSQL Server - Console Application Examples      ║");
             Console.WriteLine("║     MIT License - Lightweight & High Performance          ║");
             Console.WriteLine("╚════════════════════════════════════════════════════════════╝\n");
 
-            try
+            // Show menu
+            while (true)
             {
-                // Run examples
-                await RunConnectionExample();
-                await RunAuthenticationExample();
-                await RunCrudExample();
-                await RunQueryExample();
-                await RunTransactionExample();
-                await RunBatchOperationsExample();
-            }
-            catch (Exception ex)
-            {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"\n❌ Error: {ex.Message}");
-                Console.ResetColor();
-            }
+                Console.WriteLine("\n📋 Available Examples:\n");
+                Console.WriteLine("  1. Basic Examples (Simulated)");
+                Console.WriteLine("     - Connection, Authentication, CRUD, Query, Transaction, Batch");
+                Console.WriteLine("  2. Multi-Database & RBAC Examples (NEW)");
+                Console.WriteLine("     - Multi-database operations, Role-based access control");
+                Console.WriteLine("     - Multi-tenant isolation, Cross-database analytics");
+                Console.WriteLine("  3. Run All Examples");
+                Console.WriteLine("  4. Exit");
+                Console.Write("\nSelect option (1-4): ");
 
-            Console.WriteLine("\n✓ Examples completed. Press any key to exit...");
-            Console.ReadKey();
+                var choice = Console.ReadLine();
+
+                try
+                {
+                    switch (choice)
+                    {
+                        case "1":
+                            await RunBasicExamples();
+                            break;
+                        case "2":
+                            await RunMultiDatabaseAndRbacExamples();
+                            break;
+                        case "3":
+                            await RunBasicExamples();
+                            await RunMultiDatabaseAndRbacExamples();
+                            break;
+                        case "4":
+                            Console.WriteLine("\n👋 Goodbye!");
+                            return;
+                        default:
+                            Console.ForegroundColor = ConsoleColor.Yellow;
+                            Console.WriteLine("\n⚠ Invalid option. Please select 1-4.");
+                            Console.ResetColor();
+                            break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine($"\n❌ Error: {ex.Message}");
+                    Console.WriteLine($"   StackTrace: {ex.StackTrace}");
+                    Console.ResetColor();
+                }
+
+                Console.WriteLine("\nPress any key to continue...");
+                Console.ReadKey(true);
+                Console.Clear();
+            }
         }
+
+        /// <summary>
+        /// Run basic simulated examples
+        /// </summary>
+        static async Task RunBasicExamples()
+        {
+            Console.WriteLine("\n" + new string('═', 60));
+            Console.WriteLine("  BASIC EXAMPLES (Simulated Operations)");
+            Console.WriteLine(new string('═', 60));
+
+            await RunConnectionExample();
+            await RunAuthenticationExample();
+            await RunCrudExample();
+            await RunQueryExample();
+            await RunTransactionExample();
+            await RunBatchOperationsExample();
+        }
+
+        /// <summary>
+        /// Run multi-database and RBAC examples using real server components
+        /// </summary>
+        static async Task RunMultiDatabaseAndRbacExamples()
+        {
+            Console.WriteLine("\n" + new string('═', 60));
+            Console.WriteLine("  MULTI-DATABASE & RBAC EXAMPLES (Real Components)");
+            Console.WriteLine(new string('═', 60));
+
+            var examples = new MultiDatabaseAndRbacExamples("./data/examples");
+            await examples.RunAllExamplesAsync();
+        }
+
+        #region Basic Examples (Simulated)
 
         /// <summary>
         /// Example 1: Connecting to the NoSQL Server
@@ -60,7 +124,6 @@ namespace AdvGenNoSqlServer.Example.ConsoleApp
 
             try
             {
-                // Create client with configuration
                 var clientOptions = new ClientOptions
                 {
                     Host = "127.0.0.1",
@@ -70,7 +133,6 @@ namespace AdvGenNoSqlServer.Example.ConsoleApp
                     ReconnectAttempts = 3
                 };
 
-                // This would use the actual client library
                 Console.WriteLine("✓ Connecting to NoSQL Server...");
                 Console.WriteLine($"  Host: {clientOptions.Host}");
                 Console.WriteLine($"  Port: {clientOptions.Port}");
@@ -96,7 +158,6 @@ namespace AdvGenNoSqlServer.Example.ConsoleApp
 
             try
             {
-                // Create client and authenticate
                 var credentials = new UserCredentials
                 {
                     Username = "admin",
@@ -106,7 +167,6 @@ namespace AdvGenNoSqlServer.Example.ConsoleApp
                 Console.WriteLine("✓ Authenticating user...");
                 Console.WriteLine($"  Username: {credentials.Username}");
 
-                // Simulate authentication
                 string token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";
                 Console.WriteLine($"✓ Authentication successful!");
                 Console.WriteLine($"  Token: {token.Substring(0, 30)}...");
@@ -132,7 +192,6 @@ namespace AdvGenNoSqlServer.Example.ConsoleApp
 
             try
             {
-                // Example document
                 var userDocument = new
                 {
                     _id = "user_12345",
@@ -335,7 +394,11 @@ namespace AdvGenNoSqlServer.Example.ConsoleApp
                 Console.ResetColor();
             }
         }
+
+        #endregion
     }
+
+    #region Helper Classes
 
     /// <summary>
     /// Client Options Configuration
@@ -355,20 +418,9 @@ namespace AdvGenNoSqlServer.Example.ConsoleApp
     /// </summary>
     public class UserCredentials
     {
-        public string Username { get; set; }
-        public string Password { get; set; }
+        public string Username { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
     }
 
-    /// <summary>
-    /// Example Document Model
-    /// </summary>
-    public class UserDocument
-    {
-        public string _id { get; set; }
-        public string name { get; set; }
-        public string email { get; set; }
-        public int age { get; set; }
-        public DateTime created { get; set; }
-        public string[] roles { get; set; }
-    }
+    #endregion
 }

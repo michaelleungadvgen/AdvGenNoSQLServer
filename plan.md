@@ -137,6 +137,9 @@ Build a **lightweight, high-performance NoSQL server** in C# with .NET featuring
 - **Data compression** options (optional)
 - **File-based persistence** with binary format
 - **Garbage collection** for deleted documents
+- **TTL Indexes**: Auto-expiration of documents at specified time
+- **Capped Collections**: Fixed-size collections with automatic oldest document removal
+- **Document Attachments**: Binary data attached to documents (planned)
 
 #### Implementation Details:
 ```csharp
@@ -163,6 +166,9 @@ Build a **lightweight, high-performance NoSQL server** in C# with .NET featuring
 - **Query optimization** (index selection, plan generation)
 - **Aggregation pipeline** support
 - **Filtering, sorting, pagination**
+- **Projections**: Return only specified fields
+- **Cursor-based iteration**: Efficient large result set handling
+- **EXPLAIN support**: Query plan analysis and debugging
 
 #### Implementation Details:
 ```csharp
@@ -644,6 +650,32 @@ Where third-party libraries have restrictive licenses, we implement custom solut
 - [x] Batch operation support (Agent-30 - 32 tests passing)
 - [ ] Memory profiling and tuning
 
+### Examples in C# Console
+- [x] Examples with multi db and authentication (Agent-41 - MultiDatabaseAndRbacExamples.cs)
+- [x] Examples role based (Agent-41 - RBAC permission enforcement, role assignment) 
+
+### Advanced Features 
+- [ ] Change Streams/Subscriptions
+- [ ] Full-Text Search indexes
+- [ ] Geospatial indexes and queries
+- [ ] TTL indexes for document expiration
+- [ ] Unique indexes
+- [ ] Compound/Composite indexes
+- [ ] Partial/Sparse indexes
+- [ ] Cursor-based pagination
+- [ ] Projections
+- [ ] Slow query logging
+- [ ] EXPLAIN/Query plan analysis
+- [ ] Import/Export tools
+- [ ] Sessions (Unit of Work pattern)
+- [ ] Optimistic concurrency (ETags)
+- [ ] Field-level encryption
+- [ ] Atomic update operations (increment, push, pull)
+- [ ] Upsert operations
+- [ ] Write Concern configuration
+- [ ] Read Preference (for replication)
+- [ ] Blazor Web Admin App
+
 ### Testing
 - [x] Unit tests for all components (766+ tests passing)
 - [x] Client integration tests (25/25 tests pass - Agent-22 fixed server-side message handling)
@@ -682,14 +714,26 @@ Where third-party libraries have restrictive licenses, we implement custom solut
 
 ## 13. Future Enhancements
 
-- **Replication**: Master-slave or multi-master replication
-- **Sharding**: Horizontal scaling with data distribution
-- **Clustering**: Multi-node coordination
+### 13.1 High Priority (Production-Critical)
+- **Replication**: Master-slave or multi-master replication with automatic failover
+- **Sharding**: Horizontal scaling with data distribution and shard key routing
+- **Clustering**: Multi-node coordination with leader election (Raft/Paxos)
+- **Change Streams/Subscriptions**: Real-time data change notifications (like MongoDB Change Streams, RavenDB Subscriptions)
+- **Full-Text Search**: Text indexes with stemming, analyzers, and relevance scoring
+
+### 13.2 Medium Priority (Feature Completeness)
+- **Geospatial Queries**: 2D and 2DSphere indexes for location-based queries
+- **Document Attachments**: Binary attachments on documents (RavenDB-style)
+- **Document Revisions**: Track document history with configurable retention
+- **Map-Reduce**: Classic aggregation pattern for complex analytics
+- **Server-side Patches/Scripts**: Atomic document modifications with server-side logic
+
+### 13.3 Lower Priority (Nice to Have)
 - **GraphQL**: GraphQL query support
-- **Streams**: Real-time data streaming
 - **Plugins**: Extensibility framework
 - **Analytics**: Built-in analytics engine
 - **Time-series**: Specialized time-series support
+- **Wire Protocol Compatibility**: Optional MongoDB wire protocol support
 
 ---
 
@@ -1263,6 +1307,38 @@ public interface IIndexManager
     Task DropIndexAsync(string collection, string indexName, CancellationToken ct = default);
     Task<IReadOnlyList<IndexInfo>> ListIndexesAsync(string collection, CancellationToken ct = default);
     Task RebuildIndexAsync(string collection, string indexName, CancellationToken ct = default);
+    Task CreateIndexInBackgroundAsync(string collection, IndexDefinition definition, CancellationToken ct = default);
+}
+
+// Index types supported
+public enum IndexType
+{
+    SingleField,      // Index on single field
+    Compound,         // Multi-field composite index
+    Unique,           // Unique constraint index
+    Sparse,           // Only indexes documents containing the field
+    Partial,          // Indexes subset of documents matching filter
+    TTL,              // Time-to-live index for auto-expiration
+    Text,             // Full-text search index (future)
+    Geospatial        // 2D/2DSphere index (future)
+}
+
+public class IndexDefinition
+{
+    public required string Name { get; set; }
+    public required List<IndexField> Fields { get; set; }
+    public IndexType Type { get; set; } = IndexType.SingleField;
+    public bool Unique { get; set; } = false;
+    public bool Sparse { get; set; } = false;
+    public JsonElement? PartialFilterExpression { get; set; }
+    public TimeSpan? ExpireAfter { get; set; } // For TTL indexes
+    public bool Background { get; set; } = false;
+}
+
+public class IndexField
+{
+    public required string FieldPath { get; set; }
+    public SortDirection Direction { get; set; } = SortDirection.Ascending;
 }
 
 // AdvGenNoSqlServer.Core/Abstractions/IConnectionManager.cs
@@ -2087,6 +2163,9 @@ public void IndexedQuery() => // < 5ms p99
 | `EXISTS` | Check document exists | `EXISTS collection document_id` |
 | `MGET` | Get multiple documents | `MGET collection [ids...]` |
 | `MSET` | Set multiple documents | `MSET collection [{docs...}]` |
+| `INSERT` | Insert new document (fails if exists) | `INSERT collection document_id {data}` |
+| `REPLACE` | Replace document (fails if not exists) | `REPLACE collection document_id {data}` |
+| `TOUCH` | Update document timestamp only | `TOUCH collection document_id` |
 
 ### 35.2 Collection Commands
 | Command | Description | Syntax |
@@ -2107,8 +2186,20 @@ public void IndexedQuery() => // < 5ms p99
 | Command | Description | Syntax |
 |---------|-------------|--------|
 | `FIND` | Query documents | `FIND collection {filter} {options}` |
+| `FIND_ONE` | Find single document | `FIND_ONE collection {filter}` |
 | `COUNT` | Count documents | `COUNT collection {filter}` |
 | `AGGREGATE` | Run aggregation | `AGGREGATE collection [{pipeline}]` |
+| `DISTINCT` | Get distinct field values | `DISTINCT collection field {filter}` |
+| `EXPLAIN` | Explain query plan | `EXPLAIN collection {filter}` |
+
+### 35.4.1 Index Commands
+| Command | Description | Syntax |
+|---------|-------------|--------|
+| `CREATE_INDEX` | Create index | `CREATE_INDEX collection {definition}` |
+| `DROP_INDEX` | Drop index | `DROP_INDEX collection index_name` |
+| `LIST_INDEXES` | List all indexes | `LIST_INDEXES collection` |
+| `REINDEX` | Rebuild index | `REINDEX collection index_name` |
+| `INDEX_STATS` | Get index statistics | `INDEX_STATS collection index_name` |
 
 ### 35.5 Admin Commands
 | Command | Description | Syntax |
@@ -2118,9 +2209,907 @@ public void IndexedQuery() => // < 5ms p99
 | `CONFIG` | Get/set config | `CONFIG GET/SET key [value]` |
 | `SHUTDOWN` | Graceful shutdown | `SHUTDOWN [NOSAVE]` |
 
+### 35.6 Atomic Update Commands
+| Command | Description | Syntax |
+|---------|-------------|--------|
+| `UPSERT` | Insert or update document | `UPSERT collection doc_id {data}` |
+| `FIND_AND_MODIFY` | Atomic find and update | `FIND_AND_MODIFY collection {filter} {update} {options}` |
+| `INCREMENT` | Atomic increment field | `INCREMENT collection doc_id field amount` |
+| `PUSH` | Push to array field | `PUSH collection doc_id field value` |
+| `PULL` | Remove from array field | `PULL collection doc_id field value` |
+| `ADD_TO_SET` | Add unique to array | `ADD_TO_SET collection doc_id field value` |
+| `PATCH` | Partial document update | `PATCH collection doc_id {partial_data}` |
+
 ---
 
-**Last Updated**: February 7, 2026
+## 37. Change Streams & Real-Time Subscriptions (Planned)
+
+### 37.1 Overview
+Change streams allow applications to subscribe to real-time data changes without polling. This is critical for:
+- Event-driven architectures
+- Real-time dashboards
+- Cache invalidation
+- Data synchronization
+
+### 37.2 Change Stream Interface
+```csharp
+// AdvGenNoSqlServer.Core/Abstractions/IChangeStreamProvider.cs
+public interface IChangeStreamProvider
+{
+    IAsyncEnumerable<ChangeEvent> WatchCollectionAsync(
+        string collection,
+        ChangeStreamOptions? options = null,
+        CancellationToken ct = default);
+
+    IAsyncEnumerable<ChangeEvent> WatchDatabaseAsync(
+        string database,
+        ChangeStreamOptions? options = null,
+        CancellationToken ct = default);
+
+    IAsyncEnumerable<ChangeEvent> WatchDocumentAsync(
+        string collection,
+        string documentId,
+        CancellationToken ct = default);
+}
+
+public record ChangeEvent(
+    string OperationType,      // insert, update, delete, replace
+    string Collection,
+    string DocumentId,
+    Document? FullDocument,
+    Document? UpdateDescription,  // For updates: { updatedFields, removedFields }
+    DateTime Timestamp,
+    string ResumeToken);       // For resuming after disconnect
+
+public class ChangeStreamOptions
+{
+    public string? ResumeToken { get; set; }
+    public DateTime? StartAtOperationTime { get; set; }
+    public bool FullDocument { get; set; } = false;
+    public bool FullDocumentBeforeChange { get; set; } = false;
+    public JsonElement? Pipeline { get; set; }  // Filter/transform changes
+}
+```
+
+### 37.3 Subscription Commands
+| Command | Description | Syntax |
+|---------|-------------|--------|
+| `SUBSCRIBE` | Subscribe to changes | `SUBSCRIBE collection {options}` |
+| `UNSUBSCRIBE` | Cancel subscription | `UNSUBSCRIBE subscription_id` |
+| `RESUME` | Resume from token | `RESUME subscription_id resume_token` |
+
+### 37.4 Implementation Approach
+- Store changes in WAL with sequence numbers
+- Maintain per-connection subscription state
+- Push changes over existing TCP connection
+- Support resume tokens for reconnection
+- Optional filtering via aggregation pipeline
+
+---
+
+## 38. Write Concern & Read Preference (Planned)
+
+### 38.1 Write Concern
+Controls acknowledgement level for write operations:
+
+```csharp
+public class WriteConcern
+{
+    public static WriteConcern Unacknowledged => new() { W = 0 };
+    public static WriteConcern Acknowledged => new() { W = 1 };
+    public static WriteConcern Journaled => new() { W = 1, Journal = true };
+    public static WriteConcern Majority => new() { W = "majority" };
+
+    public object W { get; set; } = 1;        // 0, 1, "majority", or number
+    public bool Journal { get; set; } = false; // Wait for journal write
+    public TimeSpan? WTimeout { get; set; }    // Timeout for acknowledgement
+}
+```
+
+### 38.2 Read Preference (for future replication)
+Controls which nodes can serve read operations:
+
+```csharp
+public enum ReadPreference
+{
+    Primary,           // Only primary node
+    PrimaryPreferred,  // Primary, fallback to secondary
+    Secondary,         // Only secondary nodes
+    SecondaryPreferred,// Secondary, fallback to primary
+    Nearest            // Lowest latency node
+}
+```
+
+---
+
+## 39. Cursor-Based Pagination
+
+### 39.1 Overview
+For efficient pagination of large result sets without OFFSET performance degradation:
+
+```csharp
+public interface ICursor<T> : IAsyncDisposable
+{
+    string CursorId { get; }
+    Task<IReadOnlyList<T>> GetNextBatchAsync(int batchSize, CancellationToken ct = default);
+    Task<bool> HasMoreAsync(CancellationToken ct = default);
+    long? TotalCount { get; }
+}
+
+// Usage
+var cursor = await collection.FindAsync(filter, new FindOptions { BatchSize = 100 });
+while (await cursor.HasMoreAsync())
+{
+    var batch = await cursor.GetNextBatchAsync(100);
+    // Process batch
+}
+```
+
+### 39.2 Cursor Commands
+| Command | Description | Syntax |
+|---------|-------------|--------|
+| `GET_MORE` | Get next batch from cursor | `GET_MORE cursor_id batch_size` |
+| `KILL_CURSOR` | Close cursor | `KILL_CURSOR cursor_id` |
+| `LIST_CURSORS` | List active cursors | `LIST_CURSORS` |
+
+### 39.3 Cursor Configuration
+```json
+{
+  "Cursor": {
+    "DefaultBatchSize": 101,
+    "MaxBatchSize": 10000,
+    "TimeoutMinutes": 10,
+    "MaxActiveCursors": 10000
+  }
+}
+```
+
+---
+
+## 40. Slow Query Logging & Profiling
+
+### 40.1 Slow Query Configuration
+```json
+{
+  "Profiling": {
+    "Enabled": true,
+    "SlowQueryThresholdMs": 100,
+    "LogQueryPlan": true,
+    "SampleRate": 1.0,
+    "MaxLoggedQueries": 10000
+  }
+}
+```
+
+### 40.2 Profiler Interface
+```csharp
+public interface IQueryProfiler
+{
+    void RecordQuery(QueryProfile profile);
+    Task<IReadOnlyList<QueryProfile>> GetSlowQueriesAsync(int limit = 100);
+    Task ClearProfileDataAsync();
+}
+
+public record QueryProfile(
+    string QueryId,
+    string Collection,
+    JsonElement Query,
+    QueryPlan? Plan,
+    long DurationMs,
+    long DocumentsExamined,
+    long DocumentsReturned,
+    bool UsedIndex,
+    string? IndexUsed,
+    DateTime Timestamp,
+    string? User);
+```
+
+### 40.3 EXPLAIN Command
+```csharp
+// Detailed query plan analysis
+var plan = await client.ExplainAsync(query, ExplainVerbosity.ExecutionStats);
+
+public enum ExplainVerbosity
+{
+    QueryPlanner,      // Just the plan
+    ExecutionStats,    // Plan + execution statistics
+    AllPlansExecution  // All candidate plans compared
+}
+```
+
+---
+
+## 41. Import/Export Tools
+
+### 41.1 Export Formats
+- **JSON Lines** (.jsonl) - One document per line, streaming-friendly
+- **BSON** - Binary JSON, compact and type-preserving
+- **CSV** - For tabular data export
+
+### 41.2 Export Interface
+```csharp
+public interface IDataExporter
+{
+    Task ExportCollectionAsync(string collection, string outputPath, ExportOptions options, CancellationToken ct = default);
+    Task ExportDatabaseAsync(string database, string outputPath, ExportOptions options, CancellationToken ct = default);
+    Task ExportQueryAsync(Query query, string outputPath, ExportOptions options, CancellationToken ct = default);
+}
+
+public class ExportOptions
+{
+    public ExportFormat Format { get; set; } = ExportFormat.JsonLines;
+    public bool IncludeIndexes { get; set; } = true;
+    public bool Compress { get; set; } = false;
+    public JsonElement? Query { get; set; }  // Filter documents
+    public List<string>? Fields { get; set; } // Project specific fields
+}
+```
+
+### 41.3 Import Interface
+```csharp
+public interface IDataImporter
+{
+    Task<ImportResult> ImportAsync(string inputPath, string collection, ImportOptions options, CancellationToken ct = default);
+}
+
+public class ImportOptions
+{
+    public ImportMode Mode { get; set; } = ImportMode.Insert;
+    public bool DropCollection { get; set; } = false;
+    public bool StopOnError { get; set; } = false;
+    public int BatchSize { get; set; } = 1000;
+}
+
+public enum ImportMode
+{
+    Insert,    // Fail on duplicates
+    Upsert,    // Insert or update
+    Merge      // Update only existing
+}
+```
+
+---
+
+## 42. Sessions & Unit of Work
+
+### 42.1 Session Interface
+Sessions provide causally consistent operations and are required for transactions:
+
+```csharp
+public interface ISession : IAsyncDisposable
+{
+    string SessionId { get; }
+    SessionOptions Options { get; }
+
+    // All operations within session are causally consistent
+    Task<Document?> GetAsync(string collection, string id, CancellationToken ct = default);
+    Task SetAsync(string collection, Document document, CancellationToken ct = default);
+
+    // Transaction support
+    Task StartTransactionAsync(TransactionOptions? options = null, CancellationToken ct = default);
+    Task CommitTransactionAsync(CancellationToken ct = default);
+    Task AbortTransactionAsync(CancellationToken ct = default);
+}
+
+public class SessionOptions
+{
+    public bool CausalConsistency { get; set; } = true;
+    public TimeSpan DefaultTransactionTimeout { get; set; } = TimeSpan.FromSeconds(30);
+    public ReadPreference ReadPreference { get; set; } = ReadPreference.Primary;
+    public WriteConcern WriteConcern { get; set; } = WriteConcern.Acknowledged;
+}
+```
+
+### 42.2 Unit of Work Pattern (RavenDB-style)
+```csharp
+public interface IDocumentSession : IAsyncDisposable
+{
+    // Track changes
+    T Load<T>(string id) where T : class;
+    void Store<T>(T entity) where T : class;
+    void Delete<T>(T entity) where T : class;
+    void Delete(string id);
+
+    // Persist all tracked changes
+    Task SaveChangesAsync(CancellationToken ct = default);
+
+    // Query with change tracking
+    IQueryable<T> Query<T>(string? collection = null) where T : class;
+
+    // Advanced
+    IAdvancedSessionOperations Advanced { get; }
+}
+
+// Usage
+await using var session = store.OpenSession();
+var user = await session.LoadAsync<User>("users/1");
+user.Name = "Updated Name";
+await session.SaveChangesAsync();  // Tracks and saves only changed documents
+```
+
+---
+
+## 43. Optimistic Concurrency (ETags)
+
+### 43.1 Overview
+Prevent lost updates using document version/ETag:
+
+```csharp
+public class Document
+{
+    public required string Id { get; set; }
+    public required JsonElement Data { get; set; }
+    public string? ETag { get; set; }        // Version for concurrency
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+}
+
+// Update with concurrency check
+var result = await client.UpdateAsync(collection, document, new UpdateOptions
+{
+    ExpectedETag = "abc123"  // Fails if document changed since read
+});
+
+if (!result.Success && result.Error == ErrorCode.ConcurrencyConflict)
+{
+    // Handle conflict: reload and retry
+}
+```
+
+### 43.2 Concurrency Modes
+```csharp
+public enum ConcurrencyMode
+{
+    None,           // Last write wins
+    Optimistic,     // Check ETag
+    Pessimistic     // Acquire lock
+}
+```
+
+---
+
+## 44. Projections
+
+### 44.1 Overview
+Return only specific fields to reduce network overhead and memory usage:
+
+```csharp
+// Project specific fields
+var users = await collection.FindAsync(
+    filter: { "status": "active" },
+    projection: { "name": 1, "email": 1, "_id": 1 }  // Include only these
+);
+
+// Exclude fields
+var users = await collection.FindAsync(
+    filter: { },
+    projection: { "password": 0, "internalNotes": 0 }  // Exclude these
+);
+```
+
+### 44.2 Projection Operations
+```csharp
+public class Projection
+{
+    public List<string> Include { get; set; } = new();   // Fields to include
+    public List<string> Exclude { get; set; } = new();   // Fields to exclude
+    public Dictionary<string, string> Rename { get; set; } = new();  // Rename fields
+    public Dictionary<string, Expression> Computed { get; set; } = new();  // Computed fields
+}
+
+// Advanced projections (MongoDB-style)
+var projection = new {
+    fullName = new { $concat = ["$firstName", " ", "$lastName"] },
+    yearOfBirth = new { $year = "$dateOfBirth" },
+    isAdult = new { $gte = ["$age", 18] }
+};
+```
+
+---
+
+## 45. Field-Level Encryption (Planned)
+
+### 45.1 Overview
+Encrypt sensitive fields before storage, decrypt on read:
+
+```csharp
+// Collection-level encryption config
+{
+    "collection": "users",
+    "encryptedFields": {
+        "ssn": { "algorithm": "AEAD_AES_256_CBC_HMAC_SHA_512" },
+        "creditCard": { "algorithm": "AEAD_AES_256_CBC_HMAC_SHA_512" }
+    }
+}
+
+public interface IFieldEncryptor
+{
+    byte[] Encrypt(string fieldPath, byte[] plaintext, EncryptionContext context);
+    byte[] Decrypt(string fieldPath, byte[] ciphertext, EncryptionContext context);
+}
+```
+
+### 45.2 Key Management
+```csharp
+public interface IKeyVault
+{
+    Task<DataKey> CreateKeyAsync(string keyAltName, KeyOptions options);
+    Task<DataKey> GetKeyAsync(string keyId);
+    Task<DataKey> GetKeyByAltNameAsync(string keyAltName);
+    Task RotateKeyAsync(string keyId);
+}
+```
+
+---
+
+## 46. Multi-Database Architecture (Planned)
+
+### 36.1 Current State Analysis
+
+**Existing Architecture**:
+- Flat structure: Server → Collections → Documents
+- Global authentication: Single `RequireAuthentication` flag with master password
+- Universal cache: `ICacheManager` stores documents by key (`collection:documentId`)
+- No database isolation: All collections share the same namespace
+
+**Problems with Current Design**:
+1. No logical separation between different applications/tenants
+2. No per-database access control
+3. Collection name conflicts possible across different use cases
+4. Cannot backup/restore individual databases
+
+### 36.2 Target Architecture
+
+```
+Server
+  └── Database (e.g., "myapp", "analytics", "admin")
+        ├── Security
+        │     ├── Admins (full access)
+        │     ├── Members (read/write documents)
+        │     └── Readers (read-only)
+        ├── Collections
+        │     └── Documents
+        ├── Indexes (per-collection)
+        └── Configuration (limits, settings)
+```
+
+### 36.3 Key Design Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Database model | CouchDB-style per-database security | Simple, fits document model well |
+| Storage layout | `data/{database}/{collection}/` | Clear isolation, easy backup |
+| Default database | `default` | Backwards compatibility |
+| Auth database | `_system` | Store users, roles, system config |
+
+### 36.4 Implementation Phases
+
+#### Phase 1: Database Model (Foundation)
+
+**Goal**: Introduce `Database` class with isolated storage
+
+**New Files**:
+- `AdvGenNoSqlServer.Core/Models/Database.cs`
+- `AdvGenNoSqlServer.Core/Models/DatabaseSecurity.cs`
+- `AdvGenNoSqlServer.Storage/DatabaseManager.cs`
+
+**Database.cs**:
+```csharp
+public class Database
+{
+    public required string Name { get; set; }
+    public DatabaseSecurity Security { get; set; } = new();
+    public DatabaseConfiguration Configuration { get; set; } = new();
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+}
+
+public class DatabaseSecurity
+{
+    public List<string> Admins { get; set; } = new();
+    public List<string> Members { get; set; } = new();
+    public List<string> Readers { get; set; } = new();
+}
+
+public class DatabaseConfiguration
+{
+    public int MaxCollections { get; set; } = 100;
+    public long MaxSizeBytes { get; set; } = 10_737_418_240; // 10GB
+    public bool AllowAnonymousRead { get; set; } = false;
+}
+```
+
+**Storage Layout**:
+```
+data/
+  _system/                    # System database
+    users/                    # User documents
+    databases/                # Database metadata
+  default/                    # Default database
+    collection1/
+    collection2/
+  myapp/                      # User database
+    users/
+    products/
+```
+
+**Tasks**:
+- [ ] Create `Database` and `DatabaseSecurity` models
+- [ ] Create `DatabaseManager` class
+- [ ] Update `PersistentDocumentStore` to accept database parameter
+- [ ] Create `_system` and `default` databases on initialization
+- [ ] Add database path isolation
+
+#### Phase 2: Protocol & Commands
+
+**Goal**: Add database context to all operations
+
+**New Commands**:
+| Command | Description | Example |
+|---------|-------------|---------|
+| `USE` | Switch database context | `USE myapp` |
+| `CREATE DATABASE` | Create new database | `CREATE DATABASE myapp` |
+| `DROP DATABASE` | Delete database | `DROP DATABASE myapp` |
+| `LIST DATABASES` | List all databases | `LIST DATABASES` |
+| `SHOW DATABASE` | Show current database info | `SHOW DATABASE` |
+
+**MessageType Additions**:
+```csharp
+public enum MessageType
+{
+    // ... existing types ...
+    DatabaseOperation = 10,  // CREATE, DROP, LIST, USE
+}
+```
+
+**Protocol Changes**:
+- Add `database` field to command messages
+- Track current database per connection in `ConnectionState`
+
+**Tasks**:
+- [ ] Add `DatabaseOperation` message type
+- [ ] Implement `USE` command in server
+- [ ] Implement `CREATE DATABASE` command
+- [ ] Implement `DROP DATABASE` command
+- [ ] Implement `LIST DATABASES` command
+- [ ] Add `CurrentDatabase` to connection state
+- [ ] Update all existing commands to use database context
+
+#### Phase 3: Per-Database Security
+
+**Goal**: Implement database-level access control
+
+**User Model**:
+```csharp
+public class User
+{
+    public required string Username { get; set; }
+    public required string PasswordHash { get; set; }
+    public required string Salt { get; set; }
+    public List<string> Roles { get; set; } = new();
+    public Dictionary<string, DatabaseRole> DatabaseAccess { get; set; } = new();
+    public DateTime CreatedAt { get; set; }
+    public bool IsActive { get; set; } = true;
+}
+
+public enum DatabaseRole
+{
+    Admin,      // Full access including security changes
+    Member,     // Read/write documents and indexes
+    Reader      // Read-only access
+}
+```
+
+**Authorization Flow**:
+```
+1. User authenticates → receives token
+2. User sends USE database_name
+3. Server checks: user.DatabaseAccess[database_name] or database.Security
+4. If authorized → set connection database context
+5. All subsequent operations checked against role
+```
+
+**Tasks**:
+- [ ] Create `User` model with database access map
+- [ ] Update `AuthenticationService` to return user with roles
+- [ ] Create `AuthorizationService` for per-database checks
+- [ ] Implement security check middleware for all commands
+- [ ] Add `GRANT` and `REVOKE` commands for database access
+
+#### Phase 4: Client Updates
+
+**Goal**: Update client library to support database selection
+
+**Connection String Format**:
+```
+advgen://user:password@localhost:9091/database_name
+```
+
+**Client API Changes**:
+```csharp
+// New constructor with database
+var client = new AdvGenNoSqlClient("localhost:9091", "myapp", options);
+
+// Or switch database after connection
+await client.UseDatabaseAsync("myapp");
+
+// Database operations
+await client.CreateDatabaseAsync("newdb");
+await client.DropDatabaseAsync("olddb");
+var databases = await client.ListDatabasesAsync();
+```
+
+**Tasks**:
+- [ ] Update `AdvGenNoSqlClient` constructor to accept database name
+- [ ] Add `UseDatabaseAsync()` method
+- [ ] Add `CreateDatabaseAsync()` method
+- [ ] Add `DropDatabaseAsync()` method
+- [ ] Add `ListDatabasesAsync()` method
+- [ ] Update connection string parser
+
+#### Phase 5: Migration & Compatibility
+
+**Goal**: Migrate existing data and maintain backwards compatibility
+
+**Migration Strategy**:
+1. Existing data moved to `default` database
+2. Connections without database specification use `default`
+3. Old protocol messages without database field use current context
+
+**Tasks**:
+- [ ] Create migration utility for existing data
+- [ ] Add fallback to `default` database
+- [ ] Update documentation
+- [ ] Add migration tests
+
+### 36.5 Testing Strategy
+
+**Unit Tests**:
+- Database creation/deletion
+- Security object management
+- Authorization checks for each role
+- Database isolation verification
+
+**Integration Tests**:
+- Multi-database operations
+- Cross-database queries (should fail)
+- User switching databases
+- Concurrent database access
+
+**Security Tests**:
+- Unauthorized database access attempts
+- Role escalation attempts
+- SQL/NoSQL injection in database names
+
+### 36.6 File Changes Summary
+
+| File | Change Type | Description |
+|------|-------------|-------------|
+| `Core/Models/Database.cs` | New | Database model |
+| `Core/Models/DatabaseSecurity.cs` | New | Security model |
+| `Core/Models/User.cs` | Modified | Add database access |
+| `Storage/DatabaseManager.cs` | New | Database operations |
+| `Storage/PersistentDocumentStore.cs` | Modified | Add database parameter |
+| `Server/NoSqlServer.cs` | Modified | Database commands |
+| `Network/MessageProtocol.cs` | Modified | New message types |
+| `Client/Client.cs` | Modified | Database methods |
+
+### 36.7 References
+
+- [MongoDB Multi-Tenant Architecture](https://www.mongodb.com/docs/atlas/build-multi-tenant-arch/)
+- [CouchDB Security Model](https://docs.couchdb.org/en/stable/intro/security.html)
+- [CouchDB Per-Database Security](https://docs.couchdb.org/en/stable/api/database/security.html)
+- [Redis Multi-Tenancy](https://redis.io/blog/multi-tenancy-redis-enterprise/)
+- [Managing Multitenancy in Redis](https://reintech.io/blog/managing-multitenancy-redis)
+
+---
+
+**Last Updated**: February 13, 2026
 **License**: MIT License
 **Status**: Planning Phase - Architecture Complete
 **Next Step**: Begin Phase 1 - Core Abstractions & Foundation
+
+---
+
+## Summary of Added Features
+
+This document was reviewed and enhanced with the following NoSQL best practices from RavenDB and MongoDB:
+
+### Data Operations
+- INSERT, REPLACE, TOUCH commands
+- Atomic update operations (UPSERT, FIND_AND_MODIFY, INCREMENT, PUSH, PULL, ADD_TO_SET, PATCH)
+- FIND_ONE, DISTINCT, EXPLAIN commands
+
+### Index Types
+- Unique indexes
+- Compound/Composite indexes
+- Sparse indexes (only index docs with field)
+- Partial indexes (filter-based)
+- TTL indexes (auto-expiration)
+- Full-text search indexes (future)
+- Geospatial indexes (future)
+- Background index building
+
+### Advanced Features
+- Change Streams/Subscriptions for real-time updates
+- Write Concern & Read Preference
+- Cursor-based pagination
+- Slow query logging & profiling
+- Import/Export tools
+- Sessions & Unit of Work pattern
+- Optimistic concurrency (ETags)
+- Projections
+- Field-level encryption
+- Capped collections
+- Document attachments (future)
+- Document revisions (future)
+
+---
+
+## 47. Prioritized Implementation Todo List
+
+### P0 - Critical (Core Operations)
+Essential for basic functionality. Must be implemented first.
+
+| # | Task | Description | Est. Effort | Dependencies |
+|---|------|-------------|-------------|--------------|
+| 1 | INSERT command | Insert that fails if document exists | 2h | None |
+| 2 | REPLACE command | Replace that fails if not exists | 2h | None |
+| 3 | UPSERT command | Insert or update operation | 2h | INSERT, SET |
+| 4 | FIND_ONE command | Return single matching document | 2h | FIND |
+| 5 | Unique Index | Enforce unique constraints on fields | 4h | IndexManager |
+| 6 | Projections | Return only specified fields | 4h | QueryExecutor |
+
+**Total P0 Effort: ~16 hours**
+
+---
+
+### P1 - High Priority (Production Ready)
+Required for production deployment.
+
+| # | Task | Description | Est. Effort | Dependencies |
+|---|------|-------------|-------------|--------------|
+| 7 | PATCH command | Partial document updates | 3h | None |
+| 8 | FIND_AND_MODIFY | Atomic find and update | 4h | LockManager |
+| 9 | INCREMENT operation | Atomic numeric field increment | 2h | PATCH |
+| 10 | Compound Index | Multi-field composite indexes | 6h | IndexManager |
+| 11 | EXPLAIN command | Query plan analysis | 4h | QueryOptimizer |
+| 12 | ETag/Optimistic Concurrency | Version-based conflict detection | 6h | Document model |
+| 13 | Cursor-based Pagination | Efficient large result set handling | 6h | QueryExecutor |
+| 14 | TTL Index | Auto-expiration of documents | 4h | IndexManager, Background worker |
+
+**Total P1 Effort: ~35 hours**
+
+---
+
+### P2 - Medium Priority (Feature Complete)
+Important for feature completeness.
+
+| # | Task | Description | Est. Effort | Dependencies |
+|---|------|-------------|-------------|--------------|
+| 15 | Array Operations | PUSH, PULL, ADD_TO_SET | 4h | PATCH |
+| 16 | DISTINCT command | Get unique field values | 3h | QueryExecutor |
+| 17 | Sparse Index | Index only docs with field | 3h | IndexManager |
+| 18 | Partial Index | Filter-based indexes | 4h | IndexManager |
+| 19 | Background Index Build | Non-blocking index creation | 6h | IndexManager |
+| 20 | INDEX_STATS command | Index usage statistics | 3h | IndexManager |
+| 21 | Slow Query Logging | Query performance monitoring | 4h | QueryExecutor |
+| 22 | Sessions/Unit of Work | Change tracking pattern | 8h | TransactionManager |
+| 23 | Write Concern | Acknowledgement configuration | 4h | StorageEngine |
+| 24 | Capped Collections | Fixed-size auto-rotating collections | 6h | StorageEngine |
+
+**Total P2 Effort: ~45 hours**
+
+---
+
+### P3 - Lower Priority (Advanced Features)
+Nice-to-have, can be deferred.
+
+| # | Task | Description | Est. Effort | Dependencies |
+|---|------|-------------|-------------|--------------|
+| 25 | Change Streams | Real-time data subscriptions | 12h | WAL, ConnectionManager |
+| 26 | Import/Export Tools | JSON Lines, BSON migration | 8h | StorageEngine |
+| 27 | Full-Text Search | Text indexes with analyzers | 16h | IndexManager |
+| 28 | Geospatial Indexes | 2D/2DSphere location queries | 16h | IndexManager |
+| 29 | Field-Level Encryption | Client-side field encryption | 12h | EncryptionService |
+| 30 | Document Revisions | History tracking and versioning | 10h | StorageEngine |
+
+**Total P3 Effort: ~74 hours**
+
+---
+
+### Implementation Schedule
+
+#### Phase A: Core Operations (P0) - Week 1
+```
+Day 1-2: INSERT, REPLACE, UPSERT commands
+Day 3:   FIND_ONE command
+Day 4:   Unique Index implementation
+Day 5:   Projections support
+```
+
+#### Phase B: Production Ready (P1) - Weeks 2-3
+```
+Week 2:
+  - PATCH, INCREMENT commands
+  - FIND_AND_MODIFY atomic operation
+  - Compound Index support
+
+Week 3:
+  - EXPLAIN command
+  - ETag/Optimistic Concurrency
+  - Cursor-based Pagination
+  - TTL Index
+```
+
+#### Phase C: Feature Complete (P2) - Weeks 4-5
+```
+Week 4:
+  - Array operations (PUSH, PULL, ADD_TO_SET)
+  - DISTINCT command
+  - Sparse & Partial indexes
+  - Background index building
+
+Week 5:
+  - INDEX_STATS command
+  - Slow Query Logging
+  - Sessions/Unit of Work
+  - Write Concern & Capped Collections
+```
+
+#### Phase D: Advanced Features (P3) - Weeks 6-8
+```
+Week 6:
+  - Change Streams/Subscriptions
+  - Import/Export tools
+
+Week 7-8:
+  - Full-Text Search
+  - Geospatial indexes
+  - Field-Level Encryption
+  - Document Revisions
+```
+
+---
+
+### Quick Reference Checklist
+
+#### P0 - Critical (16h total)
+- [ ] 1. INSERT command
+- [ ] 2. REPLACE command
+- [ ] 3. UPSERT command
+- [ ] 4. FIND_ONE command
+- [ ] 5. Unique Index
+- [ ] 6. Projections
+
+#### P1 - High (35h total)
+- [ ] 7. PATCH command
+- [ ] 8. FIND_AND_MODIFY
+- [ ] 9. INCREMENT operation
+- [ ] 10. Compound Index
+- [ ] 11. EXPLAIN command
+- [ ] 12. ETag/Optimistic Concurrency
+- [ ] 13. Cursor-based Pagination
+- [ ] 14. TTL Index
+
+#### P2 - Medium (45h total)
+- [ ] 15. Array Operations
+- [ ] 16. DISTINCT command
+- [ ] 17. Sparse Index
+- [ ] 18. Partial Index
+- [ ] 19. Background Index Build
+- [ ] 20. INDEX_STATS command
+- [ ] 21. Slow Query Logging
+- [ ] 22. Sessions/Unit of Work
+- [ ] 23. Write Concern
+- [ ] 24. Capped Collections
+
+#### P3 - Lower (74h total)
+- [ ] 25. Change Streams
+- [ ] 26. Import/Export Tools
+- [ ] 27. Full-Text Search
+- [ ] 28. Geospatial Indexes
+- [ ] 29. Field-Level Encryption
+- [ ] 30. Document Revisions
+
+**Grand Total: ~170 hours (4-5 weeks full-time)**

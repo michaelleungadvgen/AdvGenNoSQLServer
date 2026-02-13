@@ -1,6 +1,8 @@
-# Example Console Application - NoSQL Server Client
+# AdvGen NoSQL Server (C#) - Example Console Application
 
-Simple console application demonstrating how to use the NoSQL Server client library.
+WARNING: This example and the surrounding codebase were written quickly as "vibe coding" for a supermarket price-comparison application. Security was NOT a focus for this project — treat this code as a prototype only. DO NOT store any sensitive information (passwords, API keys, personal data, payment details, etc.) in this repository or in runtime configuration.
+
+Console application demonstrating how to use the NoSQL Server client library and core components.
 
 ## Features Demonstrated
 
@@ -12,7 +14,7 @@ Simple console application demonstrating how to use the NoSQL Server client libr
 ### 2. Authentication
 - User credential-based authentication
 - JWT token generation and validation
-- Role-based access control
+- Role-based access control (RBAC)
 
 ### 3. CRUD Operations
 - **Create**: Insert new documents into collections
@@ -38,6 +40,24 @@ Simple console application demonstrating how to use the NoSQL Server client libr
 - Batch delete operations
 - Progress tracking and performance metrics
 
+### 7. Multi-Database Operations ⭐ NEW
+- Creating and managing multiple isolated databases
+- Department-based database separation
+- Database isolation verification
+- Cross-database analytics
+
+### 8. Role-Based Access Control (RBAC) ⭐ NEW
+- Creating custom roles with specific permissions
+- Assigning roles to users
+- Permission checking and enforcement
+- Multi-role user permission aggregation
+
+### 9. Multi-Tenant Isolation ⭐ NEW
+- Tenant-specific database creation
+- Data isolation between tenants
+- Access control per tenant
+- Super admin cross-tenant access
+
 ## Running the Example
 
 ```bash
@@ -45,30 +65,62 @@ cd e:\Projects\AdvGenNoSQLServer\Example.ConsoleApp
 dotnet run
 ```
 
+Then select an option from the menu:
+- **1**: Basic Examples (Simulated operations)
+- **2**: Multi-Database & RBAC Examples (Real components)
+- **3**: Run All Examples
+- **4**: Exit
+
 ## Expected Output
+
+### Multi-Database & RBAC Examples
 
 ```
 ╔════════════════════════════════════════════════════════════╗
-║     NoSQL Server - Console Application Example             ║
-║     MIT License - Lightweight & High Performance          ║
+║  Multi-Database & RBAC Examples                            ║
+║  Demonstrating database isolation and access control       ║
 ╚════════════════════════════════════════════════════════════╝
 
-╔ Example 1: Connecting to NoSQL Server ╗
-✓ Connecting to NoSQL Server...
-  Host: 127.0.0.1
-  Port: 9090
-  SSL: False
-✓ Connection successful!
+╔ Example 1: Multi-Database Operations ╗
 
-╔ Example 2: Authentication ╗
-✓ Authenticating user...
-  Username: admin
-✓ Authentication successful!
-  Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-  Role: Admin
-  Permissions: All
+📁 Creating HR Database...
+   ✓ Inserted: Alice Johnson (HR Department)
 
-[... more examples ...]
+📁 Creating Sales Database...
+   ✓ Inserted: Bob Smith (Sales Department)
+
+📁 Creating Engineering Database...
+   ✓ Inserted: Carol White (Engineering Department)
+
+🔒 Database Isolation Verification:
+   HR Database: 1 employees
+   Sales Database: 1 salespeople
+   Engineering Database: 1 engineers
+   ✓ HR DB contains sales_001: False (should be False)
+   ✓ Sales DB contains emp_001: False (should be False)
+
+✅ Multi-database operations completed successfully!
+
+╔ Example 2: Role-Based Access Control (RBAC) Setup ╗
+
+👥 Creating Custom Roles...
+   ✓ Created role: DepartmentAdmin (7 permissions)
+   ✓ Created role: DataAnalyst (3 permissions)
+   ✓ Created role: BackupOperator (2 permissions)
+
+📋 Available Roles:
+   - Admin (13 permissions)
+   - PowerUser (7 permissions)
+   - DepartmentAdmin (7 permissions)
+   - DataAnalyst (3 permissions)
+   - BackupOperator (2 permissions)
+
+👤 Creating Users with Role Assignments...
+   ✓ User: hr_admin (Role: DepartmentAdmin)
+   ✓ User: sales_analyst (Role: DataAnalyst)
+   ✓ User: backup_op (Role: BackupOperator)
+
+✅ RBAC setup completed successfully!
 ```
 
 ## Code Examples
@@ -97,17 +149,71 @@ var credentials = new UserCredentials
 var token = await client.AuthenticateAsync(credentials);
 ```
 
-### Create Document
+### Create Multiple Databases (Multi-Tenant)
 ```csharp
-var document = new
-{
-    _id = "user_123",
-    name = "John Doe",
-    email = "john@example.com",
-    age = 28
-};
+// Create isolated databases for different tenants
+var tenantAStore = new PersistentDocumentStore("./data/tenant_a");
+var tenantBStore = new PersistentDocumentStore("./data/tenant_b");
 
-await client.InsertAsync("users", document);
+await tenantAStore.InitializeAsync();
+await tenantBStore.InitializeAsync();
+
+// Insert data into Tenant A
+await tenantAStore.InsertAsync("customers", new Document { 
+    Id = "cust_001",
+    Data = new Dictionary<string, object> {
+        ["name"] = "Tenant A Customer",
+        ["tenant_id"] = "tenant_a"
+    }
+});
+
+// Tenant B cannot see Tenant A's data
+var existsInB = await tenantBStore.ExistsAsync("customers", "cust_001");
+// existsInB == false
+```
+
+### RBAC Role Creation and Permission Checking
+```csharp
+// Create RoleManager
+var roleManager = new RoleManager();
+
+// Create custom role with specific permissions
+roleManager.CreateRole(
+    "DepartmentAdmin",
+    "Administrator for a specific department",
+    new[] {
+        Permissions.DocumentRead,
+        Permissions.DocumentWrite,
+        Permissions.DocumentDelete,
+        Permissions.QueryExecute
+    }
+);
+
+// Assign role to user
+roleManager.AssignRoleToUser("hr_admin", "DepartmentAdmin");
+
+// Check if user has permission
+bool canWrite = roleManager.UserHasPermission("hr_admin", Permissions.DocumentWrite);
+// canWrite == true
+```
+
+### Cross-Database Analytics
+```csharp
+// Analytics user with access to multiple databases
+var hrStore = new PersistentDocumentStore("./data/hr");
+var financeStore = new PersistentDocumentStore("./data/finance");
+
+await hrStore.InitializeAsync();
+await financeStore.InitializeAsync();
+
+// Aggregate data from both databases
+var employees = await hrStore.GetAllAsync("employees");
+var expenses = await financeStore.GetAllAsync("expenses");
+
+var totalPayroll = employees.Sum(e => (long)e.Data["salary"]);
+var totalExpenses = expenses.Sum(e => (long)e.Data["amount"]);
+
+Console.WriteLine($"Payroll/Expense ratio: {(double)totalPayroll / totalExpenses:F2}x");
 ```
 
 ### Query Documents
@@ -157,14 +263,51 @@ Authentication credentials
 - **Username**: User identifier
 - **Password**: Password (should be transmitted over encrypted connection)
 
-### UserDocument
-Example document model
-- **_id**: Document unique identifier
-- **name**: User name
-- **email**: User email
-- **age**: User age
-- **created**: Creation timestamp
-- **roles**: Array of user roles
+### PersistentDocumentStore
+File-based persistent document store
+- **DataPath**: Base directory for storing collection files
+- **InsertAsync**: Insert a document
+- **GetAsync**: Retrieve a document by ID
+- **GetAllAsync**: Get all documents in a collection
+- **UpdateAsync**: Update an existing document
+- **DeleteAsync**: Delete a document
+- **ExistsAsync**: Check if a document exists
+- **CountAsync**: Count documents in a collection
+- **InitializeAsync**: Initialize the store and load existing data
+
+### RoleManager
+Manages roles and permissions for RBAC
+- **CreateRole**: Create a new role with permissions
+- **DeleteRole**: Delete a role
+- **GetRole**: Get a role by name
+- **GetAllRoles**: Get all defined roles
+- **AssignRoleToUser**: Assign a role to a user
+- **RemoveRoleFromUser**: Remove a role from a user
+- **UserHasPermission**: Check if a user has a specific permission
+- **GetUserPermissions**: Get all permissions for a user
+
+### Permissions
+Predefined permission constants
+- **DocumentRead**: Read documents (`document:read`)
+- **DocumentWrite**: Write documents (`document:write`)
+- **DocumentDelete**: Delete documents (`document:delete`)
+- **CollectionCreate**: Create collections (`collection:create`)
+- **CollectionDelete**: Delete collections (`collection:delete`)
+- **QueryExecute**: Execute queries (`query:execute`)
+- **QueryAggregate**: Execute aggregations (`query:aggregate`)
+- **TransactionExecute**: Execute transactions (`transaction:execute`)
+- **UserManage**: Manage users (`user:manage`)
+- **RoleManage**: Manage roles (`role:manage`)
+
+## Project Structure
+
+```
+Example.ConsoleApp/
+├── Program.cs                          # Main entry point with menu
+├── MultiDatabaseAndRbacExamples.cs     # NEW: Multi-database & RBAC demos
+├── Example.ConsoleApp.csproj           # Project file
+└── README.md                           # This file
+```
 
 ## Next Steps
 
@@ -181,6 +324,7 @@ Example document model
 - **Latency**: Single operations typically < 100ms
 - **Connection pooling**: Reuse connections for multiple operations
 - **Batch operations**: Use batch APIs for bulk inserts/updates for better performance
+- **Multi-database**: Each database is isolated with separate file storage
 
 ## Security Considerations
 
@@ -189,8 +333,12 @@ Example document model
 - Implement rate limiting on authentication attempts
 - Audit all database access
 - Keep credentials out of code (use environment variables or config files)
+- Follow RBAC principles - grant minimum necessary permissions
+- Isolate tenant data in separate databases
+- Regular backups for disaster recovery
 
 ---
 
 **License**: MIT License  
-**Created**: February 7, 2026
+**Created**: February 7, 2026  
+**Updated**: February 13, 2026 (Added Multi-Database & RBAC examples)
