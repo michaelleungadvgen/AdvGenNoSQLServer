@@ -81,3 +81,5 @@ Thumbs.db
 
 # Script files for testing
 *.csx
+.claude/ralph-loop.local.md
+.claude/settings.local.json

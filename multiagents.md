@@ -10,7 +10,7 @@
 
 | Agent | Task | Status | Started | Target Completion |
 |-------|------|--------|---------|-------------------|
-| None | - | - | - | - |
+| Agent-46 | Partial/Sparse Index Support | In Progress | 2026-02-13 | 2026-02-13 |
 
 ---
 

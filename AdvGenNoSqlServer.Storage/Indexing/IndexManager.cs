@@ -200,6 +200,46 @@ public class IndexManager
     }
 
     /// <summary>
+    /// Creates a sparse index that only includes documents with the indexed field
+    /// </summary>
+    /// <typeparam name="TKey">The type of the index key</typeparam>
+    /// <param name="collectionName">The collection name</param>
+    /// <param name="fieldName">The field to index</param>
+    /// <param name="isUnique">Whether the index enforces uniqueness</param>
+    /// <param name="keySelector">Function to extract the key from a document</param>
+    /// <param name="minDegree">The B-tree minimum degree</param>
+    /// <returns>The created sparse index</returns>
+    public IBTreeIndex<TKey, string> CreateSparseIndex<TKey>(
+        string collectionName,
+        string fieldName,
+        bool isUnique,
+        Func<Document, TKey> keySelector,
+        int minDegree = 4) where TKey : IComparable<TKey>
+    {
+        ArgumentException.ThrowIfNullOrEmpty(collectionName, nameof(collectionName));
+        ArgumentException.ThrowIfNullOrEmpty(fieldName, nameof(fieldName));
+        ArgumentNullException.ThrowIfNull(keySelector, nameof(keySelector));
+
+        lock (_lock)
+        {
+            var collectionIndex = _collectionIndexes.GetOrAdd(collectionName, _ => new CollectionIndexes(collectionName));
+            
+            string indexName = $"{collectionName}_{fieldName}_sparse_idx";
+            
+            if (collectionIndex.HasIndex(fieldName))
+            {
+                throw new InvalidOperationException($"Index already exists for field '{fieldName}' in collection '{collectionName}'");
+            }
+
+            var index = new SparseBTreeIndex<TKey>(indexName, collectionName, fieldName, isUnique, minDegree);
+            
+            collectionIndex.AddSparseIndex(fieldName, index, keySelector);
+            
+            return index;
+        }
+    }
+
+    /// <summary>
     /// Drops an index from a collection
     /// </summary>
     /// <param name="collectionName">The collection name</param>
@@ -375,6 +415,11 @@ public class IndexManager
             _indexes[indexKey] = new CompoundIndexWrapper(index, keySelector, fieldNames);
         }
 
+        public void AddSparseIndex<TKey>(string fieldName, SparseBTreeIndex<TKey> index, Func<Document, TKey> keySelector) where TKey : IComparable<TKey>
+        {
+            _indexes[fieldName] = new SparseIndexWrapper<TKey>(index, keySelector);
+        }
+
         public bool RemoveIndex(string fieldName)
         {
             return _indexes.TryRemove(fieldName, out _);
@@ -436,10 +481,14 @@ public class IndexManager
         {
             return _indexes.Select(kvp =>
             {
-                bool isCompound = kvp.Value is CompoundIndexWrapper;
-                string indexType = kvp.Value.IsUnique 
-                    ? (isCompound ? "Unique Compound B-Tree" : "Unique B-Tree")
-                    : (isCompound ? "Compound B-Tree" : "B-Tree");
+                string baseType = kvp.Value.IsUnique ? "Unique " : "";
+                
+                string indexType = kvp.Value switch
+                {
+                    CompoundIndexWrapper => baseType + "Compound B-Tree",
+                    _ when kvp.Value.GetType().Name.StartsWith("SparseIndexWrapper") => baseType + "Sparse B-Tree",
+                    _ => baseType + "B-Tree"
+                };
                 
                 return new IndexStats
                 {
@@ -571,6 +620,75 @@ public class IndexManager
                 if (values != null && values.Length > 0)
                 {
                     var key = new CompoundIndexKey(values);
+                    Index.Delete(key, document.Id);
+                }
+            }
+            catch
+            {
+                // Ignore errors during removal
+            }
+        }
+
+        public void UpdateDocument(Document oldDocument, Document newDocument)
+        {
+            RemoveDocument(oldDocument);
+            IndexDocument(newDocument);
+        }
+    }
+
+    /// <summary>
+    /// Wrapper for sparse indexes - only indexes documents that have the field
+    /// </summary>
+    private class SparseIndexWrapper<TKey> : IIndexWrapper where TKey : IComparable<TKey>
+    {
+        private readonly Func<Document, TKey> _keySelector;
+
+        public SparseBTreeIndex<TKey> Index { get; }
+        public int Count => Index.Count;
+        public int Height => Index.Height;
+        public bool IsUnique => Index.IsUnique;
+
+        public SparseIndexWrapper(SparseBTreeIndex<TKey> index, Func<Document, TKey> keySelector)
+        {
+            Index = index;
+            _keySelector = keySelector;
+        }
+
+        public void IndexDocument(Document document)
+        {
+            try
+            {
+                // For sparse indexes, only index if the document has the field
+                if (!document.Data.ContainsKey(Index.FieldName))
+                    return;
+
+                var key = _keySelector(document);
+                if (key != null)
+                {
+                    Index.Insert(key, document.Id);
+                }
+            }
+            catch (DuplicateKeyException)
+            {
+                throw; // Re-throw duplicate key exceptions
+            }
+            catch
+            {
+                // Ignore other errors
+            }
+        }
+
+        public void RemoveDocument(Document document)
+        {
+            try
+            {
+                // Only try to remove if document has the field
+                if (!document.Data.ContainsKey(Index.FieldName))
+                    return;
+
+                var key = _keySelector(document);
+                if (key != null)
+                {
                     Index.Delete(key, document.Id);
                 }
             }

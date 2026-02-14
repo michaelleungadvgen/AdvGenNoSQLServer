@@ -17,7 +17,7 @@ public class ServerConfiguration
     /// <summary>
     /// The port number the server will listen on (default: 9090)
     /// </summary>
-    public int Port { get; set; } = 9090;
+    public int Port { get; set; } = 9091;
 
     /// <summary>
     /// The maximum number of concurrent connections (default: 10000)

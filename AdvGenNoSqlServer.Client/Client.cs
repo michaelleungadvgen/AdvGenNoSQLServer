@@ -70,7 +70,7 @@ namespace AdvGenNoSqlServer.Client
     /// <summary>
     /// A client for interacting with the NoSQL server over TCP
     /// </summary>
-    public class AdvGenNoSqlClient : IDisposable, IAsyncDisposable
+    public partial class AdvGenNoSqlClient : IDisposable, IAsyncDisposable
     {
         private readonly string _serverAddress;
         private readonly int _serverPort;
@@ -518,7 +518,8 @@ namespace AdvGenNoSqlServer.Client
 
                 if (root.TryGetProperty("data", out var dataElement))
                 {
-                    response.Data = dataElement;
+                    // Clone the JsonElement to prevent disposal issues
+                    response.Data = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(dataElement.GetRawText());
                 }
 
                 if (root.TryGetProperty("error", out var errorElement))
@@ -732,12 +733,28 @@ namespace AdvGenNoSqlServer.Client
 
             try
             {
-                var batchResponse = System.Text.Json.JsonSerializer.Deserialize<BatchOperationResponse>(responseJson, new System.Text.Json.JsonSerializerOptions
+                var jsonOptions = new System.Text.Json.JsonSerializerOptions
                 {
-                    PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
-                });
+                    PropertyNameCaseInsensitive = true
+                };
 
-                return batchResponse ?? new BatchOperationResponse
+                // Server wraps response in {"success":true,"data":{...}} envelope
+                // Need to extract the "data" property first
+                using var doc = System.Text.Json.JsonDocument.Parse(responseJson);
+                if (doc.RootElement.TryGetProperty("data", out var dataElement))
+                {
+                    var dataJson = dataElement.GetRawText();
+                    var batchResponse = System.Text.Json.JsonSerializer.Deserialize<BatchOperationResponse>(dataJson, jsonOptions);
+                    return batchResponse ?? new BatchOperationResponse
+                    {
+                        Success = false,
+                        ErrorMessage = "Failed to deserialize response data"
+                    };
+                }
+
+                // Fallback: try direct deserialization (for backwards compatibility)
+                var directResponse = System.Text.Json.JsonSerializer.Deserialize<BatchOperationResponse>(responseJson, jsonOptions);
+                return directResponse ?? new BatchOperationResponse
                 {
                     Success = false,
                     ErrorMessage = "Failed to deserialize response"
