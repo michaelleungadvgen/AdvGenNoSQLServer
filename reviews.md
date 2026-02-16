@@ -80,7 +80,7 @@ This document outlines the comprehensive review plan for the AdvGenNoSQL Server 
 #### 3.1.1 Authentication Module
 Files to review:
 - [x] `Authentication/AuthenticationManager.cs` - User authentication logic **[REVIEWED - 5 ISSUES FOUND: SEC-001 to SEC-005]**
-- [ ] `Authentication/AuthenticationService.cs` - Authentication service interface
+- [x] `Authentication/AuthenticationService.cs` - Authentication service interface **[REVIEWED - 5 ISSUES: BUG-003 (High - GetUsernameFromToken returns null), SEC-034 (High - Authorize bypasses permission check), AUDIT-001, CONC-007 (Medium), CODE-011 (Low)]**
 - [x] `Authentication/JwtTokenProvider.cs` - JWT token generation/validation **[REVIEWED - GOOD: Uses HS256 + FixedTimeEquals. 3 MINOR ISSUES: SEC-006 to SEC-008]**
 - [x] `Authentication/RoleManager.cs` - RBAC implementation **[REVIEWED - 4 ISSUES: SEC-011 (High), SEC-012-014 (Medium/Low). Thread safety + authorization needed]**
 - [x] `Authentication/AuditLogger.cs` - Audit logging **[REVIEWED - GOOD: ConcurrentQueue, SemaphoreSlim, file rotation, critical event flush. 3 LOW: SEC-015, PERF-001, OPS-001]**
@@ -729,6 +729,11 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | DATA-014 | HybridDocumentStore.cs | 442-443 | Medium | `File.WriteAllTextAsync` is not atomic. Crash during write corrupts file. Write to temp file then atomic rename. | Open |
 | DATA-015 | HybridDocumentStore.cs | 122-136 | Medium | Race condition in `InsertAsync` between `ContainsKey` check and `TryAdd`. Concurrent inserts could bypass duplicate detection. | Open |
 | SEC-033 | HybridDocumentStore.cs | 411-414 | Low | Silent exception swallowing in write queue processing. Write failures are never reported, potentially losing data. | Open |
+| BUG-003 | AuthenticationService.cs | 71-76 | High | `GetUsernameFromToken` always returns `null`. Method is non-functional - comments indicate it was never implemented. | Open |
+| SEC-034 | AuthenticationService.cs | 182-200 | High | `Authorize` method bypasses permission check entirely. After token validation, it always returns `Success()` without checking user permissions against required permission. Major security flaw. | Open |
+| AUDIT-001 | AuthenticationService.cs | 226 | Medium | Uses `Console.WriteLine` for audit logging instead of existing `IAuditLogger` interface. Audit logs are lost/inconsistent. | Open |
+| CONC-007 | AuthenticationService.cs | 32-42 | Medium | Non-atomic `RegisterUser` - if auth registration succeeds but role assignment fails, user exists without a role. Should cleanup on failure. | Open |
+| CODE-011 | AuthenticationService.cs | 36-42 | Low | Silent failure when initial role doesn't exist. Role assignment silently skipped. Should log warning or throw. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
@@ -1675,6 +1680,129 @@ catch (Exception ex)
     _logger?.LogError(ex, "Failed to persist document {Collection}/{Id} to disk",
         operation.Collection, operation.DocumentId);
     // Optionally: implement retry with exponential backoff
+}
+```
+
+### BUG-003: Implement GetUsernameFromToken (High)
+**File:** `AuthenticationService.cs` lines 71-76
+**Current:** `return null;` - method is non-functional
+**Required Action:** Implement token-to-user mapping:
+```csharp
+public string? GetUsernameFromToken(string tokenId)
+{
+    // Get the token from AuthenticationManager
+    var token = _authManager.GetToken(tokenId);
+    return token?.Username;
+}
+
+// Add to AuthenticationManager:
+public AuthToken? GetToken(string tokenId)
+{
+    _activeSessions.TryGetValue(tokenId, out var token);
+    return token;
+}
+```
+
+### SEC-034: Implement Actual Permission Check in Authorize (High)
+**File:** `AuthenticationService.cs` lines 182-200
+**Current:** Always returns `Success()` after token validation - no permission check
+**Required Action:** Actually check permissions:
+```csharp
+public AuthorizationResult Authorize(string tokenId, string requiredPermission)
+{
+    // First validate the token
+    if (!_authManager.ValidateToken(tokenId))
+    {
+        return AuthorizationResult.Failed("Invalid or expired token");
+    }
+
+    // Get username from token
+    var username = GetUsernameFromToken(tokenId);
+    if (string.IsNullOrEmpty(username))
+    {
+        return AuthorizationResult.Failed("Cannot identify user from token");
+    }
+
+    // If auth not required, skip permission check
+    if (!_configuration.RequireAuthentication)
+    {
+        return AuthorizationResult.Success();
+    }
+
+    // Check if user has the required permission
+    if (!_roleManager.UserHasPermission(username, requiredPermission))
+    {
+        return AuthorizationResult.Failed($"User lacks required permission: {requiredPermission}");
+    }
+
+    return AuthorizationResult.Success();
+}
+```
+
+### AUDIT-001: Use IAuditLogger for Authentication Logging (Medium)
+**File:** `AuthenticationService.cs` line 226
+**Current:** `Console.WriteLine($"[AUTH] ...")`
+**Required Action:** Inject and use IAuditLogger:
+```csharp
+private readonly IAuditLogger? _auditLogger;
+
+public AuthenticationService(ServerConfiguration configuration, IAuditLogger? auditLogger = null)
+{
+    _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+    _authManager = new AuthenticationManager(configuration);
+    _roleManager = new RoleManager();
+    _auditLogger = auditLogger;
+}
+
+public void LogAuthenticationAttempt(string username, bool success, string? clientIp = null)
+{
+    var eventType = success ? AuditEventType.AuthenticationSuccess : AuditEventType.AuthenticationFailure;
+    _auditLogger?.LogAsync(eventType, username, new { clientIp });
+}
+```
+
+### CONC-007: Make RegisterUser Atomic (Medium)
+**File:** `AuthenticationService.cs` lines 32-42
+**Current:** User registration and role assignment are separate operations
+**Required Action:** Either use transaction or cleanup on failure:
+```csharp
+public bool RegisterUser(string username, string password, string? initialRole = null)
+{
+    if (!_authManager.RegisterUser(username, password))
+        return false;
+
+    // Assign role (default to User)
+    var roleToAssign = !string.IsNullOrEmpty(initialRole) && _roleManager.RoleExists(initialRole)
+        ? initialRole
+        : RoleNames.User;
+
+    if (!_roleManager.AssignRoleToUser(username, roleToAssign))
+    {
+        // Rollback: remove user since role assignment failed
+        _authManager.RemoveUser(username);
+        return false;
+    }
+
+    return true;
+}
+```
+
+### CODE-011: Log Warning When Initial Role Not Found (Low)
+**File:** `AuthenticationService.cs` lines 36-42
+**Current:** Silent fallback to default role when specified role doesn't exist
+**Recommendation:** Log a warning:
+```csharp
+if (!string.IsNullOrEmpty(initialRole))
+{
+    if (_roleManager.RoleExists(initialRole))
+    {
+        _roleManager.AssignRoleToUser(username, initialRole);
+    }
+    else
+    {
+        _logger?.LogWarning("Requested role '{Role}' does not exist for user '{User}', assigning default", initialRole, username);
+        _roleManager.AssignRoleToUser(username, RoleNames.User);
+    }
 }
 ```
 
