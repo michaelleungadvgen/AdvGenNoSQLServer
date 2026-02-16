@@ -308,9 +308,9 @@ Files to review:
 
 Files to review:
 - [x] `Client.cs` - Main client class **[REVIEWED - GOOD: SemaphoreSlim locks, IAsyncDisposable, TLS support, keep-alive, batch ops, events. 6 ISSUES: SEC-027 (Critical), PERF-007 (Medium), SEC-028, CODE-005, MEM-003, NET-003 (Low)]**
-- [ ] `AdvGenNoSqlClient.Commands.cs` - Command implementations
-- [ ] `ClientFactory.cs` - Client factory
-- [ ] `ClientOptions.cs` - Client configuration
+- [x] `AdvGenNoSqlClient.Commands.cs` - Command implementations **[REVIEWED - CLEAN: Uses JsonSerializer properly, good input validation, proper exception handling. No issues found.]**
+- [x] `ClientFactory.cs` - Client factory **[REVIEWED - BUG-002 (Medium): CreateClient ignores all options except ServerAddress!]**
+- [x] `ClientOptions.cs` - Client configuration **[REVIEWED - CLEAN: Good defaults, SSL/mTLS support, keep-alive, retry options. 1 MINOR: CODE-006 (Low) - no value validation]**
 
 **Review Focus:**
 - Connection retry logic
@@ -703,6 +703,8 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | CODE-005 | Client.cs | 267 | Low | `PingAsync` catch block swallows all exceptions silently. Should distinguish between connection errors and others. | Open |
 | MEM-003 | Client.cs | 409, 426-427 | Low | `ReceiveMessageAsync` creates new byte arrays instead of using ArrayPool for header and payload buffers. | Open |
 | NET-003 | Client.cs | 717-718 | Info | Redundant encoding: `GetBytes(json)` then `GetByteCount(json)`. Just use `bytes.Length`. | Open |
+| CODE-006 | ClientOptions.cs | - | Low | No validation of option values. Negative timeouts, retry delays, or max retry attempts would cause issues at runtime. | Open |
+| BUG-002 | ClientFactory.cs | 14-15 | Medium | `CreateClient(AdvGenNoSqlClientOptions)` ignores all options except ServerAddress. All SSL, keepalive, retry settings are lost. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
@@ -1278,6 +1280,34 @@ public async ValueTask CloseAsync()
 // private readonly PipeWriter _writer;  // Not used
 
 // Or refactor ReadExactAsync to use Pipelines for better performance
+```
+
+### BUG-002: Pass Full Options to Client Constructor (Medium)
+**File:** `ClientFactory.cs` lines 14-15
+**Current:** `return new AdvGenNoSqlClient(options.ServerAddress);`
+**Required Action:** Pass the full options object:
+```csharp
+public static AdvGenNoSqlClient CreateClient(AdvGenNoSqlClientOptions options)
+{
+    return new AdvGenNoSqlClient(options.ServerAddress, options);
+}
+```
+
+### CODE-006: Add Options Validation (Low)
+**File:** `ClientOptions.cs`
+**Recommendation:** Add validation method or use data annotations:
+```csharp
+public void Validate()
+{
+    if (ConnectionTimeout <= 0)
+        throw new ArgumentException("ConnectionTimeout must be positive");
+    if (MaxRetryAttempts < 0)
+        throw new ArgumentException("MaxRetryAttempts cannot be negative");
+    if (RetryDelayMs < 0)
+        throw new ArgumentException("RetryDelayMs cannot be negative");
+    if (KeepAliveInterval <= TimeSpan.Zero)
+        throw new ArgumentException("KeepAliveInterval must be positive");
+}
 ```
 
 ### SEC-027: Use JsonSerializer for Authentication (Critical)
