@@ -289,7 +289,7 @@ Files to review:
 ### 3.4 AdvGenNoSqlServer.Network
 
 Files to review:
-- [ ] `TcpServer.cs` - TCP server implementation
+- [x] `TcpServer.cs` - TCP server implementation **[REVIEWED - GOOD: ConcurrentDictionary, IAsyncDisposable, ConnectionPool, graceful shutdown. 5 ISSUES: NET-001 (Medium), SEC-022/023, RES-001, PERF-005]**
 - [ ] `ConnectionHandler.cs` - Connection handling
 - [ ] `ConnectionPool.cs` - Connection pooling
 - [ ] `MessageProtocol.cs` - Message framing
@@ -677,6 +677,11 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | DATA-007 | PersistentDocumentStore.cs | 450 | Medium | `File.WriteAllTextAsync` is not atomic. Crash during write corrupts file. Write to temp file then rename. | Open |
 | CODE-001 | PersistentDocumentStore.cs | 462-483 | Medium | Uses reflection to access private fields - fragile and breaks if InMemoryDocumentCollection changes. | Open |
 | CONC-003 | PersistentDocumentStore.cs | 478-480 | Low | Reflection-based count update with `Interlocked.Increment` then SetValue - potential race condition. | Open |
+| NET-001 | TcpServer.cs | 176, 216, 286 | Medium | Uses `Console.Error.WriteLine` for error logging. Should use ILogger for structured logging and proper audit trail. | Open |
+| SEC-022 | TcpServer.cs | 301 | Medium | JSON payload construction uses string interpolation `$"{{\"error\":\"{reason}\"}}"`. If reason contains quotes/special chars, JSON could be malformed or injected. Use JsonSerializer. | Open |
+| SEC-023 | TcpServer.cs | 304-305, 318-319 | Low | Silent exception swallowing in `SendConnectionRejectedAsync` and `SendSslErrorAsync`. Should log exceptions for debugging. | Open |
+| RES-001 | TcpServer.cs | 163 | Low | Fire-and-forget task `_ = HandleConnectionAsync(...)` without exception observation. Exceptions silently lost. Add `.ContinueWith()` for logging. | Open |
+| PERF-005 | TcpServer.cs | 353 | Low | `Dispose()` calls `GetAwaiter().GetResult()` on async DisposeAsync. Common pattern but can deadlock if called from sync context. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
@@ -1085,6 +1090,83 @@ internal void LoadDocument(Document document)
     Interlocked.Increment(ref _documentCount);
 }
 ```
+
+### NET-001: Use ILogger for Error Logging (Medium)
+**File:** `TcpServer.cs` lines 176, 216, 286
+**Current:** `Console.Error.WriteLine($"Error accepting connection: {ex.Message}")`
+**Required Action:** Inject ILogger through constructor:
+```csharp
+private readonly ILogger<TcpServer>? _logger;
+
+public TcpServer(ServerConfiguration configuration, ILogger<TcpServer>? logger = null)
+{
+    _logger = logger;
+    // ...
+}
+
+// Replace Console.Error.WriteLine with:
+_logger?.LogWarning(ex, "Error accepting connection");
+_logger?.LogError(ex, "SSL handshake failed for connection {ConnectionId}", connectionId);
+_logger?.LogError(ex, "Connection error on {ConnectionId}", handler.ConnectionId);
+```
+
+### SEC-022: Use Proper JSON Serialization (Medium)
+**File:** `TcpServer.cs` line 301
+**Current:** `$"{{\"error\":\"{reason}\"}}"`
+**Required Action:** Use JsonSerializer for safe JSON construction:
+```csharp
+using System.Text.Json;
+
+private async Task SendConnectionRejectedAsync(ConnectionHandler handler, string reason)
+{
+    try
+    {
+        var errorPayload = JsonSerializer.SerializeToUtf8Bytes(new { error = reason });
+        var rejectionMessage = new NoSqlMessage
+        {
+            MessageType = MessageType.Error,
+            Payload = errorPayload
+        };
+        await handler.SendAsync(rejectionMessage, CancellationToken.None);
+    }
+    catch (Exception ex)
+    {
+        _logger?.LogWarning(ex, "Failed to send rejection message");
+    }
+}
+```
+
+### SEC-023: Log Exceptions in Error Handlers (Low)
+**File:** `TcpServer.cs` lines 304-305, 318-319
+**Current:** `catch { /* Best effort */ }`
+**Required Action:** Add logging for debugging:
+```csharp
+catch (Exception ex)
+{
+    _logger?.LogDebug(ex, "Failed to send connection rejected message");
+}
+```
+
+### RES-001: Observe Exceptions on Fire-and-Forget Tasks (Low)
+**File:** `TcpServer.cs` line 163
+**Current:** `_ = HandleConnectionAsync(client, cancellationToken);`
+**Required Action:** Add exception observation:
+```csharp
+_ = HandleConnectionAsync(client, cancellationToken)
+    .ContinueWith(t =>
+    {
+        if (t.IsFaulted)
+            _logger?.LogError(t.Exception, "Unhandled exception in connection handler");
+    }, TaskContinuationOptions.OnlyOnFaulted);
+```
+
+### PERF-005: Async Dispose Pattern Note (Low)
+**File:** `TcpServer.cs` line 353
+**Current:** `DisposeAsync().AsTask().GetAwaiter().GetResult();`
+**Note:** This is a common pattern when implementing both IDisposable and IAsyncDisposable. The risk of deadlock exists if Dispose() is called from a synchronous context with a captured SynchronizationContext. Consider:
+1. Documenting that DisposeAsync should be preferred
+2. Using `ConfigureAwait(false)` throughout the async chain
+3. Adding analyzer warning suppression with comment explaining the pattern
 
 ---
 
