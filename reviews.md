@@ -291,7 +291,7 @@ Files to review:
 Files to review:
 - [x] `TcpServer.cs` - TCP server implementation **[REVIEWED - GOOD: ConcurrentDictionary, IAsyncDisposable, ConnectionPool, graceful shutdown. 5 ISSUES: NET-001 (Medium), SEC-022/023, RES-001, PERF-005]**
 - [x] `ConnectionHandler.cs` - Connection handling **[REVIEWED - GOOD: SemaphoreSlim write lock, ArrayPool, checksum validation, IAsyncEnumerable. 7 ISSUES: BUG-001 (High), SEC-024, NET-002, PERF-006 (Medium), SEC-025, CODE-002, MEM-001 (Low)]**
-- [ ] `ConnectionPool.cs` - Connection pooling
+- [x] `ConnectionPool.cs` - Connection pooling **[REVIEWED - GOOD: SemaphoreSlim, Interlocked counters, statistics tracking. Clean implementation. 3 MINOR ISSUES: RES-003 (Medium), CONC-004, CODE-003 (Low)]**
 - [ ] `MessageProtocol.cs` - Message framing
 - [x] `TlsStreamHelper.cs` - TLS support **[REVIEWED - GOOD: TLS 1.2/1.3, mTLS, cert revocation. 5 ISSUES: SEC-017/018 (High), SEC-019-021 (Medium/Low)]**
 
@@ -689,6 +689,9 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | SEC-025 | ConnectionHandler.cs | 340, 345 | Low | Silent exception swallowing in `CloseAsync`. Should log for debugging. | Open |
 | CODE-002 | ConnectionHandler.cs | 347 | Low | `await Task.CompletedTask` is unnecessary. Method should return `ValueTask.CompletedTask` or be non-async. | Open |
 | MEM-001 | ConnectionHandler.cs | 29-30 | Low | `PipeReader` and `PipeWriter` created but never used. Code uses `_stream.ReadAsync/WriteAsync` directly. Dead code. | Open |
+| RES-003 | ConnectionPool.cs | 16 | Medium | Class doesn't implement `IDisposable`. The `SemaphoreSlim` should be disposed when pool is no longer needed. | Open |
+| CONC-004 | ConnectionPool.cs | 110-112 | Low | Release() decrements counters before `_semaphore.Release()`. If Release throws (called too many times), counters become incorrect. | Open |
+| CODE-003 | ConnectionPool.cs | - | Low | No async versions of `Acquire`. Add `AcquireAsync()` using `_semaphore.WaitAsync()` for non-blocking async usage. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
@@ -1264,6 +1267,59 @@ public async ValueTask CloseAsync()
 // private readonly PipeWriter _writer;  // Not used
 
 // Or refactor ReadExactAsync to use Pipelines for better performance
+```
+
+### RES-003: Implement IDisposable in ConnectionPool (Medium)
+**File:** `ConnectionPool.cs` line 16
+**Required Action:** Implement IDisposable:
+```csharp
+public class ConnectionPool : IDisposable
+{
+    private bool _disposed;
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _semaphore.Dispose();
+    }
+}
+```
+
+### CONC-004: Fix Release Order (Low)
+**File:** `ConnectionPool.cs` lines 110-112
+**Required Action:** Release semaphore first or use try-catch:
+```csharp
+public void Release()
+{
+    // Release semaphore first - if it throws, counters stay consistent
+    _semaphore.Release();
+    Interlocked.Decrement(ref _activeConnections);
+    Interlocked.Increment(ref _totalReleased);
+}
+```
+
+### CODE-003: Add Async Acquire (Low)
+**File:** `ConnectionPool.cs`
+**Recommendation:** Add async variant for non-blocking usage:
+```csharp
+public async Task AcquireAsync(CancellationToken cancellationToken = default)
+{
+    await _semaphore.WaitAsync(cancellationToken);
+    Interlocked.Increment(ref _activeConnections);
+    Interlocked.Increment(ref _totalAcquired);
+}
+
+public async Task<bool> TryAcquireAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
+{
+    if (await _semaphore.WaitAsync(timeout, cancellationToken))
+    {
+        Interlocked.Increment(ref _activeConnections);
+        Interlocked.Increment(ref _totalAcquired);
+        return true;
+    }
+    return false;
+}
 ```
 
 ### PERF-005: Async Dispose Pattern Note (Low)
