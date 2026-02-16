@@ -292,7 +292,7 @@ Files to review:
 - [x] `TcpServer.cs` - TCP server implementation **[REVIEWED - GOOD: ConcurrentDictionary, IAsyncDisposable, ConnectionPool, graceful shutdown. 5 ISSUES: NET-001 (Medium), SEC-022/023, RES-001, PERF-005]**
 - [x] `ConnectionHandler.cs` - Connection handling **[REVIEWED - GOOD: SemaphoreSlim write lock, ArrayPool, checksum validation, IAsyncEnumerable. 7 ISSUES: BUG-001 (High), SEC-024, NET-002, PERF-006 (Medium), SEC-025, CODE-002, MEM-001 (Low)]**
 - [x] `ConnectionPool.cs` - Connection pooling **[REVIEWED - GOOD: SemaphoreSlim, Interlocked counters, statistics tracking. Clean implementation. 3 MINOR ISSUES: RES-003 (Medium), CONC-004, CODE-003 (Low)]**
-- [ ] `MessageProtocol.cs` - Message framing
+- [x] `MessageProtocol.cs` - Message framing **[REVIEWED - GOOD: ArrayPool, BinaryPrimitives, CRC32, Span<T>, magic/version validation, size limit. 5 ISSUES: SEC-026, DOS-001 (Medium), MEM-002, CODE-004, DATA-009 (Low)]**
 - [x] `TlsStreamHelper.cs` - TLS support **[REVIEWED - GOOD: TLS 1.2/1.3, mTLS, cert revocation. 5 ISSUES: SEC-017/018 (High), SEC-019-021 (Medium/Low)]**
 
 **Review Focus:**
@@ -692,6 +692,11 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | RES-003 | ConnectionPool.cs | 16 | Medium | Class doesn't implement `IDisposable`. The `SemaphoreSlim` should be disposed when pool is no longer needed. | Open |
 | CONC-004 | ConnectionPool.cs | 110-112 | Low | Release() decrements counters before `_semaphore.Release()`. If Release throws (called too many times), counters become incorrect. | Open |
 | CODE-003 | ConnectionPool.cs | - | Low | No async versions of `Acquire`. Add `AcquireAsync()` using `_semaphore.WaitAsync()` for non-blocking async usage. | Open |
+| SEC-026 | MessageProtocol.cs | 167-168, 186 | Medium | JSON construction uses string interpolation in `CreateCommand` and `CreateError`. Injection risk if command/collection contains special chars. Use JsonSerializer. | Open |
+| DOS-001 | MessageProtocol.cs | 340 | Medium | Max payload size of 100MB is too large. Could enable memory exhaustion DoS. Reduce to 10MB or make configurable. | Open |
+| MEM-002 | MessageProtocol.cs | 296 | Low | `Serialize` returns rented buffer that caller must return. Error-prone API. Consider IDisposable wrapper struct. | Open |
+| CODE-004 | MessageProtocol.cs | 406 | Low | `buffer.AsSpan(offset).ToArray()` creates unnecessary copy. ParseHeader could accept ReadOnlySpan<byte>. | Open |
+| DATA-009 | MessageProtocol.cs | 374-376 | Low | Returns checksum 0 for empty data. Valid but means empty payload with checksum=0 always validates. Document this behavior. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
@@ -1267,6 +1272,98 @@ public async ValueTask CloseAsync()
 // private readonly PipeWriter _writer;  // Not used
 
 // Or refactor ReadExactAsync to use Pipelines for better performance
+```
+
+### SEC-026: Use JsonSerializer in MessageProtocol (Medium)
+**File:** `MessageProtocol.cs` lines 167-168, 186
+**Required Action:** Replace string interpolation with JsonSerializer:
+```csharp
+public static NoSqlMessage CreateCommand(string command, string collection, object? document = null)
+{
+    var payload = new
+    {
+        command = command,
+        collection = collection,
+        document = document
+    };
+    var json = System.Text.Json.JsonSerializer.Serialize(payload);
+    return Create(MessageType.Command, json);
+}
+
+public static NoSqlMessage CreateError(string errorCode, string errorMessage)
+{
+    var payload = new { success = false, error = new { code = errorCode, message = errorMessage } };
+    return Create(MessageType.Error, System.Text.Json.JsonSerializer.Serialize(payload));
+}
+```
+
+### DOS-001: Reduce Maximum Payload Size (Medium)
+**File:** `MessageProtocol.cs` line 340
+**Current:** `header.PayloadLength > 100 * 1024 * 1024` (100MB)
+**Required Action:** Make configurable with conservative default:
+```csharp
+public class MessageProtocol
+{
+    private readonly int _maxPayloadSize;
+
+    public MessageProtocol(int maxPayloadSize = 10 * 1024 * 1024) // 10MB default
+    {
+        _maxPayloadSize = maxPayloadSize;
+    }
+
+    public bool ValidateHeader(MessageHeader header)
+    {
+        // ...
+        if (header.PayloadLength < 0 || header.PayloadLength > _maxPayloadSize)
+            return false;
+        // ...
+    }
+}
+```
+
+### MEM-002: Safer Buffer Return Pattern (Low)
+**File:** `MessageProtocol.cs` line 296
+**Recommendation:** Consider returning a disposable wrapper:
+```csharp
+public readonly struct RentedBuffer : IDisposable
+{
+    public byte[] Buffer { get; }
+    public int Length { get; }
+
+    public RentedBuffer(byte[] buffer, int length)
+    {
+        Buffer = buffer;
+        Length = length;
+    }
+
+    public void Dispose() => ArrayPool<byte>.Shared.Return(Buffer);
+}
+
+public RentedBuffer Serialize(NoSqlMessage message)
+{
+    // ... existing code ...
+    return new RentedBuffer(buffer, totalLength);
+}
+```
+
+### CODE-004: Use ReadOnlySpan in ParseHeader (Low)
+**File:** `MessageProtocol.cs` line 406
+**Required Action:** Avoid unnecessary allocation:
+```csharp
+public MessageHeader ParseHeader(ReadOnlySpan<byte> buffer)
+{
+    if (buffer.Length < MessageHeader.HeaderSize)
+        throw new ArgumentException("Buffer too small for header", nameof(buffer));
+
+    return new MessageHeader
+    {
+        Magic = BinaryPrimitives.ReadUInt32BigEndian(buffer.Slice(0, 4)),
+        Version = BinaryPrimitives.ReadUInt16BigEndian(buffer.Slice(4, 2)),
+        MessageType = (MessageType)buffer[6],
+        Flags = (MessageFlags)buffer[7],
+        PayloadLength = BinaryPrimitives.ReadInt32BigEndian(buffer.Slice(8, 4))
+    };
+}
 ```
 
 ### RES-003: Implement IDisposable in ConnectionPool (Medium)
