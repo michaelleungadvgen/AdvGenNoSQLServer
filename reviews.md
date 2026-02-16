@@ -307,7 +307,7 @@ Files to review:
 ### 3.5 AdvGenNoSqlServer.Client
 
 Files to review:
-- [ ] `Client.cs` - Main client class
+- [x] `Client.cs` - Main client class **[REVIEWED - GOOD: SemaphoreSlim locks, IAsyncDisposable, TLS support, keep-alive, batch ops, events. 6 ISSUES: SEC-027 (Critical), PERF-007 (Medium), SEC-028, CODE-005, MEM-003, NET-003 (Low)]**
 - [ ] `AdvGenNoSqlClient.Commands.cs` - Command implementations
 - [ ] `ClientFactory.cs` - Client factory
 - [ ] `ClientOptions.cs` - Client configuration
@@ -697,6 +697,12 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | MEM-002 | MessageProtocol.cs | 296 | Low | `Serialize` returns rented buffer that caller must return. Error-prone API. Consider IDisposable wrapper struct. | Open |
 | CODE-004 | MessageProtocol.cs | 406 | Low | `buffer.AsSpan(offset).ToArray()` creates unnecessary copy. ParseHeader could accept ReadOnlySpan<byte>. | Open |
 | DATA-009 | MessageProtocol.cs | 374-376 | Low | Returns checksum 0 for empty data. Valid but means empty payload with checksum=0 always validates. Document this behavior. | Open |
+| SEC-027 | Client.cs | 325 | Critical | Auth payload uses string interpolation `$"{{\"username\":\"{username}\",\"password\":\"{password}\"}}"`. Injection risk if credentials contain special chars. Use JsonSerializer. | Open |
+| PERF-007 | Client.cs | 843 | Medium | `Dispose()` uses `GetAwaiter().GetResult()` - sync-over-async pattern. Can cause deadlocks. | Open |
+| SEC-028 | Client.cs | 237 | Low | Silent exception swallowing in `DisconnectAsync`. Should log for debugging. | Open |
+| CODE-005 | Client.cs | 267 | Low | `PingAsync` catch block swallows all exceptions silently. Should distinguish between connection errors and others. | Open |
+| MEM-003 | Client.cs | 409, 426-427 | Low | `ReceiveMessageAsync` creates new byte arrays instead of using ArrayPool for header and payload buffers. | Open |
+| NET-003 | Client.cs | 717-718 | Info | Redundant encoding: `GetBytes(json)` then `GetByteCount(json)`. Just use `bytes.Length`. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
@@ -1272,6 +1278,67 @@ public async ValueTask CloseAsync()
 // private readonly PipeWriter _writer;  // Not used
 
 // Or refactor ReadExactAsync to use Pipelines for better performance
+```
+
+### SEC-027: Use JsonSerializer for Authentication (Critical)
+**File:** `Client.cs` line 325
+**Current:** `$"{{\"username\":\"{username}\",\"password\":\"{password}\"}}"`
+**Required Action:** Use JsonSerializer to prevent injection:
+```csharp
+public async Task<bool> AuthenticateAsync(
+    string username,
+    string password,
+    CancellationToken cancellationToken = default)
+{
+    EnsureConnected();
+
+    var authPayload = System.Text.Json.JsonSerializer.Serialize(new { username, password });
+    var message = NoSqlMessage.Create(MessageType.Authentication, authPayload);
+    var response = await SendAndReceiveAsync(message, cancellationToken);
+
+    if (response.MessageType == MessageType.Response)
+    {
+        var result = ParseResponse(response);
+        return result.Success;
+    }
+
+    return false;
+}
+```
+
+### PERF-007: Avoid Sync-over-Async in Dispose (Medium)
+**File:** `Client.cs` line 843
+**Current:** `DisposeAsync().AsTask().GetAwaiter().GetResult()`
+**Recommendation:** Document that callers should prefer DisposeAsync, or implement IDisposable with sync-only cleanup:
+```csharp
+public void Dispose()
+{
+    // Sync-only cleanup - don't call async methods
+    _keepAliveCts?.Cancel();
+    _keepAliveCts?.Dispose();
+    _sendLock.Dispose();
+    _receiveLock.Dispose();
+    CleanupConnection();
+}
+```
+
+### MEM-003: Use ArrayPool in ReceiveMessageAsync (Low)
+**File:** `Client.cs` lines 409, 426-427
+**Required Action:** Use ArrayPool for buffers:
+```csharp
+private async Task<NoSqlMessage> ReceiveMessageAsync(CancellationToken cancellationToken)
+{
+    var headerBuffer = ArrayPool<byte>.Shared.Rent(MessageHeader.HeaderSize);
+    try
+    {
+        await ReadExactAsync(headerBuffer, MessageHeader.HeaderSize, cancellationToken);
+        // ... rest of implementation
+    }
+    finally
+    {
+        ArrayPool<byte>.Shared.Return(headerBuffer);
+    }
+}
 ```
 
 ### SEC-026: Use JsonSerializer in MessageProtocol (Medium)
