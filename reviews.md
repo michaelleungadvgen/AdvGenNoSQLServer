@@ -83,7 +83,7 @@ Files to review:
 - [ ] `Authentication/AuthenticationService.cs` - Authentication service interface
 - [x] `Authentication/JwtTokenProvider.cs` - JWT token generation/validation **[REVIEWED - GOOD: Uses HS256 + FixedTimeEquals. 3 MINOR ISSUES: SEC-006 to SEC-008]**
 - [x] `Authentication/RoleManager.cs` - RBAC implementation **[REVIEWED - 4 ISSUES: SEC-011 (High), SEC-012-014 (Medium/Low). Thread safety + authorization needed]**
-- [ ] `Authentication/AuditLogger.cs` - Audit logging
+- [x] `Authentication/AuditLogger.cs` - Audit logging **[REVIEWED - GOOD: ConcurrentQueue, SemaphoreSlim, file rotation, critical event flush. 3 LOW: SEC-015, PERF-001, OPS-001]**
 - [x] `Authentication/EncryptionService.cs` - Data encryption **[REVIEWED - EXCELLENT: AES-256-GCM, proper nonce, PBKDF2-100k, ZeroMemory cleanup. 2 LOW: SEC-009, SEC-010]**
 - [ ] `Authentication/IAuditLogger.cs` - Interface definitions
 - [ ] `Authentication/IJwtTokenProvider.cs` - Interface definitions
@@ -654,6 +654,9 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | SEC-012 | RoleManager.cs | - | Medium | No authorization check on role management methods. Any caller can elevate privileges. Should require `RoleManage` permission. | Open |
 | SEC-013 | RoleManager.cs | 263-321 | Medium | Default roles created in-memory only. Role/permission changes are lost on restart. Need persistence layer. | Open |
 | SEC-014 | RoleManager.cs | 425-428 | Low | `RegisterCustomPermission` not thread-safe. HashSet modification during concurrent reads causes exceptions. | Open |
+| SEC-015 | AuditLogger.cs | 512-517 | Low | JSON serialization could expose sensitive data. Consider filtering/masking sensitive fields before logging. | Open |
+| PERF-001 | AuditLogger.cs | 545 | Low | `GetAwaiter().GetResult()` in Dispose blocks thread. Consider implementing `IAsyncDisposable`. | Open |
+| OPS-001 | AuditLogger.cs | - | Low | No log retention/archival policy. Old log files accumulate indefinitely. Add configurable cleanup. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
@@ -832,6 +835,54 @@ public interface IRoleStore
 ```csharp
 private readonly ConcurrentDictionary<string, byte> _validPermissions = new();
 // Or use ReaderWriterLockSlim for the HashSet
+```
+
+### SEC-015: Mask Sensitive Data in Audit Logs (Low)
+**File:** `AuditLogger.cs` lines 512-517
+**Recommendation:** Add sensitive field filtering before serialization:
+```csharp
+private static string FormatEventForFile(AuditEvent evt)
+{
+    // Clone and mask sensitive fields
+    var sanitized = new AuditEvent { ... };
+    if (!string.IsNullOrEmpty(sanitized.Details))
+        sanitized.Details = MaskSensitiveData(sanitized.Details);
+    // ...
+}
+```
+
+### PERF-001: Use Async Disposal Pattern (Low)
+**File:** `AuditLogger.cs` line 545
+**Recommendation:** Implement `IAsyncDisposable`:
+```csharp
+public class AuditLogger : IAuditLogger, IAsyncDisposable
+{
+    public async ValueTask DisposeAsync()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _flushTimer?.Dispose();
+        await FlushAsync().ConfigureAwait(false);
+        _writeLock.Dispose();
+    }
+}
+```
+
+### OPS-001: Add Log Retention Policy (Low)
+**File:** `AuditLogger.cs`
+**Recommendation:** Add configurable log retention:
+```csharp
+private readonly int _retentionDays = 90;
+
+private void CleanupOldLogs()
+{
+    var cutoff = DateTime.UtcNow.AddDays(-_retentionDays);
+    foreach (var file in Directory.GetFiles(_logDirectory, "audit-*.log"))
+    {
+        if (File.GetCreationTimeUtc(file) < cutoff)
+            File.Delete(file);
+    }
+}
 ```
 
 ---
