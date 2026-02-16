@@ -118,7 +118,7 @@ Files to review:
 - [ ] `Transactions/TransactionCoordinator.cs` - Distributed transactions
 - [ ] `Transactions/TransactionContext.cs` - Transaction context
 - [ ] `Transactions/ILockManager.cs` - Lock interface
-- [ ] `Transactions/LockManager.cs` - Lock implementation
+- [x] `Transactions/LockManager.cs` - Lock implementation **[REVIEWED - GOOD: Wait-for graph deadlock detection, RWLS, victim selection. 4 ISSUES: PERF-003 (High), CONC-001/002, DATA-003]**
 - [ ] `Transactions/IWriteAheadLog.cs` - WAL interface
 - [x] `Transactions/WriteAheadLog.cs` - WAL implementation **[REVIEWED - EXCELLENT: CRC32, before/after images, checkpoints, recovery. 4 ISSUES: PERF-002 (High), SEC-016, DATA-001/002]**
 
@@ -661,6 +661,10 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | SEC-016 | WriteAheadLog.cs | - | Medium | WAL data is unencrypted. Sensitive document data stored in plaintext. Add optional encryption layer. | Open |
 | DATA-001 | WriteAheadLog.cs | 696-700 | Medium | CRC mismatch throws exception, stopping recovery. Consider option to skip corrupted entries for partial recovery. | Open |
 | DATA-002 | WriteAheadLog.cs | 99-101 | Low | Silent exception swallowing when loading checkpoint hides corruption. Should log warning. | Open |
+| PERF-003 | LockManager.cs | 112 | High | Sync `AcquireLock` uses `GetAwaiter().GetResult()` blocking thread. Remove sync method or use sync-specific implementation. | Open |
+| CONC-001 | LockManager.cs | 16,19,22 | Medium | `List<>` and `HashSet<>` inside `ConcurrentDictionary` are not thread-safe for mutations. Use `ConcurrentBag<>` or explicit locking. | Open |
+| CONC-002 | LockManager.cs | 451-456 | Medium | `WaitForUpgradeAsync` releases then reacquires lock, creating race condition window. Implement true atomic upgrade. | Open |
+| DATA-003 | LockManager.cs | 678 | Low | Silent exception swallowing in deadlock detection could hide bugs. Should log warning. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
@@ -943,6 +947,42 @@ catch (Exception ex)
 {
     _logger?.LogWarning(ex, "Failed to load checkpoint file, starting fresh");
     LastCheckpoint = null;
+}
+```
+
+### PERF-003: Remove Sync-over-Async in LockManager (High)
+**File:** `LockManager.cs` line 112
+**Current:** `return AcquireLockAsync(...).GetAwaiter().GetResult();`
+**Required Action:** Either:
+1. Remove sync method entirely, or
+2. Implement separate sync path without async calls
+
+### CONC-001: Use Thread-Safe Collections Inside ConcurrentDictionary (Medium)
+**File:** `LockManager.cs` lines 16, 19, 22
+**Current:** `List<LockInfo>`, `HashSet<string>`, `Queue<LockRequest>` inside ConcurrentDictionary
+**Required Action:** The inner collections are accessed under `ReaderWriterLockSlim`, which is correct but requires documentation. Alternatively, use immutable collections with atomic swap pattern.
+
+### CONC-002: Implement Atomic Lock Upgrade (Medium)
+**File:** `LockManager.cs` lines 451-456
+**Current:** Releases lock then reacquires for upgrade
+**Required Action:**
+```csharp
+private async Task<LockResult> WaitForUpgradeAsync(...)
+{
+    // Don't release - add to upgrade wait queue
+    var request = new LockRequest { IsUpgrade = true, ... };
+    // Wait until all other shared locks are released
+    // Then atomically upgrade without releasing
+}
+```
+
+### DATA-003: Log Deadlock Detection Errors (Low)
+**File:** `LockManager.cs` line 678
+**Recommendation:** Add logging for exceptions:
+```csharp
+catch (Exception ex)
+{
+    _logger?.LogWarning(ex, "Error during deadlock detection");
 }
 ```
 
