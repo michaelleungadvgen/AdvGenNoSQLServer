@@ -112,7 +112,7 @@ Files to review:
 #### 3.1.3 Transactions Module
 Files to review:
 - [ ] `Transactions/ITransactionManager.cs` - Transaction interface
-- [ ] `Transactions/TransactionManager.cs` - Basic transaction management
+- [x] `Transactions/TransactionManager.cs` - Basic transaction management **[REVIEWED - STUB: Doesn't actually commit/rollback! 4 ISSUES: DATA-010 (High - no-op), MEM-004, CONC-006 (Medium), DATA-011 (Low)]**
 - [ ] `Transactions/AdvancedTransactionManager.cs` - Advanced transactions
 - [ ] `Transactions/ITransactionCoordinator.cs` - Coordinator interface
 - [ ] `Transactions/TransactionCoordinator.cs` - Distributed transactions
@@ -715,6 +715,10 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | SEC-031 | FilterEngine.cs | 252-256 | Medium | Regex.IsMatch without timeout. Complex patterns could cause ReDoS. Add RegexOptions with MatchTimeout. | Open |
 | PERF-008 | FilterEngine.cs | 252-256 | Low | Regex compiled on every call. Cache compiled regex patterns for performance. | Open |
 | CODE-009 | FilterEngine.cs | 250-259 | Info | Wildcard syntax (* and ?) mixed with regex. Potentially confusing. Document the behavior clearly. | Open |
+| DATA-010 | TransactionManager.cs | 50-51, 72-73 | High | **STUB IMPLEMENTATION**: Commit/Rollback don't actually apply operations! Comments say "In a real implementation...". No ACID guarantees. | Open |
+| MEM-004 | TransactionManager.cs | 13 | Medium | Transactions stored in ConcurrentDictionary indefinitely. No cleanup of completed transactions. Memory leak. | Open |
+| CONC-006 | TransactionManager.cs | 43-56 | Medium | Single global `_lock` with ConcurrentDictionary is inconsistent. Race between TryGetValue and lock acquisition. | Open |
+| DATA-011 | TransactionManager.cs | 115 | Low | `AsReadOnly()` returns snapshot but Operations could be modified concurrently if AddOperation called during iteration. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
