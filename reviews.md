@@ -290,7 +290,7 @@ Files to review:
 
 Files to review:
 - [x] `TcpServer.cs` - TCP server implementation **[REVIEWED - GOOD: ConcurrentDictionary, IAsyncDisposable, ConnectionPool, graceful shutdown. 5 ISSUES: NET-001 (Medium), SEC-022/023, RES-001, PERF-005]**
-- [ ] `ConnectionHandler.cs` - Connection handling
+- [x] `ConnectionHandler.cs` - Connection handling **[REVIEWED - GOOD: SemaphoreSlim write lock, ArrayPool, checksum validation, IAsyncEnumerable. 7 ISSUES: BUG-001 (High), SEC-024, NET-002, PERF-006 (Medium), SEC-025, CODE-002, MEM-001 (Low)]**
 - [ ] `ConnectionPool.cs` - Connection pooling
 - [ ] `MessageProtocol.cs` - Message framing
 - [x] `TlsStreamHelper.cs` - TLS support **[REVIEWED - GOOD: TLS 1.2/1.3, mTLS, cert revocation. 5 ISSUES: SEC-017/018 (High), SEC-019-021 (Medium/Low)]**
@@ -682,6 +682,13 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | SEC-023 | TcpServer.cs | 304-305, 318-319 | Low | Silent exception swallowing in `SendConnectionRejectedAsync` and `SendSslErrorAsync`. Should log exceptions for debugging. | Open |
 | RES-001 | TcpServer.cs | 163 | Low | Fire-and-forget task `_ = HandleConnectionAsync(...)` without exception observation. Exceptions silently lost. Add `.ContinueWith()` for logging. | Open |
 | PERF-005 | TcpServer.cs | 353 | Low | `Dispose()` calls `GetAwaiter().GetResult()` on async DisposeAsync. Common pattern but can deadlock if called from sync context. | Open |
+| BUG-001 | ConnectionHandler.cs | 115-134 | High | `EnableSslAsync` creates new SslStream but discards it - never assigns to `_stream`. Method is non-functional. The SslStream is lost and connection remains plaintext. | Open |
+| SEC-024 | ConnectionHandler.cs | 309-310 | Medium | JSON construction uses string interpolation for error messages. Same injection vulnerability as SEC-022. Use JsonSerializer. | Open |
+| NET-002 | ConnectionHandler.cs | 132 | Medium | Uses `Console.Error.WriteLine` for SSL error logging. Should use ILogger for structured logging. | Open |
+| PERF-006 | ConnectionHandler.cs | 338 | Medium | Uses blocking `.Wait()` on async `ShutdownAsync()`. Should use `await` with timeout or `CancellationTokenSource`. | Open |
+| SEC-025 | ConnectionHandler.cs | 340, 345 | Low | Silent exception swallowing in `CloseAsync`. Should log for debugging. | Open |
+| CODE-002 | ConnectionHandler.cs | 347 | Low | `await Task.CompletedTask` is unnecessary. Method should return `ValueTask.CompletedTask` or be non-async. | Open |
+| MEM-001 | ConnectionHandler.cs | 29-30 | Low | `PipeReader` and `PipeWriter` created but never used. Code uses `_stream.ReadAsync/WriteAsync` directly. Dead code. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
@@ -1158,6 +1165,105 @@ _ = HandleConnectionAsync(client, cancellationToken)
         if (t.IsFaulted)
             _logger?.LogError(t.Exception, "Unhandled exception in connection handler");
     }, TaskContinuationOptions.OnlyOnFaulted);
+```
+
+### BUG-001: Fix EnableSslAsync - Stream Not Assigned (High)
+**File:** `ConnectionHandler.cs` lines 115-134
+**Current:** Creates SslStream but doesn't assign it to `_stream`
+**Required Action:** Either remove the method (SSL is handled at TcpServer level) or fix it:
+```csharp
+// Option 1: Remove the method - SSL is already handled in TcpServer.HandleConnectionAsync
+// The ConnectionHandler constructor accepts the SSL stream directly
+
+// Option 2: If method is needed, use field or make stream mutable (not recommended due to threading):
+// Note: This class creates _reader/_writer from _stream in constructor, so late SSL upgrade is complex
+// Better design: Always handle SSL at connection establishment time (current TcpServer approach)
+```
+
+### SEC-024: Use Proper JSON Serialization (Medium)
+**File:** `ConnectionHandler.cs` lines 309-310
+**Current:** `$"{{\"code\":\"{errorCode}\",\"message\":\"{errorMessage}\"}}"`
+**Required Action:** Use JsonSerializer:
+```csharp
+using System.Text.Json;
+
+public async ValueTask SendErrorAsync(string errorCode, string errorMessage, CancellationToken cancellationToken = default)
+{
+    var errorPayload = JsonSerializer.SerializeToUtf8Bytes(new { code = errorCode, message = errorMessage });
+    var errorMsg = new NoSqlMessage
+    {
+        MessageType = MessageType.Error,
+        Flags = 0,
+        Payload = errorPayload,
+        PayloadLength = errorPayload.Length
+    };
+    await SendAsync(errorMsg, cancellationToken);
+}
+```
+
+### NET-002: Use ILogger (Medium)
+**File:** `ConnectionHandler.cs` line 132
+**Required Action:** Inject ILogger:
+```csharp
+private readonly ILogger<ConnectionHandler>? _logger;
+
+public ConnectionHandler(..., ILogger<ConnectionHandler>? logger = null)
+{
+    _logger = logger;
+}
+
+// Replace: Console.Error.WriteLine($"SSL handshake failed: {ex.Message}")
+_logger?.LogError(ex, "SSL handshake failed");
+```
+
+### PERF-006: Avoid Blocking Wait on Async Method (Medium)
+**File:** `ConnectionHandler.cs` line 338
+**Current:** `sslStream.ShutdownAsync().Wait(TimeSpan.FromSeconds(5))`
+**Required Action:** Use async with timeout:
+```csharp
+public async ValueTask CloseAsync()
+{
+    if (_disposed) return;
+
+    try
+    {
+        if (_stream is SslStream sslStream)
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            try
+            {
+                await sslStream.ShutdownAsync().WaitAsync(cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                _logger?.LogDebug("SSL shutdown timed out");
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogDebug(ex, "SSL shutdown error");
+            }
+        }
+        _client.Close();
+    }
+    catch (Exception ex)
+    {
+        _logger?.LogDebug(ex, "Error closing connection");
+    }
+}
+```
+
+### SEC-025 / CODE-002 / MEM-001: Minor Cleanup (Low)
+**File:** `ConnectionHandler.cs`
+**Required Actions:**
+1. SEC-025: Log exceptions in CloseAsync (see PERF-006 fix above)
+2. CODE-002: Remove `await Task.CompletedTask` or make method synchronous
+3. MEM-001: Remove unused `_reader` and `_writer` fields or use them:
+```csharp
+// Either remove these unused fields:
+// private readonly PipeReader _reader;  // Not used
+// private readonly PipeWriter _writer;  // Not used
+
+// Or refactor ReadExactAsync to use Pipelines for better performance
 ```
 
 ### PERF-005: Async Dispose Pattern Note (Low)
