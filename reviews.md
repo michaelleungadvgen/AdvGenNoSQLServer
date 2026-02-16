@@ -120,7 +120,7 @@ Files to review:
 - [ ] `Transactions/ILockManager.cs` - Lock interface
 - [ ] `Transactions/LockManager.cs` - Lock implementation
 - [ ] `Transactions/IWriteAheadLog.cs` - WAL interface
-- [ ] `Transactions/WriteAheadLog.cs` - WAL implementation
+- [x] `Transactions/WriteAheadLog.cs` - WAL implementation **[REVIEWED - EXCELLENT: CRC32, before/after images, checkpoints, recovery. 4 ISSUES: PERF-002 (High), SEC-016, DATA-001/002]**
 
 **Review Focus:**
 - ACID compliance
@@ -657,6 +657,10 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | SEC-015 | AuditLogger.cs | 512-517 | Low | JSON serialization could expose sensitive data. Consider filtering/masking sensitive fields before logging. | Open |
 | PERF-001 | AuditLogger.cs | 545 | Low | `GetAwaiter().GetResult()` in Dispose blocks thread. Consider implementing `IAsyncDisposable`. | Open |
 | OPS-001 | AuditLogger.cs | - | Low | No log retention/archival policy. Old log files accumulate indefinitely. Add configurable cleanup. | Open |
+| PERF-002 | WriteAheadLog.cs | 60 | High | `GetAwaiter().GetResult()` in constructor blocks thread. Can cause deadlocks. Use factory pattern or async initialization. | Open |
+| SEC-016 | WriteAheadLog.cs | - | Medium | WAL data is unencrypted. Sensitive document data stored in plaintext. Add optional encryption layer. | Open |
+| DATA-001 | WriteAheadLog.cs | 696-700 | Medium | CRC mismatch throws exception, stopping recovery. Consider option to skip corrupted entries for partial recovery. | Open |
+| DATA-002 | WriteAheadLog.cs | 99-101 | Low | Silent exception swallowing when loading checkpoint hides corruption. Should log warning. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
@@ -882,6 +886,63 @@ private void CleanupOldLogs()
         if (File.GetCreationTimeUtc(file) < cutoff)
             File.Delete(file);
     }
+}
+```
+
+### PERF-002: Use Factory Pattern for Async Initialization (High)
+**File:** `WriteAheadLog.cs` line 60
+**Current:** `InitializeAsync().GetAwaiter().GetResult();` in constructor
+**Required Action:** Use factory pattern:
+```csharp
+public static async Task<WriteAheadLog> CreateAsync(WalOptions? options = null)
+{
+    var wal = new WriteAheadLog(options, skipInit: true);
+    await wal.InitializeAsync();
+    return wal;
+}
+```
+
+### SEC-016: Add WAL Encryption Option (Medium)
+**File:** `WriteAheadLog.cs`
+**Recommendation:** Add optional encryption using EncryptionService:
+```csharp
+private readonly IEncryptionService? _encryption;
+
+private byte[] SerializeEntry(WalLogEntry entry)
+{
+    var data = SerializeEntryInternal(entry);
+    return _encryption?.Encrypt(data) ?? data;
+}
+```
+
+### DATA-001: Optional Skip-on-Corruption for Recovery (Medium)
+**File:** `WriteAheadLog.cs` lines 696-700
+**Recommendation:** Add recovery option to skip corrupted entries:
+```csharp
+public class WalOptions
+{
+    public bool SkipCorruptedEntries { get; set; } = false;
+}
+// In ReplayFileAsync:
+if (calculatedChecksum != checksum)
+{
+    if (_options.SkipCorruptedEntries)
+    {
+        // Log warning and continue
+        continue;
+    }
+    throw new InvalidDataException(...);
+}
+```
+
+### DATA-002: Log Checkpoint Load Errors (Low)
+**File:** `WriteAheadLog.cs` lines 99-101
+**Recommendation:** Add logging for checkpoint load failures:
+```csharp
+catch (Exception ex)
+{
+    _logger?.LogWarning(ex, "Failed to load checkpoint file, starting fresh");
+    LastCheckpoint = null;
 }
 ```
 
