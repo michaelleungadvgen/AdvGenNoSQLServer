@@ -237,7 +237,7 @@ Files to review:
 #### 3.3.2 Filtering
 Files to review:
 - [ ] `Filtering/IFilterEngine.cs` - Filter interface
-- [ ] `Filtering/FilterEngine.cs` - Filter implementation
+- [x] `Filtering/FilterEngine.cs` - Filter implementation **[REVIEWED - GOOD: MongoDB-like ops, logical operators, nested paths. 3 ISSUES: SEC-031 (Medium - ReDoS risk), PERF-008, CODE-009 (Low)]**
 
 **Review Focus:**
 - Operator support completeness
@@ -712,6 +712,9 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | CONC-005 | NoSqlServer.cs | 352-363 | Low | Check-then-act pattern (ExistsAsync then InsertAsync/UpdateAsync) is not atomic. Race condition possible. | Open |
 | DOS-002 | QueryParser.cs | - | Low | No limit on JSON depth. Deeply nested JSON could cause stack overflow. Set JsonSerializerOptions.MaxDepth. | Open |
 | CODE-008 | QueryParser.cs | 86 | Info | Unknown properties silently treated as filter conditions. Could be confusing. Consider whitelist or documentation. | Open |
+| SEC-031 | FilterEngine.cs | 252-256 | Medium | Regex.IsMatch without timeout. Complex patterns could cause ReDoS. Add RegexOptions with MatchTimeout. | Open |
+| PERF-008 | FilterEngine.cs | 252-256 | Low | Regex compiled on every call. Cache compiled regex patterns for performance. | Open |
+| CODE-009 | FilterEngine.cs | 250-259 | Info | Wildcard syntax (* and ?) mixed with regex. Potentially confusing. Document the behavior clearly. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
@@ -1287,6 +1290,30 @@ public async ValueTask CloseAsync()
 // private readonly PipeWriter _writer;  // Not used
 
 // Or refactor ReadExactAsync to use Pipelines for better performance
+```
+
+### SEC-031: Add Regex Timeout to Prevent ReDoS (Medium)
+**File:** `FilterEngine.cs` lines 252-256
+**Current:** `Regex.IsMatch(fieldString, regexPattern, RegexOptions.IgnoreCase)` without timeout
+**Required Action:** Add timeout to prevent catastrophic backtracking:
+```csharp
+private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(100);
+
+private bool EvaluateRegexOperator(object? fieldValue, object pattern)
+{
+    // ... existing validation ...
+
+    try
+    {
+        return Regex.IsMatch(fieldString, regexPattern,
+            RegexOptions.IgnoreCase | RegexOptions.Compiled,
+            RegexTimeout);
+    }
+    catch (RegexMatchTimeoutException)
+    {
+        throw new FilterEvaluationException("Regex pattern evaluation timed out");
+    }
+}
 ```
 
 ### NET-004: Await TcpServer.StartAsync (Medium)
