@@ -247,7 +247,7 @@ Files to review:
 #### 3.3.3 Execution
 Files to review:
 - [ ] `Execution/IQueryExecutor.cs` - Executor interface
-- [ ] `Execution/QueryExecutor.cs` - Query execution
+- [x] `Execution/QueryExecutor.cs` - Query execution **[REVIEWED - GOOD: Index-aware, explain, sorting, projection. 4 ISSUES: CODE-010, PERF-009 (Medium - mutates docs!), SEC-032, PERF-010 (Low)]**
 
 **Review Focus:**
 - Execution plan optimization
@@ -721,6 +721,10 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | DATA-011 | TransactionManager.cs | 115 | Low | `AsReadOnly()` returns snapshot but Operations could be modified concurrently if AddOperation called during iteration. | Open |
 | DATA-012 | AdvancedTransactionManager.cs | 63-64, 85-86 | High | **STUB**: Same as DATA-010. Commit/Rollback don't apply operations. Has timeout but no actual functionality. | Open |
 | MEM-005 | AdvancedTransactionManager.cs | 150-167 | Low | Cleanup only marks expired active txns as Failed. Completed txns never removed from dictionary. | Open |
+| CODE-010 | QueryExecutor.cs | 312-346 | Medium | Uses reflection to invoke index methods. Fragile and slow. Should use common IIndex interface. | Open |
+| PERF-009 | QueryExecutor.cs | 412-440 | Medium | ApplyProjection modifies original documents in-place. Mutates cached/stored docs causing side effects. Clone docs first. | Open |
+| SEC-032 | QueryExecutor.cs | 343-345 | Low | Silent exception swallowing in QueryIndexAsync. Should log warning. | Open |
+| PERF-010 | QueryExecutor.cs | 49-55 | Low | Sequential document fetching by ID in loop. Could be parallelized or batch-fetched. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
