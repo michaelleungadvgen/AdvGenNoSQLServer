@@ -81,7 +81,7 @@ This document outlines the comprehensive review plan for the AdvGenNoSQL Server 
 Files to review:
 - [x] `Authentication/AuthenticationManager.cs` - User authentication logic **[REVIEWED - 5 ISSUES FOUND: SEC-001 to SEC-005]**
 - [ ] `Authentication/AuthenticationService.cs` - Authentication service interface
-- [ ] `Authentication/JwtTokenProvider.cs` - JWT token generation/validation
+- [x] `Authentication/JwtTokenProvider.cs` - JWT token generation/validation **[REVIEWED - GOOD: Uses HS256 + FixedTimeEquals. 3 MINOR ISSUES: SEC-006 to SEC-008]**
 - [ ] `Authentication/RoleManager.cs` - RBAC implementation
 - [ ] `Authentication/AuditLogger.cs` - Audit logging
 - [ ] `Authentication/EncryptionService.cs` - Data encryption
@@ -645,6 +645,9 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | SEC-003 | AuthenticationManager.cs | 13-14 | High | `_users` and `_activeSessions` Dictionary objects are not thread-safe. Concurrent access from multiple connections will cause race conditions. Use `ConcurrentDictionary<>`. | Open |
 | SEC-004 | AuthenticationManager.cs | 52-71 | Medium | No rate limiting for authentication attempts. Vulnerable to brute-force attacks. Implement failed attempt tracking and lockout. | Open |
 | SEC-005 | AuthenticationManager.cs | 30-50 | Medium | No password complexity validation. Should enforce minimum length (12+), complexity requirements, and check against common password lists. | Open |
+| SEC-006 | JwtTokenProvider.cs | 19 | Medium | Secret key stored as plain string in memory. Sensitive to memory dump attacks. Consider using SecureString or protected memory. | Open |
+| SEC-007 | JwtTokenProvider.cs | - | Low | No token revocation/blacklist mechanism. Tokens remain valid until expiration even after logout. Consider implementing JWT blacklist. | Open |
+| SEC-008 | JwtTokenProvider.cs | 208-228, 231-254 | Low | ExtractUsername and GetExpirationTime methods do not validate signature before returning data. Could expose claims from tampered tokens. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
@@ -725,6 +728,32 @@ private static bool ValidatePasswordComplexity(string password)
     return true;
 }
 ```
+
+### SEC-006: Protect Secret Key in Memory (Medium)
+**File:** `JwtTokenProvider.cs` line 19
+**Current:** `private readonly string _secretKey;`
+**Recommendation:** Consider using `System.Security.SecureString` or clearing the key bytes after use. For production, load keys from secure key vault rather than configuration.
+
+### SEC-007: Implement Token Blacklist (Low)
+**File:** `JwtTokenProvider.cs`
+**Recommendation:** Add a distributed cache (Redis) or in-memory blacklist to track revoked tokens:
+```csharp
+private readonly ConcurrentDictionary<string, DateTime> _blacklistedTokens = new();
+
+public void RevokeToken(string jti)
+{
+    _blacklistedTokens[jti] = DateTime.UtcNow.Add(_defaultExpiration);
+}
+
+// In ValidateToken, check: if (_blacklistedTokens.ContainsKey(payload.Jti)) return Failed("Token revoked");
+```
+
+### SEC-008: Validate Signature Before Extracting Claims (Low)
+**File:** `JwtTokenProvider.cs` lines 208-254
+**Recommendation:** ExtractUsername and GetExpirationTime should either:
+1. Validate signature first (call ValidateToken), or
+2. Be marked internal/private, or
+3. Document clearly that they return UNVERIFIED claims
 
 ---
 
