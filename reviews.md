@@ -293,7 +293,7 @@ Files to review:
 - [ ] `ConnectionHandler.cs` - Connection handling
 - [ ] `ConnectionPool.cs` - Connection pooling
 - [ ] `MessageProtocol.cs` - Message framing
-- [ ] `TlsStreamHelper.cs` - TLS support
+- [x] `TlsStreamHelper.cs` - TLS support **[REVIEWED - GOOD: TLS 1.2/1.3, mTLS, cert revocation. 5 ISSUES: SEC-017/018 (High), SEC-019-021 (Medium/Low)]**
 
 **Review Focus:**
 - Async/await patterns
@@ -665,6 +665,11 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | CONC-001 | LockManager.cs | 16,19,22 | Medium | `List<>` and `HashSet<>` inside `ConcurrentDictionary` are not thread-safe for mutations. Use `ConcurrentBag<>` or explicit locking. | Open |
 | CONC-002 | LockManager.cs | 451-456 | Medium | `WaitForUpgradeAsync` releases then reacquires lock, creating race condition window. Implement true atomic upgrade. | Open |
 | DATA-003 | LockManager.cs | 678 | Low | Silent exception swallowing in deadlock detection could hide bugs. Should log warning. | Open |
+| SEC-017 | TlsStreamHelper.cs | 254-262 | High | Allows localhost certificates with name mismatch - production security risk. Add configuration flag. | Open |
+| SEC-018 | TlsStreamHelper.cs | 135-137, 217 | High | Uses `X509KeyStorageFlags.Exportable` - private keys should not be exportable in production. | Open |
+| SEC-019 | TlsStreamHelper.cs | 252, 280 | Medium | Uses `Console.WriteLine` for security logging. Should use ILogger for proper audit trail. | Open |
+| SEC-020 | TlsStreamHelper.cs | - | Medium | No certificate pinning support. Documented in plan.md but not implemented. | Open |
+| SEC-021 | TlsStreamHelper.cs | 90 | Low | No TLS 1.3-only option for high-security environments. Consider adding SslProtocols.Tls13 only mode. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
@@ -984,6 +989,56 @@ catch (Exception ex)
 {
     _logger?.LogWarning(ex, "Error during deadlock detection");
 }
+```
+
+### SEC-017: Disable Development Mode Certificate Bypass in Production (High)
+**File:** `TlsStreamHelper.cs` lines 254-262
+**Required Action:** Add configuration flag:
+```csharp
+private static bool _allowDevCertificates = false; // Set via config
+
+if (sslPolicyErrors == SslPolicyErrors.RemoteCertificateNameMismatch)
+{
+    if (_allowDevCertificates && certificate?.Subject.Contains("localhost") == true)
+        return true;
+}
+return false; // Always reject in production
+```
+
+### SEC-018: Remove Exportable Flag from Server Certificates (High)
+**File:** `TlsStreamHelper.cs` lines 135-137, 217
+**Required Action:** For production, don't use Exportable flag:
+```csharp
+var flags = isProduction
+    ? X509KeyStorageFlags.MachineKeySet | X509KeyStorageFlags.PersistKeySet
+    : X509KeyStorageFlags.Exportable; // Dev only
+```
+
+### SEC-019: Use ILogger for Security Logging (Medium)
+**File:** `TlsStreamHelper.cs` lines 252, 280
+**Required Action:** Replace Console.WriteLine with ILogger:
+```csharp
+private static ILogger? _logger;
+public static void SetLogger(ILogger logger) => _logger = logger;
+// Replace: Console.WriteLine -> _logger?.LogWarning
+```
+
+### SEC-020: Implement Certificate Pinning (Medium)
+**File:** `TlsStreamHelper.cs`
+**Required Action:** Add pinning support as per plan.md section on TLS:
+```csharp
+private static HashSet<string>? _pinnedCertificates;
+public static void SetPinnedCertificates(IEnumerable<string> thumbprints)
+    => _pinnedCertificates = new HashSet<string>(thumbprints, StringComparer.OrdinalIgnoreCase);
+```
+
+### SEC-021: Add TLS 1.3 Only Mode (Low)
+**File:** `TlsStreamHelper.cs` line 90
+**Recommendation:** Add configuration for TLS 1.3-only:
+```csharp
+var protocols = configuration.Tls13Only
+    ? SslProtocols.Tls13
+    : SslProtocols.Tls12 | SslProtocols.Tls13;
 ```
 
 ---
