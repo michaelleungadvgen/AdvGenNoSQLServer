@@ -227,7 +227,7 @@ Files to review:
 #### 3.3.1 Parsing
 Files to review:
 - [ ] `Parsing/IQueryParser.cs` - Parser interface
-- [ ] `Parsing/QueryParser.cs` - Query parsing logic
+- [x] `Parsing/QueryParser.cs` - Query parsing logic **[REVIEWED - CLEAN: Uses System.Text.Json safely, TryParse pattern, proper exceptions. 2 MINOR: DOS-002, CODE-008 (Low/Info)]**
 
 **Review Focus:**
 - Query syntax validation
@@ -710,6 +710,8 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | ASYNC-001 | NoSqlServer.cs | 115 | Low | `async void` event handler. Unavoidable for events but could swallow exceptions. Try-catch mitigates this. | Open |
 | SEC-030 | NoSqlServer.cs | 165 | Low | Silent exception swallowing when parsing handshake. Should at least log a warning. | Open |
 | CONC-005 | NoSqlServer.cs | 352-363 | Low | Check-then-act pattern (ExistsAsync then InsertAsync/UpdateAsync) is not atomic. Race condition possible. | Open |
+| DOS-002 | QueryParser.cs | - | Low | No limit on JSON depth. Deeply nested JSON could cause stack overflow. Set JsonSerializerOptions.MaxDepth. | Open |
+| CODE-008 | QueryParser.cs | 86 | Info | Unknown properties silently treated as filter conditions. Could be confusing. Consider whitelist or documentation. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
