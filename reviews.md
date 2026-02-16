@@ -84,7 +84,7 @@ Files to review:
 - [x] `Authentication/JwtTokenProvider.cs` - JWT token generation/validation **[REVIEWED - GOOD: Uses HS256 + FixedTimeEquals. 3 MINOR ISSUES: SEC-006 to SEC-008]**
 - [ ] `Authentication/RoleManager.cs` - RBAC implementation
 - [ ] `Authentication/AuditLogger.cs` - Audit logging
-- [ ] `Authentication/EncryptionService.cs` - Data encryption
+- [x] `Authentication/EncryptionService.cs` - Data encryption **[REVIEWED - EXCELLENT: AES-256-GCM, proper nonce, PBKDF2-100k, ZeroMemory cleanup. 2 LOW: SEC-009, SEC-010]**
 - [ ] `Authentication/IAuditLogger.cs` - Interface definitions
 - [ ] `Authentication/IJwtTokenProvider.cs` - Interface definitions
 - [ ] `Authentication/IEncryptionService.cs` - Interface definitions
@@ -648,6 +648,8 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | SEC-006 | JwtTokenProvider.cs | 19 | Medium | Secret key stored as plain string in memory. Sensitive to memory dump attacks. Consider using SecureString or protected memory. | Open |
 | SEC-007 | JwtTokenProvider.cs | - | Low | No token revocation/blacklist mechanism. Tokens remain valid until expiration even after logout. Consider implementing JWT blacklist. | Open |
 | SEC-008 | JwtTokenProvider.cs | 208-228, 231-254 | Low | ExtractUsername and GetExpirationTime methods do not validate signature before returning data. Could expose claims from tampered tokens. | Open |
+| SEC-009 | EncryptionService.cs | 51-53 | Low | Auto-generated key has only TODO for logging. Could lead to data loss if key is not persisted. Should log warning or throw if no key store configured. | Open |
+| SEC-010 | EncryptionService.cs | 265-270 | Low | DeriveKeyFromPassword returns salt+key combined. Consider returning a struct with named properties for clarity. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
@@ -754,6 +756,37 @@ public void RevokeToken(string jti)
 1. Validate signature first (call ValidateToken), or
 2. Be marked internal/private, or
 3. Document clearly that they return UNVERIFIED claims
+
+### SEC-009: Log Warning for Auto-Generated Keys (Low)
+**File:** `EncryptionService.cs` lines 51-53
+**Current:** `// TODO: Log warning that a new key was generated`
+**Recommendation:** Either:
+1. Log a warning using ILogger, or
+2. Throw exception if no key configured and no key store provided, or
+3. Auto-persist to key store if available
+```csharp
+if (_keyStore != null)
+{
+    _keyStore.StoreKeyAsync(_keyId, _masterKey).GetAwaiter().GetResult();
+}
+else
+{
+    // Log warning: "Auto-generated encryption key will be lost on restart. Configure EncryptionKey or provide IKeyStore."
+}
+```
+
+### SEC-010: Use Structured Return for Derived Key (Low)
+**File:** `EncryptionService.cs` lines 265-270
+**Recommendation:** Instead of concatenating salt+key, return a named struct:
+```csharp
+public readonly record struct DerivedKeyResult(byte[] Salt, byte[] Key);
+
+public DerivedKeyResult DeriveKeyFromPassword(string password, ...)
+{
+    // ...
+    return new DerivedKeyResult(salt, key);
+}
+```
 
 ---
 
