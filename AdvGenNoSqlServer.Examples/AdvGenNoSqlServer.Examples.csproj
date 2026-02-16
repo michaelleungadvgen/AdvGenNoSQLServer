@@ -8,6 +8,13 @@
     <RootNamespace>AdvGenNoSqlServer.Examples</RootNamespace>
   </PropertyGroup>
 
+  <!-- Exclude TodoList folder - it has its own csproj -->
+  <ItemGroup>
+    <Compile Remove="TodoList\**" />
+    <Content Remove="TodoList\**" />
+    <None Remove="TodoList\**" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\AdvGenNoSqlServer.Client\AdvGenNoSqlServer.Client.csproj" />
     <ProjectReference Include="..\AdvGenNoSqlServer.Core\AdvGenNoSqlServer.Core.csproj" />
