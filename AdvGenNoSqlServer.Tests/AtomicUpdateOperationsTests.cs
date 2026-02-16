@@ -966,6 +966,274 @@ public class AtomicUpdateOperationsTests
 
     #endregion
 
+    #region Insert, Replace, Upsert Tests
+
+    [Fact]
+    public async Task InsertAsync_NewDocument_InsertsSuccessfully()
+    {
+        var store = CreateStore();
+        await store.CreateCollectionAsync("test");
+
+        var data = new Dictionary<string, object>
+        {
+            ["name"] = "John",
+            ["age"] = 30
+        };
+
+        var result = await store.InsertAsync("test", "doc1", data);
+
+        Assert.NotNull(result);
+        Assert.Equal("doc1", result.Id);
+        Assert.Equal("John", result.Data!["name"]);
+        Assert.Equal(30, result.Data["age"]);
+        Assert.Equal(1, result.Version);
+        Assert.True(result.CreatedAt > DateTime.MinValue);
+        Assert.True(result.UpdatedAt > DateTime.MinValue);
+    }
+
+    [Fact]
+    public async Task InsertAsync_DuplicateId_ThrowsDocumentAlreadyExistsException()
+    {
+        var store = CreateStore();
+        await store.CreateCollectionAsync("test");
+
+        var data = new Dictionary<string, object> { ["name"] = "John" };
+        await store.InsertAsync("test", "doc1", data);
+
+        await Assert.ThrowsAsync<DocumentAlreadyExistsException>(() =>
+            store.InsertAsync("test", "doc1", new Dictionary<string, object> { ["name"] = "Jane" }));
+    }
+
+    [Fact]
+    public async Task InsertAsync_EmptyCollectionName_ThrowsArgumentException()
+    {
+        var store = CreateStore();
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            store.InsertAsync("", "doc1", new Dictionary<string, object>()));
+    }
+
+    [Fact]
+    public async Task InsertAsync_EmptyDocumentId_ThrowsArgumentException()
+    {
+        var store = CreateStore();
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            store.InsertAsync("test", "", new Dictionary<string, object>()));
+    }
+
+    [Fact]
+    public async Task InsertAsync_NullData_ThrowsArgumentNullException()
+    {
+        var store = CreateStore();
+        await Assert.ThrowsAsync<ArgumentNullException>(() =>
+            store.InsertAsync("test", "doc1", null!));
+    }
+
+    [Fact]
+    public async Task ReplaceAsync_ExistingDocument_ReplacesSuccessfully()
+    {
+        var store = CreateStore();
+        await store.CreateCollectionAsync("test");
+
+        // Insert initial document
+        var initialData = new Dictionary<string, object>
+        {
+            ["name"] = "John",
+            ["age"] = 30
+        };
+        var inserted = await store.InsertAsync("test", "doc1", initialData);
+        var createdAt = inserted.CreatedAt;
+
+        // Replace with new data
+        var newData = new Dictionary<string, object>
+        {
+            ["name"] = "Jane",
+            ["city"] = "New York"
+        };
+
+        var result = await store.ReplaceAsync("test", "doc1", newData);
+
+        Assert.NotNull(result);
+        Assert.Equal("doc1", result.Id);
+        Assert.Equal("Jane", result.Data!["name"]);
+        Assert.Equal("New York", result.Data["city"]);
+        Assert.DoesNotContain("age", result.Data.Keys); // Old field should be gone
+        Assert.Equal(2, result.Version);
+        Assert.Equal(createdAt, result.CreatedAt); // CreatedAt should remain the same
+        Assert.True(result.UpdatedAt >= inserted.UpdatedAt);
+    }
+
+    [Fact]
+    public async Task ReplaceAsync_NonExistentDocument_ThrowsDocumentNotFoundException()
+    {
+        var store = CreateStore();
+        await store.CreateCollectionAsync("test");
+
+        await Assert.ThrowsAsync<DocumentNotFoundException>(() =>
+            store.ReplaceAsync("test", "nonexistent", new Dictionary<string, object> { ["name"] = "John" }));
+    }
+
+    [Fact]
+    public async Task ReplaceAsync_EmptyCollectionName_ThrowsArgumentException()
+    {
+        var store = CreateStore();
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            store.ReplaceAsync("", "doc1", new Dictionary<string, object>()));
+    }
+
+    [Fact]
+    public async Task ReplaceAsync_EmptyDocumentId_ThrowsArgumentException()
+    {
+        var store = CreateStore();
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            store.ReplaceAsync("test", "", new Dictionary<string, object>()));
+    }
+
+    [Fact]
+    public async Task ReplaceAsync_NullData_ThrowsArgumentNullException()
+    {
+        var store = CreateStore();
+        await Assert.ThrowsAsync<ArgumentNullException>(() =>
+            store.ReplaceAsync("test", "doc1", null!));
+    }
+
+    [Fact]
+    public async Task UpsertAsync_NewDocument_InsertsAndReturnsWasInsertedTrue()
+    {
+        var store = CreateStore();
+        await store.CreateCollectionAsync("test");
+
+        var data = new Dictionary<string, object>
+        {
+            ["name"] = "John",
+            ["age"] = 30
+        };
+
+        var (result, wasInserted) = await store.UpsertAsync("test", "doc1", data);
+
+        Assert.True(wasInserted);
+        Assert.NotNull(result);
+        Assert.Equal("doc1", result.Id);
+        Assert.Equal("John", result.Data!["name"]);
+        Assert.Equal(30, result.Data["age"]);
+        Assert.Equal(1, result.Version);
+    }
+
+    [Fact]
+    public async Task UpsertAsync_ExistingDocument_UpdatesAndReturnsWasInsertedFalse()
+    {
+        var store = CreateStore();
+        await store.CreateCollectionAsync("test");
+
+        // Insert initial document
+        var initialData = new Dictionary<string, object>
+        {
+            ["name"] = "John",
+            ["age"] = 30
+        };
+        await store.InsertAsync("test", "doc1", initialData);
+
+        // Upsert with new data
+        var newData = new Dictionary<string, object>
+        {
+            ["name"] = "Jane",
+            ["city"] = "New York"
+        };
+
+        var (result, wasInserted) = await store.UpsertAsync("test", "doc1", newData);
+
+        Assert.False(wasInserted);
+        Assert.NotNull(result);
+        Assert.Equal("doc1", result.Id);
+        Assert.Equal("Jane", result.Data!["name"]);
+        Assert.Equal("New York", result.Data["city"]);
+        Assert.DoesNotContain("age", result.Data.Keys);
+        Assert.Equal(2, result.Version);
+    }
+
+    [Fact]
+    public async Task UpsertAsync_EmptyCollectionName_ThrowsArgumentException()
+    {
+        var store = CreateStore();
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            store.UpsertAsync("", "doc1", new Dictionary<string, object>()));
+    }
+
+    [Fact]
+    public async Task UpsertAsync_EmptyDocumentId_ThrowsArgumentException()
+    {
+        var store = CreateStore();
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            store.UpsertAsync("test", "", new Dictionary<string, object>()));
+    }
+
+    [Fact]
+    public async Task UpsertAsync_NullData_ThrowsArgumentNullException()
+    {
+        var store = CreateStore();
+        await Assert.ThrowsAsync<ArgumentNullException>(() =>
+            store.UpsertAsync("test", "doc1", null!));
+    }
+
+    [Fact]
+    public async Task UpsertAsync_MultipleTimes_LastWriteWins()
+    {
+        var store = CreateStore();
+        await store.CreateCollectionAsync("test");
+
+        // First upsert - creates document
+        var (result1, wasInserted1) = await store.UpsertAsync("test", "doc1", new Dictionary<string, object>
+        {
+            ["value"] = 1
+        });
+        Assert.True(wasInserted1);
+        Assert.Equal(1, result1.Version);
+
+        // Second upsert - updates document
+        var (result2, wasInserted2) = await store.UpsertAsync("test", "doc1", new Dictionary<string, object>
+        {
+            ["value"] = 2
+        });
+        Assert.False(wasInserted2);
+        Assert.Equal(2, result2.Version);
+
+        // Third upsert - updates document again
+        var (result3, wasInserted3) = await store.UpsertAsync("test", "doc1", new Dictionary<string, object>
+        {
+            ["value"] = 3
+        });
+        Assert.False(wasInserted3);
+        Assert.Equal(3, result3.Version);
+
+        // Verify final value
+        var finalDoc = await store.GetAsync("test", "doc1");
+        Assert.NotNull(finalDoc);
+        Assert.Equal(3, finalDoc.Data!["value"]);
+    }
+
+    [Fact]
+    public async Task InsertReplaceUpsert_AreThreadSafe()
+    {
+        var store = CreateStore();
+        await store.CreateCollectionAsync("test");
+
+        // Perform concurrent upserts on the same document
+        var tasks = Enumerable.Range(0, 20)
+            .Select(i => store.UpsertAsync("test", "doc1", new Dictionary<string, object>
+            {
+                ["counter"] = i
+            }))
+            .ToArray();
+
+        await Task.WhenAll(tasks);
+
+        // Verify document exists and has one of the values
+        var finalDoc = await store.GetAsync("test", "doc1");
+        Assert.NotNull(finalDoc);
+        Assert.True(finalDoc.Version >= 1);
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private static object? GetDeepValue(Dictionary<string, object> data, params string[] path)

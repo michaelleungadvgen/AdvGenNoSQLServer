@@ -947,7 +947,7 @@ Where third-party libraries have restrictive licenses, we implement custom solut
 - [ ] Optimistic concurrency (ETags)
 - [ ] Field-level encryption
 - [x] Atomic update operations (increment, push, pull) ✓ COMPLETED (Agent-44)
-- [ ] Upsert operations
+- [x] Upsert operations ✓ COMPLETED (Agent-47)
 - [ ] Write Concern configuration
 - [ ] Read Preference (for replication)
 - [ ] P2P, That is allow to connect with other AdvGenNoSqlServer please reference Section 47 ,47. Peer-to-Peer (P2P) Cluster Architecture to acccording the plan in there
@@ -2468,8 +2468,112 @@ public void IndexedQuery() => // < 5ms p99
 | `AGGREGATE` | Run aggregation | `AGGREGATE collection [{pipeline}]` |
 | `DISTINCT` | Get distinct field values | `DISTINCT collection field {filter}` |
 | `EXPLAIN` | Explain query plan | `EXPLAIN collection {filter}` |
+| `SCAN` | Cursor-based iteration (safe) | `SCAN collection {options}` |
+| `KEYS` | List document IDs only | `KEYS collection {options}` |
 
-### 35.4.1 Index Commands
+### 35.4.1 SCAN Command (Safe List All)
+
+The `SCAN` command provides a safe way to iterate over all documents in a collection using cursor-based pagination.
+
+#### Why SCAN instead of GET_ALL?
+| Approach | Memory | Network | DoS Risk | Recommended |
+|----------|--------|---------|----------|-------------|
+| `GET_ALL` | Load all into memory | Single huge response | ❌ High | No |
+| `SCAN` | Batch loading | Paginated responses | ✓ Low | Yes |
+
+#### SCAN Request Format
+```json
+{
+  "command": "SCAN",
+  "collection": "users",
+  "options": {
+    "batchSize": 100,
+    "maxDocuments": 10000,
+    "timeout": 30000,
+    "continuationToken": null,
+    "filter": {},
+    "projection": ["name", "email"],
+    "includeMetadata": false
+  }
+}
+```
+
+#### SCAN Response Format
+```json
+{
+  "success": true,
+  "data": {
+    "documents": [...],
+    "continuationToken": "eyJza2lwIjoxMDAsImxhc3RJZCI6InVzZXJfMTAwIn0=",
+    "hasMore": true,
+    "scannedCount": 100,
+    "totalEstimate": 50000
+  }
+}
+```
+
+#### SCAN Interface
+```csharp
+// AdvGenNoSqlServer.Core/Abstractions/IDocumentScanner.cs
+public interface IDocumentScanner
+{
+    Task<ScanResult> ScanAsync(string collection, ScanOptions options, CancellationToken ct = default);
+    Task<KeysResult> KeysAsync(string collection, KeysOptions options, CancellationToken ct = default);
+}
+
+public class ScanOptions
+{
+    public int BatchSize { get; set; } = 100;
+    public int MaxDocuments { get; set; } = 10000;
+    public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
+    public string? ContinuationToken { get; set; }
+    public JsonElement? Filter { get; set; }
+    public List<string>? Projection { get; set; }
+    public bool IncludeMetadata { get; set; } = false;
+}
+
+public class ScanResult
+{
+    public required List<Document> Documents { get; set; }
+    public string? ContinuationToken { get; set; }
+    public bool HasMore { get; set; }
+    public int ScannedCount { get; set; }
+    public long? TotalEstimate { get; set; }
+}
+
+public class KeysOptions
+{
+    public int MaxKeys { get; set; } = 10000;
+    public string? Pattern { get; set; }  // e.g., "user_*"
+    public string? ContinuationToken { get; set; }
+}
+
+public class KeysResult
+{
+    public required List<string> Keys { get; set; }
+    public string? ContinuationToken { get; set; }
+    public bool HasMore { get; set; }
+}
+```
+
+#### SCAN Configuration
+```json
+{
+  "Query": {
+    "Scan": {
+      "DefaultBatchSize": 100,
+      "MaxBatchSize": 1000,
+      "MaxDocumentsPerScan": 100000,
+      "DefaultTimeoutSeconds": 30,
+      "MaxTimeoutSeconds": 300,
+      "AllowUnlimitedScan": false,
+      "UnlimitedScanRoles": ["Admin"]
+    }
+  }
+}
+```
+
+### 35.4.2 Index Commands
 | Command | Description | Syntax |
 |---------|-------------|--------|
 | `CREATE_INDEX` | Create index | `CREATE_INDEX collection {definition}` |
@@ -3894,4 +3998,195 @@ Week 7-8:
 - [ ] 42. Certificate hot-reload
 - [ ] 43. Cipher suite configuration
 
-**Grand Total: ~284 hours (7-8 weeks full-time)**
+#### P1 - Safe Collection Operations (8h total)
+- [ ] 44. SCAN command (cursor-based safe iteration)
+- [ ] 45. KEYS command (list document IDs only)
+
+**Grand Total: ~292 hours (7-8 weeks full-time)**
+
+---
+
+## 48. Examples to be Created (AdvGenNoSqlServer.Examples)
+
+Each new command/feature must have corresponding examples in the Examples project.
+
+### 48.1 Document Operation Examples
+
+| Command | Example File | Examples to Create |
+|---------|-------------|-------------------|
+| **INSERT** | `DocumentOperationExamples.cs` | Insert new document, Insert duplicate (error), Insert with TTL |
+| **REPLACE** | `DocumentOperationExamples.cs` | Replace existing, Replace non-existent (error), Replace with version check |
+| **UPSERT** | `DocumentOperationExamples.cs` | Upsert new, Upsert existing, Upsert with merge options |
+| **PATCH** | `PartialUpdateExamples.cs` | Patch single field, Patch multiple fields, Patch nested field, Patch with conditions |
+| **INCREMENT** | `PartialUpdateExamples.cs` | Increment by 1, Increment by N, Decrement, Increment multiple fields atomically |
+| **FIND_AND_MODIFY** | `AtomicOperationExamples.cs` | Find and update, Find and delete, Find and upsert, Return new vs old |
+
+### 48.2 Array Operation Examples
+
+| Command | Example File | Examples to Create |
+|---------|-------------|-------------------|
+| **PUSH** | `ArrayOperationExamples.cs` | Push single value, Push multiple values, Push to nested array |
+| **PULL** | `ArrayOperationExamples.cs` | Pull by value, Pull by condition, Pull all matching |
+| **ADD_TO_SET** | `ArrayOperationExamples.cs` | Add unique value, Add duplicate (no change), Add multiple unique |
+| **POP** | `ArrayOperationExamples.cs` | Pop first, Pop last |
+
+### 48.3 Query Examples
+
+| Command | Example File | Examples to Create |
+|---------|-------------|-------------------|
+| **FIND_ONE** | `QueryExamples.cs` | Find by filter, Find with projection, Find not found |
+| **DISTINCT** | `QueryExamples.cs` | Distinct field values, Distinct with filter, Distinct on nested field |
+| **EXPLAIN** | `QueryExamples.cs` | Explain simple query, Explain with index, Explain aggregation |
+| **SCAN** | `ScanExamples.cs` | Scan with batch size, Scan with filter, Scan with projection, Resume with token |
+| **KEYS** | `ScanExamples.cs` | List all keys, Keys with pattern, Keys with pagination |
+
+### 48.4 Index Examples
+
+| Command | Example File | Examples to Create |
+|---------|-------------|-------------------|
+| **Unique Index** | `IndexExamples.cs` | Create unique, Insert duplicate (error), Compound unique |
+| **Compound Index** | `IndexExamples.cs` | Create compound, Query using compound, Sort with compound |
+| **Sparse Index** | `IndexExamples.cs` | Create sparse, Query with null values, Index stats |
+| **Partial Index** | `IndexExamples.cs` | Create with filter, Query matching filter, Query not matching |
+| **TTL Index** | `IndexExamples.cs` | Create TTL index, Document expiration demo, Check expired documents |
+| **INDEX_STATS** | `IndexExamples.cs` | Get index statistics, Index usage metrics |
+
+### 48.5 Transaction & Concurrency Examples
+
+| Feature | Example File | Examples to Create |
+|---------|-------------|-------------------|
+| **ETag/Optimistic** | `ConcurrencyExamples.cs` | Update with ETag, Conflict detection, Retry pattern |
+| **Sessions** | `SessionExamples.cs` | Create session, Operations in session, Session timeout |
+| **Write Concern** | `WriteConcernExamples.cs` | Acknowledged, Journaled, Majority |
+
+### 48.6 Advanced Feature Examples
+
+| Feature | Example File | Examples to Create |
+|---------|-------------|-------------------|
+| **Projections** | `ProjectionExamples.cs` | Include fields, Exclude fields, Nested projections, Computed fields |
+| **Cursor Pagination** | `PaginationExamples.cs` | Create cursor, Get next batch, Resume cursor, Kill cursor |
+| **Change Streams** | `ChangeStreamExamples.cs` | Watch collection, Watch document, Filter changes, Resume token |
+| **Capped Collections** | `CappedCollectionExamples.cs` | Create capped, Insert overflow, Tail cursor |
+
+### 48.7 Security Examples
+
+| Feature | Example File | Examples to Create |
+|---------|-------------|-------------------|
+| **TLS Connection** | `TlsExamples.cs` | Connect with TLS, Certificate validation, mTLS connection |
+| **Certificate Pinning** | `TlsExamples.cs` | Pin certificate, Rotation handling |
+
+### 48.8 P2P Cluster Examples
+
+| Feature | Example File | Examples to Create |
+|---------|-------------|-------------------|
+| **Cluster Join** | `ClusterExamples.cs` | Join cluster, Discover nodes, Leave cluster |
+| **Replication** | `ClusterExamples.cs` | Write with replication, Read preference, Failover demo |
+| **Conflict Resolution** | `ClusterExamples.cs` | Last-write-wins, Custom resolver |
+
+### 48.9 Import/Export Examples
+
+| Feature | Example File | Examples to Create |
+|---------|-------------|-------------------|
+| **Export** | `ImportExportExamples.cs` | Export to JSON Lines, Export with filter, Export to BSON |
+| **Import** | `ImportExportExamples.cs` | Import JSON Lines, Import with upsert, Import with validation |
+
+### 48.10 Example Code Standards
+
+Each example should follow this structure:
+
+```csharp
+/// <summary>
+/// Example: [Command Name] - [Brief Description]
+///
+/// Demonstrates:
+/// - [Feature 1]
+/// - [Feature 2]
+/// - [Error handling scenario]
+///
+/// Prerequisites:
+/// - Server running on localhost:9091
+/// - [Any other requirements]
+/// </summary>
+public async Task Run[CommandName]Example()
+{
+    PrintExampleHeader("[Command Name] - [Description]");
+
+    using var client = new AdvGenNoSqlClient(_serverAddress, _options);
+
+    try
+    {
+        await client.ConnectAsync();
+        Console.WriteLine("   ✓ Connected to server");
+
+        // Setup test data
+        Console.WriteLine("\n📝 Setting up test data...");
+        // ... setup code ...
+
+        // Example 1: Basic usage
+        Console.WriteLine("\n🔍 Example 1: [Description]");
+        Console.WriteLine($"   Command: [COMMAND syntax]");
+        // ... example code ...
+
+        // Example 2: With options
+        Console.WriteLine("\n🔍 Example 2: [Description]");
+        // ... example code ...
+
+        // Example 3: Error handling
+        Console.WriteLine("\n🔍 Example 3: Error scenario");
+        // ... demonstrate error handling ...
+
+        // Cleanup
+        Console.WriteLine("\n🧹 Cleaning up...");
+        // ... cleanup code ...
+
+        await client.DisconnectAsync();
+    }
+    catch (Exception ex)
+    {
+        PrintError($"Example failed: {ex.Message}");
+    }
+}
+```
+
+### 48.11 Example Checklist
+
+#### P0 Commands
+- [ ] INSERT examples (3 scenarios)
+- [ ] REPLACE examples (3 scenarios)
+- [ ] UPSERT examples (3 scenarios)
+- [ ] FIND_ONE examples (3 scenarios)
+- [ ] Unique Index examples (3 scenarios)
+- [ ] Projection examples (4 scenarios)
+
+#### P1 Commands
+- [ ] PATCH examples (4 scenarios)
+- [ ] INCREMENT examples (4 scenarios)
+- [ ] FIND_AND_MODIFY examples (4 scenarios)
+- [ ] Compound Index examples (3 scenarios)
+- [ ] EXPLAIN examples (3 scenarios)
+- [ ] ETag/Concurrency examples (3 scenarios)
+- [ ] Cursor pagination examples (4 scenarios)
+- [ ] TTL Index examples (3 scenarios)
+- [ ] SCAN examples (4 scenarios)
+- [ ] KEYS examples (3 scenarios)
+
+#### P2 Commands
+- [ ] Array operations examples (PUSH/PULL/ADD_TO_SET - 8 scenarios)
+- [ ] DISTINCT examples (3 scenarios)
+- [ ] Sparse Index examples (3 scenarios)
+- [ ] Partial Index examples (3 scenarios)
+- [ ] INDEX_STATS examples (2 scenarios)
+- [ ] Slow query logging examples (2 scenarios)
+- [ ] Session examples (3 scenarios)
+- [ ] Write Concern examples (3 scenarios)
+- [ ] Capped Collections examples (3 scenarios)
+
+#### P3 Commands
+- [ ] Change Streams examples (4 scenarios)
+- [ ] Import/Export examples (6 scenarios)
+- [ ] Full-Text Search examples (4 scenarios)
+- [ ] Geospatial examples (4 scenarios)
+- [ ] Field encryption examples (3 scenarios)
+- [ ] Document revisions examples (3 scenarios)
+- [ ] P2P Cluster examples (6 scenarios)
+- [ ] TLS/mTLS examples (4 scenarios)

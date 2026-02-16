@@ -738,4 +738,167 @@ public class AtomicUpdateDocumentStore : DocumentStore, IAtomicUpdateOperations
     }
 
     #endregion
+
+    #region Insert, Replace, Upsert Operations
+
+    /// <inheritdoc />
+    public async Task<Document> InsertAsync(string collectionName, string documentId, Dictionary<string, object> data)
+    {
+        if (string.IsNullOrWhiteSpace(collectionName))
+            throw new ArgumentException("Collection name cannot be empty", nameof(collectionName));
+
+        if (string.IsNullOrWhiteSpace(documentId))
+            throw new ArgumentException("Document ID cannot be empty", nameof(documentId));
+
+        if (data == null)
+            throw new ArgumentNullException(nameof(data));
+
+        var lockKey = $"{collectionName}:{documentId}";
+        var docLock = _documentLocks.GetOrAdd(lockKey, _ => new SemaphoreSlim(1, 1));
+
+        await docLock.WaitAsync();
+        try
+        {
+            // Check if document already exists
+            var existingDocument = await GetAsync(collectionName, documentId);
+            if (existingDocument != null)
+            {
+                throw new DocumentAlreadyExistsException(collectionName, documentId);
+            }
+
+            // Clone the data to avoid modifying the original
+            var clonedData = CloneData(data);
+
+            // Create the new document
+            var now = DateTime.UtcNow;
+            var document = new Document
+            {
+                Id = documentId,
+                Data = clonedData,
+                CreatedAt = now,
+                UpdatedAt = now,
+                Version = 1
+            };
+
+            // Insert using base class
+            var result = await base.InsertAsync(collectionName, document);
+            return result;
+        }
+        finally
+        {
+            docLock.Release();
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<Document> ReplaceAsync(string collectionName, string documentId, Dictionary<string, object> data)
+    {
+        if (string.IsNullOrWhiteSpace(collectionName))
+            throw new ArgumentException("Collection name cannot be empty", nameof(collectionName));
+
+        if (string.IsNullOrWhiteSpace(documentId))
+            throw new ArgumentException("Document ID cannot be empty", nameof(documentId));
+
+        if (data == null)
+            throw new ArgumentNullException(nameof(data));
+
+        var lockKey = $"{collectionName}:{documentId}";
+        var docLock = _documentLocks.GetOrAdd(lockKey, _ => new SemaphoreSlim(1, 1));
+
+        await docLock.WaitAsync();
+        try
+        {
+            // Check if document exists
+            var existingDocument = await GetAsync(collectionName, documentId);
+            if (existingDocument == null)
+            {
+                throw new DocumentNotFoundException(collectionName, documentId);
+            }
+
+            // Clone the data to avoid modifying the original
+            var clonedData = CloneData(data);
+
+            // Create the replacement document
+            var document = new Document
+            {
+                Id = documentId,
+                Data = clonedData,
+                CreatedAt = existingDocument.CreatedAt,
+                UpdatedAt = DateTime.UtcNow,
+                Version = existingDocument.Version + 1
+            };
+
+            // Replace using base class
+            var result = await base.UpdateAsync(collectionName, document);
+            return result;
+        }
+        finally
+        {
+            docLock.Release();
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<(Document Document, bool WasInserted)> UpsertAsync(string collectionName, string documentId, Dictionary<string, object> data)
+    {
+        if (string.IsNullOrWhiteSpace(collectionName))
+            throw new ArgumentException("Collection name cannot be empty", nameof(collectionName));
+
+        if (string.IsNullOrWhiteSpace(documentId))
+            throw new ArgumentException("Document ID cannot be empty", nameof(documentId));
+
+        if (data == null)
+            throw new ArgumentNullException(nameof(data));
+
+        var lockKey = $"{collectionName}:{documentId}";
+        var docLock = _documentLocks.GetOrAdd(lockKey, _ => new SemaphoreSlim(1, 1));
+
+        await docLock.WaitAsync();
+        try
+        {
+            // Clone the data to avoid modifying the original
+            var clonedData = CloneData(data);
+
+            // Check if document exists
+            var existingDocument = await GetAsync(collectionName, documentId);
+
+            if (existingDocument == null)
+            {
+                // Insert new document
+                var now = DateTime.UtcNow;
+                var document = new Document
+                {
+                    Id = documentId,
+                    Data = clonedData,
+                    CreatedAt = now,
+                    UpdatedAt = now,
+                    Version = 1
+                };
+
+                var result = await base.InsertAsync(collectionName, document);
+                return (result, true);
+            }
+            else
+            {
+                // Update existing document
+                var document = new Document
+                {
+                    Id = documentId,
+                    Data = clonedData,
+                    CreatedAt = existingDocument.CreatedAt,
+                    UpdatedAt = DateTime.UtcNow,
+                    Version = existingDocument.Version + 1
+                };
+
+                var result = await base.UpdateAsync(collectionName, document);
+                return (result, false);
+            }
+        }
+        finally
+        {
+            docLock.Release();
+        }
+    }
+
+    #endregion
 }

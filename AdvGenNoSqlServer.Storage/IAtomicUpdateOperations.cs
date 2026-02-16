@@ -105,6 +105,35 @@ public interface IAtomicUpdateOperations : IDocumentStore
     /// <exception cref="DocumentNotFoundException">Thrown when document ID does not exist</exception>
     /// <exception cref="AtomicUpdateException">Thrown when any operation fails</exception>
     Task<Document> UpdateMultipleAsync(string collectionName, string documentId, IEnumerable<AtomicOperation> operations);
+
+    /// <summary>
+    /// Inserts a new document. Fails if a document with the same ID already exists.
+    /// </summary>
+    /// <param name="collectionName">The name of the collection</param>
+    /// <param name="documentId">The ID of the document to insert</param>
+    /// <param name="data">The document data</param>
+    /// <returns>The inserted document</returns>
+    /// <exception cref="DocumentAlreadyExistsException">Thrown when document ID already exists</exception>
+    Task<Document> InsertAsync(string collectionName, string documentId, Dictionary<string, object> data);
+
+    /// <summary>
+    /// Replaces an existing document. Fails if the document does not exist.
+    /// </summary>
+    /// <param name="collectionName">The name of the collection</param>
+    /// <param name="documentId">The ID of the document to replace</param>
+    /// <param name="data">The new document data</param>
+    /// <returns>The replaced document</returns>
+    /// <exception cref="DocumentNotFoundException">Thrown when document ID does not exist</exception>
+    Task<Document> ReplaceAsync(string collectionName, string documentId, Dictionary<string, object> data);
+
+    /// <summary>
+    /// Upserts a document - inserts if it doesn't exist, updates if it does.
+    /// </summary>
+    /// <param name="collectionName">The name of the collection</param>
+    /// <param name="documentId">The ID of the document to upsert</param>
+    /// <param name="data">The document data</param>
+    /// <returns>A tuple containing the upserted document and a boolean indicating whether the document was inserted (true) or updated (false)</returns>
+    Task<(Document Document, bool WasInserted)> UpsertAsync(string collectionName, string documentId, Dictionary<string, object> data);
 }
 
 /// <summary>

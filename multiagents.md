@@ -16,6 +16,41 @@
 
 ## Completed Tasks
 
+### Agent-47: Upsert Operations ✓ COMPLETED
+**Scope**: Implement Insert, Replace, and Upsert operations for the document store
+**Completed**: 2026-02-16
+**Summary**:
+- Added `InsertAsync` method to `IAtomicUpdateOperations` interface and `AtomicUpdateDocumentStore`:
+  - Atomically inserts a new document only if it doesn't already exist
+  - Throws `DocumentAlreadyExistsException` if document ID already exists
+  - Thread-safe with per-document locking
+  
+- Added `ReplaceAsync` method:
+  - Atomically replaces an existing document's entire data
+  - Throws `DocumentNotFoundException` if document doesn't exist
+  - Preserves `CreatedAt` timestamp, updates `UpdatedAt` and increments `Version`
+  
+- Added `UpsertAsync` method:
+  - Inserts document if it doesn't exist, updates if it does
+  - Returns tuple with the document and boolean indicating if it was inserted (true) or updated (false)
+  - Thread-safe atomic operation with proper locking
+  
+- Created comprehensive unit tests (17 new tests):
+  - Insert tests: new document, duplicate ID, validation
+  - Replace tests: existing document, non-existent document, validation
+  - Upsert tests: insert case, update case, multiple upserts, validation
+  - Thread safety tests for concurrent operations
+
+**Files Modified**:
+- `AdvGenNoSqlServer.Storage/IAtomicUpdateOperations.cs` - Added new method signatures
+- `AdvGenNoSqlServer.Storage/AtomicUpdateDocumentStore.cs` - Implemented new operations
+- `AdvGenNoSqlServer.Tests/AtomicUpdateOperationsTests.cs` - Added 17 comprehensive tests
+
+**Build Status**: ✓ Compiles successfully (0 errors)
+**Test Status**: ✓ 17/17 new tests pass, 69/69 total atomic update tests pass
+
+---
+
 ### Agent-45: Cursor-based Pagination ✓ COMPLETED
 **Scope**: Implement cursor-based pagination for efficient pagination of large result sets without OFFSET performance degradation
 **Completed**: 2026-02-13
