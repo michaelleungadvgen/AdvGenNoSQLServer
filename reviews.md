@@ -178,7 +178,7 @@ Files to review:
 - [ ] `InMemoryDocumentCollection.cs` - In-memory collection
 - [ ] `GarbageCollectedDocumentStore.cs` - GC-enabled store
 - [ ] `GarbageCollector.cs` - Document garbage collection
-- [ ] `HybridDocumentStore.cs` - Hybrid storage
+- [x] `HybridDocumentStore.cs` - Hybrid storage **[REVIEWED - 4 ISSUES: DATA-013 (High - silent exceptions), DATA-014 (Medium - non-atomic writes), DATA-015 (Medium - race condition), SEC-033 (Low - silent write failures)]**
 - [ ] `TtlDocumentStore.cs` - TTL-enabled store
 - [ ] `AtomicUpdateDocumentStore.cs` - Atomic update support
 - [ ] `IAtomicUpdateOperations.cs` - Atomic operations interface
@@ -725,6 +725,10 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | PERF-009 | QueryExecutor.cs | 412-440 | Medium | ApplyProjection modifies original documents in-place. Mutates cached/stored docs causing side effects. Clone docs first. | Open |
 | SEC-032 | QueryExecutor.cs | 343-345 | Low | Silent exception swallowing in QueryIndexAsync. Should log warning. | Open |
 | PERF-010 | QueryExecutor.cs | 49-55 | Low | Sequential document fetching by ID in loop. Could be parallelized or batch-fetched. | Open |
+| DATA-013 | HybridDocumentStore.cs | 98-101, 382-385 | High | Silent exception swallowing when loading documents from disk. Corrupted or invalid JSON data is silently skipped without logging - could hide data loss. | Open |
+| DATA-014 | HybridDocumentStore.cs | 442-443 | Medium | `File.WriteAllTextAsync` is not atomic. Crash during write corrupts file. Write to temp file then atomic rename. | Open |
+| DATA-015 | HybridDocumentStore.cs | 122-136 | Medium | Race condition in `InsertAsync` between `ContainsKey` check and `TryAdd`. Concurrent inserts could bypass duplicate detection. | Open |
+| SEC-033 | HybridDocumentStore.cs | 411-414 | Low | Silent exception swallowing in write queue processing. Write failures are never reported, potentially losing data. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
@@ -1602,6 +1606,77 @@ public async Task<bool> TryAcquireAsync(TimeSpan timeout, CancellationToken canc
 1. Documenting that DisposeAsync should be preferred
 2. Using `ConfigureAwait(false)` throughout the async chain
 3. Adding analyzer warning suppression with comment explaining the pattern
+
+### DATA-013: Log Errors When Loading Documents from Disk (High)
+**File:** `HybridDocumentStore.cs` lines 98-101, 382-385
+**Current:** Silent exception swallowing in document load operations
+**Required Action:** Add logging and optionally move corrupted files:
+```csharp
+catch (JsonException ex)
+{
+    _logger?.LogError(ex, "Failed to deserialize document {Id} from disk cache", id);
+    // Optionally: delete corrupted cache file
+    try { File.Delete(filePath); } catch { }
+}
+catch (Exception ex)
+{
+    _logger?.LogError(ex, "Failed to load document {Id} from disk", id);
+}
+```
+
+### DATA-014: Use Atomic File Write Pattern (Medium)
+**File:** `HybridDocumentStore.cs` lines 442-443
+**Current:** `File.WriteAllTextAsync(filePath, json)` - not crash-safe
+**Required Action:** Write to temp file then atomic rename:
+```csharp
+private async Task SaveDocumentToDiskAsync(string collection, string id, BsonDocument document)
+{
+    var filePath = GetFilePath(collection, id);
+    var tempPath = filePath + ".tmp";
+    var json = document.ToJson();
+
+    // Write to temp file first
+    await File.WriteAllTextAsync(tempPath, json);
+
+    // Atomic rename (overwrites existing)
+    File.Move(tempPath, filePath, overwrite: true);
+}
+```
+
+### DATA-015: Use Atomic Insert Pattern (Medium)
+**File:** `HybridDocumentStore.cs` lines 122-136
+**Current:** Check-then-act pattern with `ContainsKey` followed by `TryAdd`
+**Required Action:** Use single atomic operation:
+```csharp
+public async Task<bool> InsertAsync(string collection, BsonDocument document)
+{
+    var id = document.GetId();
+    var documents = GetOrCreateCollection(collection);
+
+    // Single atomic operation - returns false if key exists
+    if (!documents.TryAdd(id, document))
+    {
+        throw new DocumentExistsException($"Document with ID '{id}' already exists");
+    }
+
+    // Queue for disk persistence
+    await _writeChannel.Writer.WriteAsync(new WriteOperation(collection, id, document));
+    return true;
+}
+```
+
+### SEC-033: Log Write Queue Failures (Low)
+**File:** `HybridDocumentStore.cs` lines 411-414
+**Current:** Silent exception swallowing in write queue processor
+**Required Action:** Add logging for write failures:
+```csharp
+catch (Exception ex)
+{
+    _logger?.LogError(ex, "Failed to persist document {Collection}/{Id} to disk",
+        operation.Collection, operation.DocumentId);
+    // Optionally: implement retry with exponential backoff
+}
+```
 
 ---
 
