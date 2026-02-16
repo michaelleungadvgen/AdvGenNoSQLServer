@@ -174,7 +174,7 @@ Files to review:
 - [ ] `IDocumentStore.cs` - Store interface
 - [ ] `DocumentStore.cs` - Basic document store
 - [ ] `IPersistentDocumentStore.cs` - Persistent store interface
-- [ ] `PersistentDocumentStore.cs` - Persistent implementation
+- [x] `PersistentDocumentStore.cs` - Persistent implementation **[REVIEWED - 4 ISSUES: DATA-006 (High), DATA-007, CODE-001, CONC-003. Non-atomic writes + reflection usage]**
 - [ ] `InMemoryDocumentCollection.cs` - In-memory collection
 - [ ] `GarbageCollectedDocumentStore.cs` - GC-enabled store
 - [ ] `GarbageCollector.cs` - Document garbage collection
@@ -673,6 +673,10 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | PERF-004 | BTreeIndex.cs | 19 | Medium | Uses coarse-grained locking (single lock). Consider `ReaderWriterLockSlim` for read-heavy workloads. | Open |
 | DATA-004 | BTreeIndex.cs | 268-271 | Low | Count management in delete uses loop - could be simplified with values.Count decrement. | Open |
 | DATA-005 | BTreeIndex.cs | - | Low | No index persistence - in-memory only. Rebuilds on startup from documents. | Info |
+| DATA-006 | PersistentDocumentStore.cs | 373-377 | High | Silent exception swallowing when loading documents. Corrupted data is skipped without logging - could hide data loss. | Open |
+| DATA-007 | PersistentDocumentStore.cs | 450 | Medium | `File.WriteAllTextAsync` is not atomic. Crash during write corrupts file. Write to temp file then rename. | Open |
+| CODE-001 | PersistentDocumentStore.cs | 462-483 | Medium | Uses reflection to access private fields - fragile and breaks if InMemoryDocumentCollection changes. | Open |
+| CONC-003 | PersistentDocumentStore.cs | 478-480 | Low | Reflection-based count update with `Interlocked.Increment` then SetValue - potential race condition. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
@@ -1042,6 +1046,44 @@ public static void SetPinnedCertificates(IEnumerable<string> thumbprints)
 var protocols = configuration.Tls13Only
     ? SslProtocols.Tls13
     : SslProtocols.Tls12 | SslProtocols.Tls13;
+```
+
+### DATA-006: Log Errors When Loading Documents (High)
+**File:** `PersistentDocumentStore.cs` lines 373-377
+**Required Action:** Add logging and optionally move corrupted files:
+```csharp
+catch (JsonException ex)
+{
+    _logger?.LogError(ex, "Failed to load document from {File}", file);
+    // Optionally: Move corrupted file to a .corrupted suffix
+    File.Move(file, file + ".corrupted");
+}
+```
+
+### DATA-007: Use Atomic File Write (Medium)
+**File:** `PersistentDocumentStore.cs` line 450
+**Required Action:** Write to temp file then rename for atomicity:
+```csharp
+private async Task SaveDocumentToDiskAsync(string collectionName, Document document)
+{
+    var documentPath = GetDocumentPath(collectionName, document.Id);
+    var tempPath = documentPath + ".tmp";
+    var json = JsonSerializer.Serialize(document, _jsonOptions);
+    await File.WriteAllTextAsync(tempPath, json);
+    File.Move(tempPath, documentPath, overwrite: true); // Atomic on POSIX
+}
+```
+
+### CODE-001: Avoid Reflection for Loading Documents (Medium)
+**File:** `PersistentDocumentStore.cs` lines 462-483
+**Required Action:** Add a public or internal method to InMemoryDocumentCollection:
+```csharp
+// In InMemoryDocumentCollection:
+internal void LoadDocument(Document document)
+{
+    _documents.TryAdd(document.Id, document);
+    Interlocked.Increment(ref _documentCount);
+}
 ```
 
 ---
