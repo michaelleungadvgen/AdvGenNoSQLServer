@@ -193,7 +193,7 @@ Files to review:
 #### 3.2.2 Indexing
 Files to review:
 - [ ] `Indexing/IBTreeIndex.cs` - B-tree interface
-- [ ] `Indexing/BTreeIndex.cs` - B-tree implementation
+- [x] `Indexing/BTreeIndex.cs` - B-tree implementation **[REVIEWED - GOOD: Proper B-tree ops, generic, thread-safe. 3 ISSUES: PERF-004 (Medium), DATA-004/005 (Low)]**
 - [ ] `Indexing/BTreeNode.cs` - B-tree node structure
 - [ ] `Indexing/IndexManager.cs` - Index management
 - [ ] `Indexing/CompoundIndexKey.cs` - Compound key support
@@ -670,6 +670,9 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | SEC-019 | TlsStreamHelper.cs | 252, 280 | Medium | Uses `Console.WriteLine` for security logging. Should use ILogger for proper audit trail. | Open |
 | SEC-020 | TlsStreamHelper.cs | - | Medium | No certificate pinning support. Documented in plan.md but not implemented. | Open |
 | SEC-021 | TlsStreamHelper.cs | 90 | Low | No TLS 1.3-only option for high-security environments. Consider adding SslProtocols.Tls13 only mode. | Open |
+| PERF-004 | BTreeIndex.cs | 19 | Medium | Uses coarse-grained locking (single lock). Consider `ReaderWriterLockSlim` for read-heavy workloads. | Open |
+| DATA-004 | BTreeIndex.cs | 268-271 | Low | Count management in delete uses loop - could be simplified with values.Count decrement. | Open |
+| DATA-005 | BTreeIndex.cs | - | Low | No index persistence - in-memory only. Rebuilds on startup from documents. | Info |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
