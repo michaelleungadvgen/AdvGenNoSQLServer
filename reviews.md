@@ -323,8 +323,8 @@ Files to review:
 ### 3.6 AdvGenNoSqlServer.Server
 
 Files to review:
-- [ ] `Program.cs` - Server entry point
-- [ ] `NoSqlServer.cs` - Server implementation
+- [x] `Program.cs` - Server entry point **[REVIEWED - CLEAN: Standard hosting, DI, config-driven. No issues.]**
+- [x] `NoSqlServer.cs` - Server implementation **[REVIEWED - GOOD: IHostedService, IAsyncDisposable, graceful shutdown, proper logging. 5 ISSUES: NET-004, SEC-029 (Medium), ASYNC-001, SEC-030, CONC-005 (Low)]**
 
 **Review Focus:**
 - Startup/shutdown logic
@@ -705,6 +705,11 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | NET-003 | Client.cs | 717-718 | Info | Redundant encoding: `GetBytes(json)` then `GetByteCount(json)`. Just use `bytes.Length`. | Open |
 | CODE-006 | ClientOptions.cs | - | Low | No validation of option values. Negative timeouts, retry delays, or max retry attempts would cause issues at runtime. | Open |
 | BUG-002 | ClientFactory.cs | 14-15 | Medium | `CreateClient(AdvGenNoSqlClientOptions)` ignores all options except ServerAddress. All SSL, keepalive, retry settings are lost. | Open |
+| NET-004 | NoSqlServer.cs | 71 | Medium | `_tcpServer.StartAsync(cancellationToken)` is NOT AWAITED! Should be `await _tcpServer.StartAsync(...)` to propagate exceptions. | Open |
+| SEC-029 | NoSqlServer.cs | 227-230 | Medium | Simple auth compares plaintext master password without rate limiting. Token is just random GUID with no user association. | Open |
+| ASYNC-001 | NoSqlServer.cs | 115 | Low | `async void` event handler. Unavoidable for events but could swallow exceptions. Try-catch mitigates this. | Open |
+| SEC-030 | NoSqlServer.cs | 165 | Low | Silent exception swallowing when parsing handshake. Should at least log a warning. | Open |
+| CONC-005 | NoSqlServer.cs | 352-363 | Low | Check-then-act pattern (ExistsAsync then InsertAsync/UpdateAsync) is not atomic. Race condition possible. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
@@ -1280,6 +1285,41 @@ public async ValueTask CloseAsync()
 // private readonly PipeWriter _writer;  // Not used
 
 // Or refactor ReadExactAsync to use Pipelines for better performance
+```
+
+### NET-004: Await TcpServer.StartAsync (Medium)
+**File:** `NoSqlServer.cs` line 71
+**Current:** `_tcpServer.StartAsync(cancellationToken);` (not awaited)
+**Required Action:**
+```csharp
+await _tcpServer.StartAsync(cancellationToken);
+```
+
+### SEC-029: Improve Authentication (Medium)
+**File:** `NoSqlServer.cs` lines 227-230
+**Required Actions:**
+1. Use the AuthenticationManager class instead of direct comparison
+2. Add rate limiting for failed attempts
+3. Generate proper tokens (use JwtTokenProvider)
+```csharp
+// Use existing authentication infrastructure:
+private readonly AuthenticationManager _authManager;
+
+// In HandleAuthenticationAsync:
+var token = _authManager.Authenticate(username, password);
+if (token == null)
+    return NoSqlMessage.CreateError("AUTH_FAILED", "Invalid credentials");
+return NoSqlMessage.CreateSuccess(new { authenticated = true, token = token.TokenId });
+```
+
+### CONC-005: Use Atomic Upsert (Low)
+**File:** `NoSqlServer.cs` lines 352-363
+**Recommendation:** The check-then-act pattern is race-prone. Either:
+1. Use transaction/lock, or
+2. Add an UpsertAsync method to document store that's atomic:
+```csharp
+// In document store:
+await _documentStore.UpsertAsync(collection, document);
 ```
 
 ### BUG-002: Pass Full Options to Client Constructor (Medium)
