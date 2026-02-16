@@ -82,7 +82,7 @@ Files to review:
 - [x] `Authentication/AuthenticationManager.cs` - User authentication logic **[REVIEWED - 5 ISSUES FOUND: SEC-001 to SEC-005]**
 - [ ] `Authentication/AuthenticationService.cs` - Authentication service interface
 - [x] `Authentication/JwtTokenProvider.cs` - JWT token generation/validation **[REVIEWED - GOOD: Uses HS256 + FixedTimeEquals. 3 MINOR ISSUES: SEC-006 to SEC-008]**
-- [ ] `Authentication/RoleManager.cs` - RBAC implementation
+- [x] `Authentication/RoleManager.cs` - RBAC implementation **[REVIEWED - 4 ISSUES: SEC-011 (High), SEC-012-014 (Medium/Low). Thread safety + authorization needed]**
 - [ ] `Authentication/AuditLogger.cs` - Audit logging
 - [x] `Authentication/EncryptionService.cs` - Data encryption **[REVIEWED - EXCELLENT: AES-256-GCM, proper nonce, PBKDF2-100k, ZeroMemory cleanup. 2 LOW: SEC-009, SEC-010]**
 - [ ] `Authentication/IAuditLogger.cs` - Interface definitions
@@ -650,6 +650,10 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | SEC-008 | JwtTokenProvider.cs | 208-228, 231-254 | Low | ExtractUsername and GetExpirationTime methods do not validate signature before returning data. Could expose claims from tampered tokens. | Open |
 | SEC-009 | EncryptionService.cs | 51-53 | Low | Auto-generated key has only TODO for logging. Could lead to data loss if key is not persisted. Should log warning or throw if no key store configured. | Open |
 | SEC-010 | EncryptionService.cs | 265-270 | Low | DeriveKeyFromPassword returns salt+key combined. Consider returning a struct with named properties for clarity. | Open |
+| SEC-011 | RoleManager.cs | 12-14 | High | `_roles`, `_userRoles`, and `PermissionRegistry._validPermissions` use non-thread-safe collections. Race conditions under concurrent access. Use `ConcurrentDictionary<>`. | Open |
+| SEC-012 | RoleManager.cs | - | Medium | No authorization check on role management methods. Any caller can elevate privileges. Should require `RoleManage` permission. | Open |
+| SEC-013 | RoleManager.cs | 263-321 | Medium | Default roles created in-memory only. Role/permission changes are lost on restart. Need persistence layer. | Open |
+| SEC-014 | RoleManager.cs | 425-428 | Low | `RegisterCustomPermission` not thread-safe. HashSet modification during concurrent reads causes exceptions. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
@@ -786,6 +790,48 @@ public DerivedKeyResult DeriveKeyFromPassword(string password, ...)
     // ...
     return new DerivedKeyResult(salt, key);
 }
+```
+
+### SEC-011: Use Thread-Safe Collections in RoleManager (High)
+**File:** `RoleManager.cs` lines 12-14
+**Required Action:**
+```csharp
+private readonly ConcurrentDictionary<string, Role> _roles = new();
+private readonly ConcurrentDictionary<string, ConcurrentBag<string>> _userRoles = new();
+// PermissionRegistry should also use ConcurrentDictionary or lock
+```
+
+### SEC-012: Add Authorization to Role Management (Medium)
+**File:** `RoleManager.cs`
+**Required Action:** Role management methods should require authorization:
+```csharp
+public bool CreateRole(string roleName, string callerUsername, ...)
+{
+    if (!UserHasPermission(callerUsername, Permissions.RoleManage))
+        throw new UnauthorizedAccessException("Role management requires RoleManage permission");
+    // ...
+}
+```
+
+### SEC-013: Persist Role Configuration (Medium)
+**File:** `RoleManager.cs`
+**Required Action:** Inject `IRoleStore` for persistence:
+```csharp
+public interface IRoleStore
+{
+    Task SaveRolesAsync(IEnumerable<Role> roles);
+    Task<IEnumerable<Role>> LoadRolesAsync();
+    Task SaveUserRolesAsync(string username, IEnumerable<string> roles);
+    Task<IEnumerable<string>> LoadUserRolesAsync(string username);
+}
+```
+
+### SEC-014: Thread-Safe Permission Registration (Low)
+**File:** `RoleManager.cs` lines 425-428
+**Required Action:** Use lock or ConcurrentDictionary:
+```csharp
+private readonly ConcurrentDictionary<string, byte> _validPermissions = new();
+// Or use ReaderWriterLockSlim for the HashSet
 ```
 
 ---
