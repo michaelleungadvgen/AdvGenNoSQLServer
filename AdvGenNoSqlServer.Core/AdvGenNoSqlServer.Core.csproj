@@ -6,6 +6,19 @@
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\AdvGenNoSqlServer.Core.xml</DocumentationFile>
+
+    <!-- NuGet Package Metadata -->
+    <PackageId>AdvGenNoSqlServer.Core</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>AdvanGeneration</Authors>
+    <Company>AdvanGeneration Pty. Ltd.</Company>
+    <Description>Core library for AdvGen NoSQL Server - Contains models, interfaces, and shared components</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/michaelleungadvgen/AdvGenNoSQLServer</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/michaelleungadvgen/AdvGenNoSQLServer</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>nosql;database;core</PackageTags>
+    <Copyright>Copyright (c) 2026 AdvanGeneration Pty. Ltd.</Copyright>
   </PropertyGroup>
 
   <ItemGroup>

@@ -8,6 +8,22 @@ If you intend to use or adapt this project, review and harden authentication, au
 
 This repository contains the AdvGen NoSQL Server — a prototype NoSQL-like server and related client, storage, network, and query engine components used for experimenting and building a supermarket price comparison app.
 
+## Installation
+
+Install the client library via NuGet:
+
+```bash
+dotnet add package AdvGenNoSqlServer.Client
+```
+
+Or via the Package Manager Console:
+
+```powershell
+Install-Package AdvGenNoSqlServer.Client
+```
+
+This will automatically install the required dependencies (`AdvGenNoSqlServer.Core` and `AdvGenNoSqlServer.Network`).
+
 ## Quick Start
 
 - Build the solution (Windows / PowerShell):

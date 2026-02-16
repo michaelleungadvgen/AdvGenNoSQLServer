@@ -4002,11 +4002,433 @@ Week 7-8:
 - [ ] 44. SCAN command (cursor-based safe iteration)
 - [ ] 45. KEYS command (list document IDs only)
 
-**Grand Total: ~292 hours (7-8 weeks full-time)**
+#### P2 - Storage Encryption (48h total)
+- [ ] 46. IStorageEncryption interface
+- [ ] 47. AES-256-GCM document encryption
+- [ ] 48. Key derivation (HKDF)
+- [ ] 49. IKeyManager interface
+- [ ] 50. File-based key storage
+- [ ] 51. Encrypted file format (.enc)
+- [ ] 52. WAL encryption
+- [ ] 53. Index encryption (deterministic)
+- [ ] 54. Migration tool (plain text to encrypted)
+- [ ] 55. Key rotation support
+- [ ] 56. HashiCorp Vault integration
+- [ ] 57. AWS KMS / Azure Key Vault integration
+
+**Grand Total: ~340 hours (8-9 weeks full-time)**
 
 ---
 
-## 48. Examples to be Created (AdvGenNoSqlServer.Examples)
+## 48. Data Storage Management & Encryption at Rest
+
+### 48.1 Current State
+
+Currently, data is stored as **plain text JSON** on disk:
+
+```
+data/
+├── collections/
+│   ├── users/
+│   │   ├── documents.json      # Plain text JSON - VISIBLE!
+│   │   ├── index_email.idx     # Plain text index
+│   │   └── metadata.json       # Collection metadata
+│   └── orders/
+│       ├── documents.json
+│       └── index_orderId.idx
+├── wal/
+│   └── wal_00001.log           # Write-ahead log (plain text)
+└── config/
+    └── server.json             # Server configuration
+```
+
+**Security Risks:**
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| Disk theft | Critical | Encryption at rest |
+| Unauthorized file access | High | File permissions + encryption |
+| Backup exposure | High | Encrypted backups |
+| WAL contains sensitive data | High | WAL encryption |
+| Memory dumps contain keys | Medium | Secure memory handling |
+
+### 48.2 Storage Encryption Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Storage Encryption Layers                         │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                       │
+│   ┌─────────────────────────────────────────────────────────────┐   │
+│   │  Layer 3: Field-Level Encryption (Application)              │   │
+│   │  - Specific sensitive fields encrypted before storage       │   │
+│   │  - Client-side or server-side                               │   │
+│   │  - Different keys per field/tenant                          │   │
+│   └─────────────────────────────────────────────────────────────┘   │
+│                               │                                       │
+│   ┌─────────────────────────────────────────────────────────────┐   │
+│   │  Layer 2: Document-Level Encryption (Storage Engine)        │   │
+│   │  - Entire document encrypted as unit                        │   │
+│   │  - Transparent to application                               │   │
+│   │  - Per-collection or per-database keys                      │   │
+│   └─────────────────────────────────────────────────────────────┘   │
+│                               │                                       │
+│   ┌─────────────────────────────────────────────────────────────┐   │
+│   │  Layer 1: File-Level Encryption (OS/Filesystem)             │   │
+│   │  - BitLocker (Windows), LUKS (Linux), FileVault (macOS)     │   │
+│   │  - Transparent to database                                   │   │
+│   │  - Full disk or volume encryption                           │   │
+│   └─────────────────────────────────────────────────────────────┘   │
+│                                                                       │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### 48.3 Encryption Options Comparison
+
+| Option | Level | Performance | Security | Implementation |
+|--------|-------|-------------|----------|----------------|
+| **None** | - | Fastest | ❌ None | Current state |
+| **OS-Level** | File | Fast | ⭐⭐⭐ Good | BitLocker/LUKS |
+| **Document** | Document | Medium | ⭐⭐⭐⭐ Better | AES-256-GCM |
+| **Field** | Field | Slower | ⭐⭐⭐⭐⭐ Best | Per-field keys |
+| **Hybrid** | Doc + Field | Medium | ⭐⭐⭐⭐⭐ Best | Combined |
+
+### 48.4 Document-Level Encryption Implementation
+
+#### 48.4.1 Encryption Interface
+```csharp
+// AdvGenNoSqlServer.Storage/Encryption/IStorageEncryption.cs
+public interface IStorageEncryption
+{
+    byte[] Encrypt(byte[] plaintext, EncryptionContext context);
+    byte[] Decrypt(byte[] ciphertext, EncryptionContext context);
+    bool IsEnabled { get; }
+    string Algorithm { get; }
+}
+
+public class EncryptionContext
+{
+    public required string CollectionName { get; set; }
+    public required string DocumentId { get; set; }
+    public string? DatabaseName { get; set; }
+    public byte[]? AdditionalAuthenticatedData { get; set; }  // AAD for GCM
+}
+```
+
+#### 48.4.2 AES-256-GCM Implementation
+```csharp
+public class AesGcmStorageEncryption : IStorageEncryption
+{
+    private readonly byte[] _masterKey;
+    private readonly IKeyDerivation _keyDerivation;
+
+    public string Algorithm => "AES-256-GCM";
+    public bool IsEnabled => true;
+
+    public byte[] Encrypt(byte[] plaintext, EncryptionContext context)
+    {
+        // Derive unique key per document using HKDF
+        var documentKey = _keyDerivation.DeriveKey(
+            _masterKey, context.CollectionName, context.DocumentId);
+
+        using var aesGcm = new AesGcm(documentKey, tagSizeInBytes: 16);
+
+        var nonce = RandomNumberGenerator.GetBytes(12);
+        var ciphertext = new byte[plaintext.Length];
+        var tag = new byte[16];
+
+        aesGcm.Encrypt(nonce, plaintext, ciphertext, tag,
+            context.AdditionalAuthenticatedData);
+
+        // Format: [nonce (12)] [ciphertext (N)] [tag (16)]
+        return CombineArrays(nonce, ciphertext, tag);
+    }
+
+    public byte[] Decrypt(byte[] ciphertext, EncryptionContext context)
+    {
+        var documentKey = _keyDerivation.DeriveKey(
+            _masterKey, context.CollectionName, context.DocumentId);
+
+        using var aesGcm = new AesGcm(documentKey, tagSizeInBytes: 16);
+
+        var nonce = ciphertext[..12];
+        var tag = ciphertext[^16..];
+        var encrypted = ciphertext[12..^16];
+        var plaintext = new byte[encrypted.Length];
+
+        aesGcm.Decrypt(nonce, encrypted, tag, plaintext,
+            context.AdditionalAuthenticatedData);
+
+        return plaintext;
+    }
+}
+```
+
+#### 48.4.3 Key Derivation (HKDF)
+```csharp
+public interface IKeyDerivation
+{
+    byte[] DeriveKey(byte[] masterKey, string collection, string documentId);
+    byte[] DeriveCollectionKey(byte[] masterKey, string collection);
+}
+
+public class HkdfKeyDerivation : IKeyDerivation
+{
+    public byte[] DeriveKey(byte[] masterKey, string collection, string documentId)
+    {
+        var info = Encoding.UTF8.GetBytes($"{collection}:{documentId}");
+        return HKDF.DeriveKey(HashAlgorithmName.SHA256, masterKey, 32, info: info);
+    }
+
+    public byte[] DeriveCollectionKey(byte[] masterKey, string collection)
+    {
+        var info = Encoding.UTF8.GetBytes($"collection:{collection}");
+        return HKDF.DeriveKey(HashAlgorithmName.SHA256, masterKey, 32, info: info);
+    }
+}
+```
+
+### 48.5 Encrypted File Format
+
+#### 48.5.1 File Structure
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Encrypted Document File Format (.enc)                          │
+├─────────────────────────────────────────────────────────────────┤
+│  Header (32 bytes)                                               │
+│  ├─ Magic: "ADVG" (4 bytes)                                     │
+│  ├─ Version: 1 (2 bytes)                                        │
+│  ├─ Algorithm: 1=AES-256-GCM, 2=ChaCha20-Poly1305 (2 bytes)    │
+│  ├─ Key ID: UUID (16 bytes)                                     │
+│  ├─ Flags: compression, etc. (2 bytes)                          │
+│  └─ Reserved: (6 bytes)                                         │
+├─────────────────────────────────────────────────────────────────┤
+│  Document Entries (repeated)                                     │
+│  ├─ Document ID Length: (4 bytes)                               │
+│  ├─ Document ID: (variable, plain text for lookups)             │
+│  ├─ Nonce: (12 bytes)                                           │
+│  ├─ Ciphertext Length: (4 bytes)                                │
+│  ├─ Ciphertext: (variable, encrypted document JSON)             │
+│  └─ Auth Tag: (16 bytes)                                        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### 48.5.2 Plain Text vs Encrypted
+```
+# Plain Text (Current) - INSECURE
+data/users/documents.json:
+{
+  "user_001": {
+    "name": "John Doe",
+    "email": "john@example.com",
+    "ssn": "123-45-6789",        // ❌ VISIBLE!
+    "creditCard": "4111111111111111"  // ❌ VISIBLE!
+  }
+}
+
+# Encrypted (Future) - SECURE
+data/users/documents.enc:
+ADVG0001[key_id_uuid][entry1][entry2]...
+         │
+         └─► Entry: [doc_id][nonce][encrypted_blob][auth_tag]
+                              │
+                              └─► Cannot read without key ✓
+```
+
+### 48.6 Key Management
+
+#### 48.6.1 Key Hierarchy
+```
+                    ┌─────────────────┐
+                    │   Master Key    │ ← Stored in HSM/KMS/File
+                    │   (Root KEK)    │
+                    └────────┬────────┘
+                             │
+         ┌───────────────────┼───────────────────┐
+         ▼                   ▼                   ▼
+   ┌───────────┐       ┌───────────┐       ┌───────────┐
+   │ Database  │       │ Database  │       │   WAL     │
+   │ Key (HR)  │       │ Key (CRM) │       │   Key     │
+   └─────┬─────┘       └─────┬─────┘       └───────────┘
+         │                   │
+    ┌────┴────┐         ┌────┴────┐
+    ▼         ▼         ▼         ▼
+┌──────┐ ┌──────┐   ┌──────┐ ┌──────┐
+│users │ │salary│   │leads │ │deals │  ← Collection Keys
+│ Key  │ │ Key  │   │ Key  │ │ Key  │
+└──────┘ └──────┘   └──────┘ └──────┘
+```
+
+#### 48.6.2 Key Manager Interface
+```csharp
+public interface IKeyManager
+{
+    Task<byte[]> GetMasterKeyAsync(CancellationToken ct = default);
+    Task<byte[]> GetCollectionKeyAsync(string collection, CancellationToken ct = default);
+    Task<byte[]> GetDatabaseKeyAsync(string database, CancellationToken ct = default);
+    Task RotateMasterKeyAsync(CancellationToken ct = default);
+    Task RotateCollectionKeyAsync(string collection, CancellationToken ct = default);
+    KeyInfo GetKeyInfo(string keyId);
+}
+
+public record KeyInfo(
+    string KeyId,
+    DateTime CreatedAt,
+    DateTime? ExpiresAt,
+    KeyStatus Status,
+    string Algorithm);
+
+public enum KeyStatus { Active, RotationPending, Deprecated, Destroyed }
+```
+
+#### 48.6.3 Key Storage Options
+| Provider | Security | Complexity | Use Case |
+|----------|----------|------------|----------|
+| **Environment Variable** | ⭐ Low | Simple | Development only |
+| **Encrypted File** | ⭐⭐ Medium | Simple | Single server, testing |
+| **HashiCorp Vault** | ⭐⭐⭐⭐ High | Medium | Production (on-prem) |
+| **AWS KMS** | ⭐⭐⭐⭐ High | Medium | AWS deployments |
+| **Azure Key Vault** | ⭐⭐⭐⭐ High | Medium | Azure deployments |
+| **GCP Cloud KMS** | ⭐⭐⭐⭐ High | Medium | GCP deployments |
+| **HSM** | ⭐⭐⭐⭐⭐ Highest | Complex | Maximum security |
+
+### 48.7 Configuration
+
+#### 48.7.1 Encryption Configuration
+```json
+{
+  "Storage": {
+    "DataPath": "./data",
+
+    "Encryption": {
+      "Enabled": false,
+      "Algorithm": "AES-256-GCM",
+      "KeyDerivation": "HKDF-SHA256",
+
+      "KeyManagement": {
+        "Provider": "File",
+        "MasterKeyPath": "/etc/nosql/master.key",
+        "MasterKeyEnvVar": "NOSQL_MASTER_KEY",
+        "RotationIntervalDays": 90,
+        "KeyCacheSeconds": 300
+      },
+
+      "Scope": {
+        "Documents": true,
+        "Indexes": true,
+        "WAL": true,
+        "Metadata": false
+      },
+
+      "Compression": {
+        "Enabled": true,
+        "Algorithm": "LZ4",
+        "BeforeEncryption": true
+      }
+    }
+  }
+}
+```
+
+#### 48.7.2 Per-Collection Override
+```json
+{
+  "Collections": {
+    "users": {
+      "Encryption": { "Enabled": true }
+    },
+    "logs": {
+      "Encryption": { "Enabled": false }
+    },
+    "financial_data": {
+      "Encryption": {
+        "Enabled": true,
+        "KeyId": "financial-key-001"
+      }
+    }
+  }
+}
+```
+
+### 48.8 WAL & Index Encryption
+
+#### 48.8.1 WAL Encryption
+```csharp
+public class EncryptedWALEntry
+{
+    public long SequenceNumber { get; set; }
+    public byte[] Nonce { get; set; }           // 12 bytes
+    public byte[] EncryptedPayload { get; set; } // Encrypted WALEntry
+    public byte[] AuthTag { get; set; }          // 16 bytes
+    public uint Checksum { get; set; }           // CRC32
+}
+```
+
+#### 48.8.2 Index Encryption Trade-offs
+| Index Type | Encrypt? | Impact | Solution |
+|------------|----------|--------|----------|
+| **B-Tree** | Partial | No range queries | Deterministic encryption for keys |
+| **Hash** | Yes | Minimal | Point lookups work |
+| **Full-Text** | No | N/A | Use searchable encryption or skip |
+| **Geospatial** | No | N/A | Requires plaintext coordinates |
+
+### 48.9 Migration Tool
+
+#### 48.9.1 Migration Interface
+```csharp
+public interface IStorageMigration
+{
+    Task<MigrationResult> MigrateToEncryptedAsync(
+        MigrationOptions options,
+        IProgress<MigrationProgress>? progress = null,
+        CancellationToken ct = default);
+
+    Task<MigrationResult> MigrateToPlainTextAsync(
+        MigrationOptions options,
+        CancellationToken ct = default);
+}
+```
+
+#### 48.9.2 Migration Steps
+```
+1. BACKUP    → Create full backup before migration
+2. PREPARE   → Initialize keys, create target directory
+3. MIGRATE   → Read → Encrypt → Write (per collection)
+4. VERIFY    → Compare counts, sample decrypt, verify indexes
+5. SWITCH    → Update config, restart, remove old files
+```
+
+### 48.10 Performance Impact
+
+| Operation | Plain Text | Encrypted | Overhead |
+|-----------|------------|-----------|----------|
+| Write 1KB | 0.1ms | 0.15ms | +50% |
+| Read 1KB | 0.05ms | 0.08ms | +60% |
+| Write 100KB | 1ms | 1.5ms | +50% |
+| Read 100KB | 0.5ms | 0.8ms | +60% |
+| Index lookup | 0.01ms | 0.02ms | +100% |
+
+**Optimizations:**
+- Hardware AES-NI acceleration
+- Key caching in memory
+- Compression before encryption
+- Selective collection encryption
+
+### 48.11 Security Checklist
+
+- [ ] Master key never stored in plain text
+- [ ] Use authenticated encryption (AES-GCM)
+- [ ] Unique nonce per encryption
+- [ ] Per-document key derivation
+- [ ] Encrypt WAL entries
+- [ ] Secure key rotation
+- [ ] Memory protection (SecureString)
+- [ ] Audit logging for key access
+- [ ] Backup & recovery procedures
+- [ ] Compliance docs (GDPR, HIPAA, PCI-DSS)
+
+---
+
+## 49. Examples to be Created (AdvGenNoSqlServer.Examples)
 
 Each new command/feature must have corresponding examples in the Examples project.
 

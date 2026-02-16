@@ -6,6 +6,19 @@
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\AdvGenNoSqlServer.Network.xml</DocumentationFile>
+
+    <!-- NuGet Package Metadata -->
+    <PackageId>AdvGenNoSqlServer.Network</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>AdvanGeneration</Authors>
+    <Company>AdvanGeneration Pty. Ltd.</Company>
+    <Description>Network library for AdvGen NoSQL Server - TCP/IP communication and protocol handling</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/michaelleungadvgen/AdvGenNoSQLServer</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/michaelleungadvgen/AdvGenNoSQLServer</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>nosql;database;network;tcp</PackageTags>
+    <Copyright>Copyright (c) 2026 AdvanGeneration Pty. Ltd.</Copyright>
   </PropertyGroup>
 
   <ItemGroup>

@@ -6,7 +6,25 @@
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\AdvGenNoSqlServer.Client.xml</DocumentationFile>
+
+    <!-- NuGet Package Metadata -->
+    <PackageId>AdvGenNoSqlServer.Client</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>AdvanGeneration</Authors>
+    <Company>AdvanGeneration Pty. Ltd.</Company>
+    <Description>Client library for AdvGen NoSQL Server - A high-performance embedded NoSQL database for .NET</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/michaelleungadvgen/AdvGenNoSQLServer</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/michaelleungadvgen/AdvGenNoSQLServer</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>nosql;database;client;embedded;document-database</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Copyright>Copyright (c) 2026 AdvanGeneration Pty. Ltd.</Copyright>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\README.md" Pack="true" PackagePath="\"/>
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\AdvGenNoSqlServer.Core\AdvGenNoSqlServer.Core.csproj" />
