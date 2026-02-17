@@ -99,7 +99,7 @@ Files to review:
 #### 3.1.2 Caching Module
 Files to review:
 - [x] `Caching/ICacheManager.cs` - Cache interface **[REVIEWED - OK: Simple cache interface. 2 LOW: API-003 (missing license), API-004 (no async)]**
-- [ ] `Caching/MemoryCacheManager.cs` - Basic memory cache
+- [x] `Caching/MemoryCacheManager.cs` - Basic memory cache **[REVIEWED - 1 ISSUE: BUG-004 (Medium - Clear() throws NotImplementedException, breaks interface contract)]**
 - [ ] `Caching/AdvancedMemoryCacheManager.cs` - Advanced caching
 - [ ] `Caching/LruCache.cs` - LRU eviction implementation
 
@@ -738,6 +738,7 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | API-002 | IAuditLogger.cs | 83-103 | Low | Query methods (GetRecentEvents, GetEventsByUser, GetEventsByType) should have async variants for file/database access patterns. | Open |
 | API-003 | ICacheManager.cs | 1 | Low | Missing file header/license comment that other files have. Inconsistent code style. | Open |
 | API-004 | ICacheManager.cs | 7-31 | Low | No async variants of cache operations (GetAsync, SetAsync). Needed for distributed cache implementations. | Open |
+| BUG-004 | MemoryCacheManager.cs | 33-38 | Medium | `Clear()` throws `NotImplementedException` - breaks ICacheManager interface contract. Callers expecting Clear() to work will crash. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
@@ -1826,6 +1827,37 @@ Task<IReadOnlyList<AuditEvent>> GetEventsByUserAsync(string username, int count 
 Task<IReadOnlyList<AuditEvent>> GetEventsByTypeAsync(AuditEventType eventType, int count = 100, CancellationToken cancellationToken = default);
 ```
 2. Or document that specialized methods delegate to buffered async queue internally
+
+### BUG-004: Implement Clear() or Change Interface (Medium)
+**File:** `MemoryCacheManager.cs` lines 33-38
+**Current:** `Clear()` throws `NotImplementedException`, breaking ICacheManager contract
+**Required Action:** Either:
+1. Track keys and implement Clear:
+```csharp
+private readonly ConcurrentDictionary<string, byte> _keys = new();
+
+public void Set(string key, Document document, int expirationMinutes = 30)
+{
+    _keys.TryAdd(key, 0);
+    var options = new MemoryCacheEntryOptions()
+        .SetSlidingExpiration(TimeSpan.FromMinutes(expirationMinutes))
+        .RegisterPostEvictionCallback((key, value, reason, state) =>
+        {
+            _keys.TryRemove((string)key, out _);
+        });
+    _cache.Set(key, document, options);
+}
+
+public void Clear()
+{
+    foreach (var key in _keys.Keys)
+    {
+        _cache.Remove(key);
+    }
+    _keys.Clear();
+}
+```
+2. Or remove `Clear()` from `ICacheManager` interface if not needed
 
 ---
 
