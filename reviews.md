@@ -101,7 +101,7 @@ Files to review:
 - [x] `Caching/ICacheManager.cs` - Cache interface **[REVIEWED - OK: Simple cache interface. 2 LOW: API-003 (missing license), API-004 (no async)]**
 - [x] `Caching/MemoryCacheManager.cs` - Basic memory cache **[REVIEWED - 1 ISSUE: BUG-004 (Medium - Clear() throws NotImplementedException, breaks interface contract)]**
 - [x] `Caching/AdvancedMemoryCacheManager.cs` - Advanced caching **[REVIEWED - EXCELLENT: LRU eviction, TTL, size limits, statistics, events, IDisposable. No issues.]**
-- [ ] `Caching/LruCache.cs` - LRU eviction implementation
+- [x] `Caching/LruCache.cs` - LRU eviction implementation **[REVIEWED - GOOD: O(1) ops, RWLS, high-precision timer, background cleanup. 2 LOW: CONC-008 (lock during full enumeration), MEM-006 (entry class design)]**
 
 **Review Focus:**
 - Cache eviction policies
@@ -739,6 +739,8 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | API-003 | ICacheManager.cs | 1 | Low | Missing file header/license comment that other files have. Inconsistent code style. | Open |
 | API-004 | ICacheManager.cs | 7-31 | Low | No async variants of cache operations (GetAsync, SetAsync). Needed for distributed cache implementations. | Open |
 | BUG-004 | MemoryCacheManager.cs | 33-38 | Medium | `Clear()` throws `NotImplementedException` - breaks ICacheManager interface contract. Callers expecting Clear() to work will crash. | Open |
+| CONC-008 | LruCache.cs | 391 | Low | `_cache.Values.Where(...).ToList()` under write lock enumerates all values. For large caches, holds lock for long time. Consider batching. | Open |
+| MEM-006 | LruCache.cs | 14-21 | Low | `LruCacheEntry<TValue>` has mutable properties with `default!` for Value. Could be null for reference types despite non-nullable annotation. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
