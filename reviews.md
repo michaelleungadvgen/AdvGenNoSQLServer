@@ -85,7 +85,7 @@ Files to review:
 - [x] `Authentication/RoleManager.cs` - RBAC implementation **[REVIEWED - 4 ISSUES: SEC-011 (High), SEC-012-014 (Medium/Low). Thread safety + authorization needed]**
 - [x] `Authentication/AuditLogger.cs` - Audit logging **[REVIEWED - GOOD: ConcurrentQueue, SemaphoreSlim, file rotation, critical event flush. 3 LOW: SEC-015, PERF-001, OPS-001]**
 - [x] `Authentication/EncryptionService.cs` - Data encryption **[REVIEWED - EXCELLENT: AES-256-GCM, proper nonce, PBKDF2-100k, ZeroMemory cleanup. 2 LOW: SEC-009, SEC-010]**
-- [ ] `Authentication/IAuditLogger.cs` - Interface definitions
+- [x] `Authentication/IAuditLogger.cs` - Interface definitions **[REVIEWED - GOOD: Comprehensive audit coverage, correlation ID, UTC timestamps. 2 LOW: API-001/002 - async consistency]**
 - [ ] `Authentication/IJwtTokenProvider.cs` - Interface definitions
 - [ ] `Authentication/IEncryptionService.cs` - Interface definitions
 
@@ -734,6 +734,8 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | AUDIT-001 | AuthenticationService.cs | 226 | Medium | Uses `Console.WriteLine` for audit logging instead of existing `IAuditLogger` interface. Audit logs are lost/inconsistent. | Open |
 | CONC-007 | AuthenticationService.cs | 32-42 | Medium | Non-atomic `RegisterUser` - if auth registration succeeds but role assignment fails, user exists without a role. Should cleanup on failure. | Open |
 | CODE-011 | AuthenticationService.cs | 36-42 | Low | Silent failure when initial role doesn't exist. Role assignment silently skipped. Should log warning or throw. | Open |
+| API-001 | IAuditLogger.cs | 16-80 | Low | Sync/async inconsistency. Only `Log`/`LogAsync` pair exists. Specialized methods (LogAuthentication, LogAuthorizationFailure, etc.) only have sync versions. | Open |
+| API-002 | IAuditLogger.cs | 83-103 | Low | Query methods (GetRecentEvents, GetEventsByUser, GetEventsByType) should have async variants for file/database access patterns. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
@@ -1805,6 +1807,23 @@ if (!string.IsNullOrEmpty(initialRole))
     }
 }
 ```
+
+### API-001/API-002: Add Async Interface Consistency (Low)
+**File:** `IAuditLogger.cs`
+**Current:** Only `LogAsync` exists, specialized methods are sync-only. Query methods have no async variants.
+**Recommendation:** For interface consistency, either:
+1. Add async variants of specialized methods:
+```csharp
+Task LogAuthenticationAsync(string username, string? ipAddress = null, string? details = null, CancellationToken cancellationToken = default);
+Task LogAuthenticationFailureAsync(string username, string? ipAddress = null, string? reason = null, CancellationToken cancellationToken = default);
+// ... etc for other Log* methods
+
+// Async query methods for I/O operations
+Task<IReadOnlyList<AuditEvent>> GetRecentEventsAsync(int count = 100, CancellationToken cancellationToken = default);
+Task<IReadOnlyList<AuditEvent>> GetEventsByUserAsync(string username, int count = 100, CancellationToken cancellationToken = default);
+Task<IReadOnlyList<AuditEvent>> GetEventsByTypeAsync(AuditEventType eventType, int count = 100, CancellationToken cancellationToken = default);
+```
+2. Or document that specialized methods delegate to buffered async queue internally
 
 ---
 
