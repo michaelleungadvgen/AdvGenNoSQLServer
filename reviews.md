@@ -111,7 +111,7 @@ Files to review:
 
 #### 3.1.3 Transactions Module
 Files to review:
-- [ ] `Transactions/ITransactionManager.cs` - Transaction interface
+- [x] `Transactions/ITransactionManager.cs` - Transaction interface **[REVIEWED - OK: Basic transaction interface. 1 LOW: API-005 (missing license), string OperationType not enum]**
 - [x] `Transactions/TransactionManager.cs` - Basic transaction management **[REVIEWED - STUB: Doesn't actually commit/rollback! 4 ISSUES: DATA-010 (High - no-op), MEM-004, CONC-006 (Medium), DATA-011 (Low)]**
 - [x] `Transactions/AdvancedTransactionManager.cs` - Advanced transactions **[REVIEWED - STUB: Also doesn't commit/rollback! Has timeout/cleanup but same DATA-012 no-op issue. MEM-005 - completed txns never removed]**
 - [ ] `Transactions/ITransactionCoordinator.cs` - Coordinator interface
@@ -741,6 +741,7 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | BUG-004 | MemoryCacheManager.cs | 33-38 | Medium | `Clear()` throws `NotImplementedException` - breaks ICacheManager interface contract. Callers expecting Clear() to work will crash. | Open |
 | CONC-008 | LruCache.cs | 391 | Low | `_cache.Values.Where(...).ToList()` under write lock enumerates all values. For large caches, holds lock for long time. Consider batching. | Open |
 | MEM-006 | LruCache.cs | 14-21 | Low | `LruCacheEntry<TValue>` has mutable properties with `default!` for Value. Could be null for reference types despite non-nullable annotation. | Open |
+| API-005 | ITransactionManager.cs | 1 | Low | Missing file header/license comment. Also `TransactionOperation.OperationType` uses string instead of enum for type safety. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
