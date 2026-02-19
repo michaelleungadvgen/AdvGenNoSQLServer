@@ -115,7 +115,7 @@ Files to review:
 - [x] `Transactions/TransactionManager.cs` - Basic transaction management **[REVIEWED - STUB: Doesn't actually commit/rollback! 4 ISSUES: DATA-010 (High - no-op), MEM-004, CONC-006 (Medium), DATA-011 (Low)]**
 - [x] `Transactions/AdvancedTransactionManager.cs` - Advanced transactions **[REVIEWED - STUB: Also doesn't commit/rollback! Has timeout/cleanup but same DATA-012 no-op issue. MEM-005 - completed txns never removed]**
 - [x] `Transactions/ITransactionCoordinator.cs` - Coordinator interface **[REVIEWED - EXCELLENT: Isolation levels, savepoints, 2PC states, async with cancellation, events. No issues.]**
-- [ ] `Transactions/TransactionCoordinator.cs` - Distributed transactions
+- [x] `Transactions/TransactionCoordinator.cs` - Distributed transactions **[REVIEWED - GOOD: Full 2PC coord, WAL integration, deadlock handling, cleanup. 3 ISSUES: ASYNC-002, PERF-012, SEC-035 (Medium/Low)]**
 - [ ] `Transactions/TransactionContext.cs` - Transaction context
 - [ ] `Transactions/ILockManager.cs` - Lock interface
 - [x] `Transactions/LockManager.cs` - Lock implementation **[REVIEWED - GOOD: Wait-for graph deadlock detection, RWLS, victim selection. 4 ISSUES: PERF-003 (High), CONC-001/002, DATA-003]**
@@ -742,6 +742,9 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | CONC-008 | LruCache.cs | 391 | Low | `_cache.Values.Where(...).ToList()` under write lock enumerates all values. For large caches, holds lock for long time. Consider batching. | Open |
 | MEM-006 | LruCache.cs | 14-21 | Low | `LruCacheEntry<TValue>` has mutable properties with `default!` for Value. Could be null for reference types despite non-nullable annotation. | Open |
 | API-005 | ITransactionManager.cs | 1 | Low | Missing file header/license comment. Also `TransactionOperation.OperationType` uses string instead of enum for type safety. | Open |
+| ASYNC-002 | TransactionCoordinator.cs | 289, 301 | Medium | `async void` in event handlers and timer callbacks. Exceptions would crash process if not caught. Methods have try-catch but risky pattern. | Open |
+| PERF-012 | TransactionCoordinator.cs | 359 | Medium | `AbortAsync(...).Wait()` sync-over-async in Dispose. Can cause deadlocks. | Open |
+| SEC-035 | TransactionCoordinator.cs | 313-316 | Low | Silent exception swallowing in cleanup. Should log error for debugging. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
