@@ -116,7 +116,7 @@ Files to review:
 - [x] `Transactions/AdvancedTransactionManager.cs` - Advanced transactions **[REVIEWED - STUB: Also doesn't commit/rollback! Has timeout/cleanup but same DATA-012 no-op issue. MEM-005 - completed txns never removed]**
 - [x] `Transactions/ITransactionCoordinator.cs` - Coordinator interface **[REVIEWED - EXCELLENT: Isolation levels, savepoints, 2PC states, async with cancellation, events. No issues.]**
 - [x] `Transactions/TransactionCoordinator.cs` - Distributed transactions **[REVIEWED - GOOD: Full 2PC coord, WAL integration, deadlock handling, cleanup. 3 ISSUES: ASYNC-002, PERF-012, SEC-035 (Medium/Low)]**
-- [ ] `Transactions/TransactionContext.cs` - Transaction context
+- [x] `Transactions/TransactionContext.cs` - Transaction context **[REVIEWED - GOOD: Full context, savepoints, read/write sets, WAL. 3 ISSUES: BUG-005 (Medium - incomplete savepoint rollback), ASYNC-003, CONC-009 (Low)]**
 - [ ] `Transactions/ILockManager.cs` - Lock interface
 - [x] `Transactions/LockManager.cs` - Lock implementation **[REVIEWED - GOOD: Wait-for graph deadlock detection, RWLS, victim selection. 4 ISSUES: PERF-003 (High), CONC-001/002, DATA-003]**
 - [ ] `Transactions/IWriteAheadLog.cs` - WAL interface
@@ -745,6 +745,9 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | ASYNC-002 | TransactionCoordinator.cs | 289, 301 | Medium | `async void` in event handlers and timer callbacks. Exceptions would crash process if not caught. Methods have try-catch but risky pattern. | Open |
 | PERF-012 | TransactionCoordinator.cs | 359 | Medium | `AbortAsync(...).Wait()` sync-over-async in Dispose. Can cause deadlocks. | Open |
 | SEC-035 | TransactionCoordinator.cs | 313-316 | Low | Silent exception swallowing in cleanup. Should log error for debugging. | Open |
+| BUG-005 | TransactionContext.cs | 239-240 | Medium | `RollbackToSavepointAsync` resets operation count but doesn't undo operations. WriteSet is not restored - savepoint rollback is incomplete. | Open |
+| ASYNC-003 | TransactionContext.cs | 378 | Low | Fire-and-forget `_ = RollbackAsync()` in Dispose. Exceptions lost, rollback may not complete. | Open |
+| CONC-009 | TransactionContext.cs | 279 | Low | Lock type uses `Shared` for non-Serializable writes. Writes should always use `Exclusive` to prevent write-write conflicts. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
