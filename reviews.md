@@ -131,7 +131,7 @@ Files to review:
 
 #### 3.1.4 Pooling Module
 Files to review:
-- [ ] `Pooling/IObjectPool.cs` - Pool interface
+- [x] `Pooling/IObjectPool.cs` - Pool interface **[REVIEWED - GOOD: Clean Rent/Return pattern, PoolStatistics with Interlocked. No issues.]**
 - [ ] `Pooling/ObjectPool.cs` - Generic object pool
 - [ ] `Pooling/BufferPool.cs` - Buffer pooling
 - [ ] `Pooling/PooledObject.cs` - Pooled object wrapper
