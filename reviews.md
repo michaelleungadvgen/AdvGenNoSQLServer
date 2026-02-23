@@ -132,7 +132,7 @@ Files to review:
 #### 3.1.4 Pooling Module
 Files to review:
 - [x] `Pooling/IObjectPool.cs` - Pool interface **[REVIEWED - GOOD: Clean Rent/Return pattern, PoolStatistics with Interlocked. No issues.]**
-- [ ] `Pooling/ObjectPool.cs` - Generic object pool
+- [x] `Pooling/ObjectPool.cs` - Generic object pool **[REVIEWED - GOOD: ConcurrentBag, factory/reset actions, pre-populate. 1 NOTE: CONC-010 (race in max check, acceptable for pool)]**
 - [ ] `Pooling/BufferPool.cs` - Buffer pooling
 - [ ] `Pooling/PooledObject.cs` - Pooled object wrapper
 - [ ] `Pooling/StringBuilderPool.cs` - StringBuilder pooling
@@ -748,6 +748,7 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | BUG-005 | TransactionContext.cs | 239-240 | Medium | `RollbackToSavepointAsync` resets operation count but doesn't undo operations. WriteSet is not restored - savepoint rollback is incomplete. | Open |
 | ASYNC-003 | TransactionContext.cs | 378 | Low | Fire-and-forget `_ = RollbackAsync()` in Dispose. Exceptions lost, rollback may not complete. | Open |
 | CONC-009 | TransactionContext.cs | 279 | Low | Lock type uses `Shared` for non-Serializable writes. Writes should always use `Exclusive` to prevent write-write conflicts. | Open |
+| CONC-010 | ObjectPool.cs | 89-99 | Info | Non-atomic check `_count >= _maxCapacity` before add. Could exceed max capacity briefly under concurrent access. Acceptable for pool semantics. | Info |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
