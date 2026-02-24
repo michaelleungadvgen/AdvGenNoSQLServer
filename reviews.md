@@ -133,7 +133,7 @@ Files to review:
 Files to review:
 - [x] `Pooling/IObjectPool.cs` - Pool interface **[REVIEWED - GOOD: Clean Rent/Return pattern, PoolStatistics with Interlocked. No issues.]**
 - [x] `Pooling/ObjectPool.cs` - Generic object pool **[REVIEWED - GOOD: ConcurrentBag, factory/reset actions, pre-populate. 1 NOTE: CONC-010 (race in max check, acceptable for pool)]**
-- [ ] `Pooling/BufferPool.cs` - Buffer pooling
+- [x] `Pooling/BufferPool.cs` - Buffer pooling **[REVIEWED - GOOD: ArrayPool<byte> backing, PooledMemory struct, AsSpan/AsMemory. No issues.]**
 - [ ] `Pooling/PooledObject.cs` - Pooled object wrapper
 - [ ] `Pooling/StringBuilderPool.cs` - StringBuilder pooling
 - [ ] `Pooling/ObjectPoolManager.cs` - Pool management
