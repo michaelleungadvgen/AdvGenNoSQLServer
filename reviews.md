@@ -135,7 +135,7 @@ Files to review:
 - [x] `Pooling/ObjectPool.cs` - Generic object pool **[REVIEWED - GOOD: ConcurrentBag, factory/reset actions, pre-populate. 1 NOTE: CONC-010 (race in max check, acceptable for pool)]**
 - [x] `Pooling/BufferPool.cs` - Buffer pooling **[REVIEWED - GOOD: ArrayPool<byte> backing, PooledMemory struct, AsSpan/AsMemory. No issues.]**
 - [x] `Pooling/PooledObject.cs` - Pooled object wrapper **[REVIEWED - EXCELLENT: Readonly struct, implicit conversion, RentAndExecute extensions, async variants. No issues.]**
-- [ ] `Pooling/StringBuilderPool.cs` - StringBuilder pooling
+- [x] `Pooling/StringBuilderPool.cs` - StringBuilder pooling **[REVIEWED - EXCELLENT: Capacity management, PooledStringBuilder fluent API, implicit string conversion. No issues.]**
 - [ ] `Pooling/ObjectPoolManager.cs` - Pool management
 
 **Review Focus:**
