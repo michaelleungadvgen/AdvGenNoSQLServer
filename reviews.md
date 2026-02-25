@@ -147,7 +147,7 @@ Files to review:
 #### 3.1.5 Configuration Module
 Files to review:
 - [x] `Configuration/IConfigurationManager.cs` - Config interface **[REVIEWED - GOOD: Hot-reload support, ConfigurationChanged event. No issues.]**
-- [ ] `Configuration/ConfigurationManager.cs` - Configuration management
+- [x] `Configuration/ConfigurationManager.cs` - Configuration management **[REVIEWED - GOOD: Hot-reload with FSW, env var override, debouncing. 1 ISSUE: CONC-011 (Medium - mutable config exposed)]**
 - [ ] `Configuration/ServerConfiguration.cs` - Server config model
 
 **Review Focus:**
@@ -750,6 +750,7 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | CONC-009 | TransactionContext.cs | 279 | Low | Lock type uses `Shared` for non-Serializable writes. Writes should always use `Exclusive` to prevent write-write conflicts. | Open |
 | CONC-010 | ObjectPool.cs | 89-99 | Info | Non-atomic check `_count >= _maxCapacity` before add. Could exceed max capacity briefly under concurrent access. Acceptable for pool semantics. | Info |
 | CODE-012 | ObjectPoolManager.cs | 141-153 | Low | Uses reflection to access Statistics property in `GetAllStatistics`. Fragile and slow. Consider adding Statistics to common interface. | Open |
+| CONC-011 | ConfigurationManager.cs | 88 | Medium | `Configuration` property returns mutable reference directly. Callers can modify internal state. Return clone or readonly view. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
