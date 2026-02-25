@@ -136,7 +136,7 @@ Files to review:
 - [x] `Pooling/BufferPool.cs` - Buffer pooling **[REVIEWED - GOOD: ArrayPool<byte> backing, PooledMemory struct, AsSpan/AsMemory. No issues.]**
 - [x] `Pooling/PooledObject.cs` - Pooled object wrapper **[REVIEWED - EXCELLENT: Readonly struct, implicit conversion, RentAndExecute extensions, async variants. No issues.]**
 - [x] `Pooling/StringBuilderPool.cs` - StringBuilder pooling **[REVIEWED - EXCELLENT: Capacity management, PooledStringBuilder fluent API, implicit string conversion. No issues.]**
-- [ ] `Pooling/ObjectPoolManager.cs` - Pool management
+- [x] `Pooling/ObjectPoolManager.cs` - Pool management **[REVIEWED - GOOD: Named pool registry, GetOrCreatePool, disposal handling. 1 LOW: CODE-012 (reflection in GetAllStatistics)]**
 
 **Review Focus:**
 - Pool sizing strategies
@@ -749,6 +749,7 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | ASYNC-003 | TransactionContext.cs | 378 | Low | Fire-and-forget `_ = RollbackAsync()` in Dispose. Exceptions lost, rollback may not complete. | Open |
 | CONC-009 | TransactionContext.cs | 279 | Low | Lock type uses `Shared` for non-Serializable writes. Writes should always use `Exclusive` to prevent write-write conflicts. | Open |
 | CONC-010 | ObjectPool.cs | 89-99 | Info | Non-atomic check `_count >= _maxCapacity` before add. Could exceed max capacity briefly under concurrent access. Acceptable for pool semantics. | Info |
+| CODE-012 | ObjectPoolManager.cs | 141-153 | Low | Uses reflection to access Statistics property in `GetAllStatistics`. Fragile and slow. Consider adding Statistics to common interface. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
