@@ -171,7 +171,7 @@ Files to review:
 
 #### 3.2.1 Document Stores
 Files to review:
-- [ ] `IDocumentStore.cs` - Store interface
+- [x] `IDocumentStore.cs` - Store interface **[REVIEWED - No issues. Well-designed async CRUD interface with typed exception hierarchy]**
 - [ ] `DocumentStore.cs` - Basic document store
 - [ ] `IPersistentDocumentStore.cs` - Persistent store interface
 - [x] `PersistentDocumentStore.cs` - Persistent implementation **[REVIEWED - 4 ISSUES: DATA-006 (High), DATA-007, CODE-001, CONC-003. Non-atomic writes + reflection usage]**
