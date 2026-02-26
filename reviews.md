@@ -172,7 +172,7 @@ Files to review:
 #### 3.2.1 Document Stores
 Files to review:
 - [x] `IDocumentStore.cs` - Store interface **[REVIEWED - No issues. Well-designed async CRUD interface with typed exception hierarchy]**
-- [ ] `DocumentStore.cs` - Basic document store
+- [x] `DocumentStore.cs` - Basic document store **[REVIEWED - 1 ISSUE: CONC-012 (Low - unused ReaderWriterLockSlim, missing IDisposable)]**
 - [ ] `IPersistentDocumentStore.cs` - Persistent store interface
 - [x] `PersistentDocumentStore.cs` - Persistent implementation **[REVIEWED - 4 ISSUES: DATA-006 (High), DATA-007, CODE-001, CONC-003. Non-atomic writes + reflection usage]**
 - [ ] `InMemoryDocumentCollection.cs` - In-memory collection
@@ -751,6 +751,7 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | CONC-010 | ObjectPool.cs | 89-99 | Info | Non-atomic check `_count >= _maxCapacity` before add. Could exceed max capacity briefly under concurrent access. Acceptable for pool semantics. | Info |
 | CODE-012 | ObjectPoolManager.cs | 141-153 | Low | Uses reflection to access Statistics property in `GetAllStatistics`. Fragile and slow. Consider adding Statistics to common interface. | Open |
 | CONC-011 | ConfigurationManager.cs | 88 | Medium | `Configuration` property returns mutable reference directly. Callers can modify internal state. Return clone or readonly view. | Open |
+| CONC-012 | DocumentStore.cs | 17 | Low | Unused `ReaderWriterLockSlim _collectionsLock` declared but never used. Dead code and missing disposal (IDisposable not implemented). | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
