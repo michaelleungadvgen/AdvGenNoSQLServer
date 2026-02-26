@@ -176,7 +176,7 @@ Files to review:
 - [x] `IPersistentDocumentStore.cs` - Persistent store interface **[REVIEWED - No issues. Clean interface extending IDocumentStore with persistence methods]**
 - [x] `PersistentDocumentStore.cs` - Persistent implementation **[REVIEWED - 4 ISSUES: DATA-006 (High), DATA-007, CODE-001, CONC-003. Non-atomic writes + reflection usage]**
 - [x] `InMemoryDocumentCollection.cs` - In-memory collection **[REVIEWED - 1 ISSUE: CONC-013 (Low - non-atomic Clear() can cause count desync)]**
-- [ ] `GarbageCollectedDocumentStore.cs` - GC-enabled store
+- [x] `GarbageCollectedDocumentStore.cs` - GC-enabled store **[REVIEWED - 1 ISSUE: CONC-014 (Low - race condition in DeleteAsync, stale version)]**
 - [ ] `GarbageCollector.cs` - Document garbage collection
 - [x] `HybridDocumentStore.cs` - Hybrid storage **[REVIEWED - 4 ISSUES: DATA-013 (High - silent exceptions), DATA-014 (Medium - non-atomic writes), DATA-015 (Medium - race condition), SEC-033 (Low - silent write failures)]**
 - [ ] `TtlDocumentStore.cs` - TTL-enabled store
@@ -753,6 +753,7 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | CONC-011 | ConfigurationManager.cs | 88 | Medium | `Configuration` property returns mutable reference directly. Callers can modify internal state. Return clone or readonly view. | Open |
 | CONC-012 | DocumentStore.cs | 17 | Low | Unused `ReaderWriterLockSlim _collectionsLock` declared but never used. Dead code and missing disposal (IDisposable not implemented). | Open |
 | CONC-013 | InMemoryDocumentCollection.cs | 188-192 | Low | Non-atomic `Clear()` - between `_documents.Clear()` and `Interlocked.Exchange`, concurrent Insert can cause Count to be out of sync with actual documents. | Open |
+| CONC-014 | GarbageCollectedDocumentStore.cs | 50-67 | Low | Race condition in `DeleteAsync` - document version captured at line 53 may be stale by line 57 if another thread modifies document. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
