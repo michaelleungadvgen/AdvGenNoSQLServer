@@ -179,7 +179,7 @@ Files to review:
 - [x] `GarbageCollectedDocumentStore.cs` - GC-enabled store **[REVIEWED - 1 ISSUE: CONC-014 (Low - race condition in DeleteAsync, stale version)]**
 - [x] `GarbageCollector.cs` - Document garbage collection **[REVIEWED - 1 ISSUE: DATA-016 (Medium - tombstones keyed by docId only, not collection:docId)]**
 - [x] `HybridDocumentStore.cs` - Hybrid storage **[REVIEWED - 4 ISSUES: DATA-013 (High - silent exceptions), DATA-014 (Medium - non-atomic writes), DATA-015 (Medium - race condition), SEC-033 (Low - silent write failures)]**
-- [ ] `TtlDocumentStore.cs` - TTL-enabled store
+- [x] `TtlDocumentStore.cs` - TTL-enabled store **[REVIEWED - 2 ISSUES: DATA-017 (Medium - TTL registration before operation), DATA-018 (Low - hardcoded field in ClearCollection)]**
 - [ ] `AtomicUpdateDocumentStore.cs` - Atomic update support
 - [ ] `IAtomicUpdateOperations.cs` - Atomic operations interface
 
@@ -755,6 +755,8 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | CONC-013 | InMemoryDocumentCollection.cs | 188-192 | Low | Non-atomic `Clear()` - between `_documents.Clear()` and `Interlocked.Exchange`, concurrent Insert can cause Count to be out of sync with actual documents. | Open |
 | CONC-014 | GarbageCollectedDocumentStore.cs | 50-67 | Low | Race condition in `DeleteAsync` - document version captured at line 53 may be stale by line 57 if another thread modifies document. | Open |
 | DATA-016 | GarbageCollector.cs | 236 | Medium | Tombstones keyed by `documentId` alone, not `collection:documentId`. If different collections have same document ID, only one tombstone is tracked, causing incorrect GC. | Open |
+| DATA-017 | TtlDocumentStore.cs | 67-75, 92-100 | Medium | TTL registration happens BEFORE InsertAsync/UpdateAsync. If operation fails, document is still registered for TTL tracking, causing inconsistent state. | Open |
+| DATA-018 | TtlDocumentStore.cs | 161-165 | Low | `ClearCollectionAsync` recreates TTL index with hardcoded `"expireAt"` field, losing original configuration. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
