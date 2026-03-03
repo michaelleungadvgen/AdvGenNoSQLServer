@@ -26,6 +26,24 @@ public class DocumentStore : IDocumentStore
     }
 
     /// <inheritdoc />
+    public Task<IEnumerable<Document>> GetManyAsync(string collectionName, IEnumerable<string> documentIds)
+    {
+        if (string.IsNullOrWhiteSpace(collectionName))
+            throw new ArgumentException("Collection name cannot be empty", nameof(collectionName));
+
+        if (documentIds == null)
+            return Task.FromResult<IEnumerable<Document>>(Enumerable.Empty<Document>());
+
+        if (!_collections.TryGetValue(collectionName, out var collection))
+        {
+            return Task.FromResult<IEnumerable<Document>>(Enumerable.Empty<Document>());
+        }
+
+        var result = collection.GetMany(documentIds);
+        return Task.FromResult(result);
+    }
+
+    /// <inheritdoc />
     public Task<Document> InsertAsync(string collectionName, Document document)
     {
         if (string.IsNullOrWhiteSpace(collectionName))
