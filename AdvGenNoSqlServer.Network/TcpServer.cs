@@ -198,6 +198,7 @@ namespace AdvGenNoSqlServer.Network
         {
             var connectionId = Guid.NewGuid().ToString("N");
             ConnectionHandler? handler = null;
+            bool acquired = false;
 
             try
             {
@@ -231,8 +232,11 @@ namespace AdvGenNoSqlServer.Network
                 {
                     await SendConnectionRejectedAsync(handler, "Server at maximum capacity");
                     handler.Dispose();
+                    handler = null;
                     return;
                 }
+
+                acquired = true;
 
                 _activeConnections.TryAdd(connectionId, handler);
                 ConnectionEstablished?.Invoke(this, new ConnectionEventArgs(connectionId, client, handler.IsSecure));
@@ -244,9 +248,12 @@ namespace AdvGenNoSqlServer.Network
                 if (handler != null)
                 {
                     _activeConnections.TryRemove(connectionId, out _);
-                    _connectionPool.Release();
-                    ConnectionClosed?.Invoke(this, new ConnectionEventArgs(connectionId, client, handler?.IsSecure ?? false));
-                    handler?.Dispose();
+                    if (acquired)
+                    {
+                        _connectionPool.Release();
+                    }
+                    ConnectionClosed?.Invoke(this, new ConnectionEventArgs(connectionId, client, handler.IsSecure));
+                    handler.Dispose();
                 }
                 else
                 {

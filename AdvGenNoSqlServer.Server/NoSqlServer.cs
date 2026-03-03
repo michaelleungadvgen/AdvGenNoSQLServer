@@ -68,7 +68,7 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
         _tcpServer.MessageReceived += OnMessageReceivedAsync;
 
         // Start the TCP server
-        _tcpServer.StartAsync(cancellationToken);
+        _ = _tcpServer.StartAsync(cancellationToken);
 
         _logger.LogInformation("NoSQL Server started successfully");
     }
