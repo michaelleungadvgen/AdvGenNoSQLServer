@@ -5,6 +5,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using AdvGenNoSqlServer.Core.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace AdvGenNoSqlServer.Core.Authentication;
 
@@ -22,6 +23,8 @@ public class EncryptionService : IEncryptionService
 
     private readonly byte[] _masterKey;
     private readonly IKeyStore? _keyStore;
+    private readonly ILogger<EncryptionService>? _logger;
+    private readonly IAuditLogger? _auditLogger;
     private readonly string _keyId;
 
     /// <inheritdoc />
@@ -32,12 +35,20 @@ public class EncryptionService : IEncryptionService
     /// </summary>
     /// <param name="configuration">Server configuration containing encryption settings</param>
     /// <param name="keyStore">Optional key store for key management</param>
-    public EncryptionService(ServerConfiguration configuration, IKeyStore? keyStore = null)
+    /// <param name="logger">Optional logger for diagnostic messages</param>
+    /// <param name="auditLogger">Optional audit logger for security events</param>
+    public EncryptionService(
+        ServerConfiguration configuration,
+        IKeyStore? keyStore = null,
+        ILogger<EncryptionService>? logger = null,
+        IAuditLogger? auditLogger = null)
     {
         if (configuration == null)
             throw new ArgumentNullException(nameof(configuration));
 
         _keyStore = keyStore;
+        _logger = logger;
+        _auditLogger = auditLogger;
 
         // Use configured encryption key or generate a new one
         if (!string.IsNullOrEmpty(configuration.EncryptionKey))
@@ -50,7 +61,11 @@ public class EncryptionService : IEncryptionService
         {
             // Generate a secure random key
             _masterKey = GenerateKey();
-            // TODO: Log warning that a new key was generated
+
+            var warningMessage = "No encryption key provided in configuration. A new master encryption key has been generated. " +
+                                 "This key must be persisted or data will be inaccessible after restart.";
+            _logger?.LogWarning(warningMessage);
+            _auditLogger?.LogSecurityWarning(warningMessage);
         }
 
         _keyId = configuration.EncryptionKeyId ?? GenerateKeyId();
