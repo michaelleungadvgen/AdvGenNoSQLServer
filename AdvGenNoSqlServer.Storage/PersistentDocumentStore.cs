@@ -118,6 +118,36 @@ public class PersistentDocumentStore : IPersistentDocumentStore
     }
 
     /// <inheritdoc />
+    public Task<IEnumerable<Document>> GetManyAsync(string collectionName, IEnumerable<string> documentIds)
+    {
+        EnsureInitialized();
+
+        if (string.IsNullOrWhiteSpace(collectionName))
+            throw new ArgumentException("Collection name cannot be empty", nameof(collectionName));
+
+        if (documentIds == null)
+            throw new ArgumentNullException(nameof(documentIds));
+
+        if (!_collections.TryGetValue(collectionName, out var collection))
+        {
+            return Task.FromResult<IEnumerable<Document>>(Enumerable.Empty<Document>());
+        }
+
+        var results = new List<Document>();
+        foreach (var id in documentIds)
+        {
+            if (string.IsNullOrWhiteSpace(id)) continue;
+            var doc = collection.Get(id);
+            if (doc != null)
+            {
+                results.Add(doc);
+            }
+        }
+
+        return Task.FromResult<IEnumerable<Document>>((IEnumerable<Document>)results);
+    }
+
+    /// <inheritdoc />
     public Task<IEnumerable<Document>> GetAllAsync(string collectionName)
     {
         EnsureInitialized();
