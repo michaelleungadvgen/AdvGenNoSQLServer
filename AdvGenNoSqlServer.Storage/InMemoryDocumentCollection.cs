@@ -47,6 +47,30 @@ internal class InMemoryDocumentCollection
     }
 
     /// <summary>
+    /// Retrieves multiple documents by their IDs
+    /// </summary>
+    /// <param name="documentIds">The IDs of the documents to retrieve</param>
+    /// <returns>Enumerable of found documents</returns>
+    public IEnumerable<Document> GetMany(IEnumerable<string> documentIds)
+    {
+        if (documentIds == null)
+            return Enumerable.Empty<Document>();
+
+        var result = new List<Document>();
+        foreach (var id in documentIds)
+        {
+            if (string.IsNullOrWhiteSpace(id))
+                continue;
+
+            if (_documents.TryGetValue(id, out var document))
+            {
+                result.Add(document);
+            }
+        }
+        return result;
+    }
+
+    /// <summary>
     /// Inserts a new document into the collection
     /// </summary>
     /// <param name="document">The document to insert</param>

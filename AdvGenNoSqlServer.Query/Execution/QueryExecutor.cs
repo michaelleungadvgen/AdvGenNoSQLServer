@@ -45,14 +45,7 @@ public class QueryExecutor : IQueryExecutor
             if (candidateIds != null)
             {
                 // Use index results
-                var docs = new List<Document>();
-                foreach (var id in candidateIds)
-                {
-                    var doc = await _documentStore.GetAsync(query.CollectionName, id);
-                    if (doc != null)
-                        docs.Add(doc);
-                }
-                documents = docs;
+                documents = await _documentStore.GetManyAsync(query.CollectionName, candidateIds);
             }
             else
             {
@@ -120,14 +113,7 @@ public class QueryExecutor : IQueryExecutor
         IEnumerable<Document> documents;
         if (candidateIds != null)
         {
-            var docs = new List<Document>();
-            foreach (var id in candidateIds)
-            {
-                var doc = await _documentStore.GetAsync(query.CollectionName, id);
-                if (doc != null)
-                    docs.Add(doc);
-            }
-            documents = docs;
+            documents = await _documentStore.GetManyAsync(query.CollectionName, candidateIds);
         }
         else
         {
