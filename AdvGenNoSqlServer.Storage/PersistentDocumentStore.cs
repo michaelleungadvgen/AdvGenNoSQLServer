@@ -5,6 +5,7 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using AdvGenNoSqlServer.Core.Models;
+using AdvGenNoSqlServer.Core.Security;
 
 namespace AdvGenNoSqlServer.Storage;
 
@@ -433,14 +434,16 @@ public class PersistentDocumentStore : IPersistentDocumentStore
 
     private string GetCollectionPath(string collectionName)
     {
-        return Path.Combine(_dataPath, SanitizeFileName(collectionName));
+        var combinedPath = Path.Combine(_dataPath, SanitizeFileName(collectionName));
+        return PathValidator.GetSafePath(_dataPath, combinedPath);
     }
 
     private string GetDocumentPath(string collectionName, string documentId)
     {
         var collectionPath = GetCollectionPath(collectionName);
         var sanitizedId = SanitizeFileName(documentId);
-        return Path.Combine(collectionPath, $"{sanitizedId}.json");
+        var combinedPath = Path.Combine(collectionPath, $"{sanitizedId}.json");
+        return PathValidator.GetSafePath(collectionPath, combinedPath);
     }
 
     private async Task SaveDocumentToDiskAsync(string collectionName, Document document)
