@@ -1,4 +1,5 @@
 using AdvGenNoSqlServer.Core.Models;
+using AdvGenNoSqlServer.Core.Security;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -51,8 +52,8 @@ public class AdvancedFileStorageManager : IStorageManager, IDisposable
         await semaphore.WaitAsync();
         try
         {
-            var collectionPath = Path.Combine(_basePath, collectionName);
-            var documentPath = Path.Combine(collectionPath, $"{document.Id}.json");
+            var collectionPath = PathValidator.GetSafePath(_basePath, Path.Combine(_basePath, collectionName));
+            var documentPath = PathValidator.GetSafePath(collectionPath, Path.Combine(collectionPath, $"{document.Id}.json"));
 
             // Serialize the document to JSON
             var json = JsonSerializer.Serialize(document, _jsonOptions);
@@ -102,8 +103,8 @@ public class AdvancedFileStorageManager : IStorageManager, IDisposable
         await semaphore.WaitAsync();
         try
         {
-            var collectionPath = Path.Combine(_basePath, collectionName);
-            var documentPath = Path.Combine(collectionPath, $"{documentId}.json");
+            var collectionPath = PathValidator.GetSafePath(_basePath, Path.Combine(_basePath, collectionName));
+            var documentPath = PathValidator.GetSafePath(collectionPath, Path.Combine(collectionPath, $"{documentId}.json"));
 
             if (!File.Exists(documentPath))
             {
@@ -137,8 +138,8 @@ public class AdvancedFileStorageManager : IStorageManager, IDisposable
         await semaphore.WaitAsync();
         try
         {
-            var collectionPath = Path.Combine(_basePath, collectionName);
-            var documentPath = Path.Combine(collectionPath, $"{documentId}.json");
+            var collectionPath = PathValidator.GetSafePath(_basePath, Path.Combine(_basePath, collectionName));
+            var documentPath = PathValidator.GetSafePath(collectionPath, Path.Combine(collectionPath, $"{documentId}.json"));
 
             if (File.Exists(documentPath))
             {
@@ -173,8 +174,8 @@ public class AdvancedFileStorageManager : IStorageManager, IDisposable
         await semaphore.WaitAsync();
         try
         {
-            var collectionPath = Path.Combine(_basePath, collectionName);
-            var documentPath = Path.Combine(collectionPath, $"{documentId}.json");
+            var collectionPath = PathValidator.GetSafePath(_basePath, Path.Combine(_basePath, collectionName));
+            var documentPath = PathValidator.GetSafePath(collectionPath, Path.Combine(collectionPath, $"{documentId}.json"));
             return File.Exists(documentPath);
         }
         finally
@@ -192,7 +193,7 @@ public class AdvancedFileStorageManager : IStorageManager, IDisposable
         await semaphore.WaitAsync();
         try
         {
-            var collectionPath = Path.Combine(_basePath, collectionName);
+            var collectionPath = PathValidator.GetSafePath(_basePath, Path.Combine(_basePath, collectionName));
             var files = Directory.GetFiles(collectionPath, "*.json");
             var documentIds = new List<string>();
 
@@ -217,7 +218,7 @@ public class AdvancedFileStorageManager : IStorageManager, IDisposable
         await semaphore.WaitAsync();
         try
         {
-            var collectionPath = Path.Combine(_basePath, collectionName);
+            var collectionPath = PathValidator.GetSafePath(_basePath, Path.Combine(_basePath, collectionName));
             if (!Directory.Exists(collectionPath))
             {
                 Directory.CreateDirectory(collectionPath);
