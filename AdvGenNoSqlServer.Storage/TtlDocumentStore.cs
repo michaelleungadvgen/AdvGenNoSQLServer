@@ -64,6 +64,13 @@ public class TtlDocumentStore : IDocumentStore, IDisposable
     }
 
     /// <inheritdoc />
+    public Task<IEnumerable<Document>> GetManyAsync(string collectionName, IEnumerable<string> documentIds)
+    {
+        ThrowIfDisposed();
+        return _innerStore.GetManyAsync(collectionName, documentIds);
+    }
+
+    /// <inheritdoc />
     public Task<Document> InsertAsync(string collectionName, Document document)
     {
         ThrowIfDisposed();
