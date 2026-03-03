@@ -225,14 +225,16 @@ namespace AdvGenNoSqlServer.Network
                     stream = client.GetStream();
                 }
 
-                handler = new ConnectionHandler(connectionId, client, stream, _messageProtocol, Configuration);
-
                 if (!_connectionPool.TryAcquire())
                 {
+                    // For rejected connection without handler yet, we can temporarily create it to send error
+                    handler = new ConnectionHandler(connectionId, client, stream, _messageProtocol, Configuration);
                     await SendConnectionRejectedAsync(handler, "Server at maximum capacity");
                     handler.Dispose();
                     return;
                 }
+
+                handler = new ConnectionHandler(connectionId, client, stream, _messageProtocol, Configuration);
 
                 _activeConnections.TryAdd(connectionId, handler);
                 ConnectionEstablished?.Invoke(this, new ConnectionEventArgs(connectionId, client, handler.IsSecure));
@@ -243,9 +245,19 @@ namespace AdvGenNoSqlServer.Network
             {
                 if (handler != null)
                 {
-                    _activeConnections.TryRemove(connectionId, out _);
-                    _connectionPool.Release();
-                    ConnectionClosed?.Invoke(this, new ConnectionEventArgs(connectionId, client, handler?.IsSecure ?? false));
+                    bool wasActive = _activeConnections.TryRemove(connectionId, out _);
+                    if (wasActive)
+                    {
+                        try
+                        {
+                            _connectionPool.Release();
+                        }
+                        catch (SemaphoreFullException)
+                        {
+                            // Ignore
+                        }
+                        ConnectionClosed?.Invoke(this, new ConnectionEventArgs(connectionId, client, handler?.IsSecure ?? false));
+                    }
                     handler?.Dispose();
                 }
                 else
