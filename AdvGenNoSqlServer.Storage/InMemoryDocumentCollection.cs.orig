@@ -129,12 +129,8 @@ internal class InMemoryDocumentCollection
     /// <returns>Enumerable of all documents</returns>
     public IEnumerable<Document> GetAll()
     {
-        // Enumerate the dictionary directly to be truly zero-allocation,
-        // rather than using .Values which acquires locks and allocates an array.
-        foreach (var kvp in _documents)
-        {
-            yield return kvp.Value;
-        }
+        // ConcurrentDictionary enumeration is thread-safe and avoids allocating an intermediate list
+        return _documents.Values;
     }
 
     /// <summary>
