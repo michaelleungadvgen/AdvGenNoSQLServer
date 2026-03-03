@@ -195,7 +195,7 @@ Files to review:
 - [x] `Indexing/IBTreeIndex.cs` - B-tree interface **[REVIEWED - No issues. Clean generic interface with range queries and proper constraints]**
 - [x] `Indexing/BTreeIndex.cs` - B-tree implementation **[REVIEWED - GOOD: Proper B-tree ops, generic, thread-safe. 3 ISSUES: PERF-004 (Medium), DATA-004/005 (Low)]**
 - [x] `Indexing/BTreeNode.cs` - B-tree node structure **[REVIEWED - No issues. Solid B-tree node with split/merge/borrow operations]**
-- [ ] `Indexing/IndexManager.cs` - Index management
+- [x] `Indexing/IndexManager.cs` - Index management **[REVIEWED - 1 ISSUE: DATA-019 (Low - null check missing for Document.Data in sparse index)]**
 - [ ] `Indexing/CompoundIndexKey.cs` - Compound key support
 - [ ] `Indexing/ITtlIndexService.cs` - TTL index interface
 - [ ] `Indexing/TtlIndexService.cs` - TTL index implementation
@@ -758,6 +758,7 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | DATA-017 | TtlDocumentStore.cs | 67-75, 92-100 | Medium | TTL registration happens BEFORE InsertAsync/UpdateAsync. If operation fails, document is still registered for TTL tracking, causing inconsistent state. | Open |
 | DATA-018 | TtlDocumentStore.cs | 161-165 | Low | `ClearCollectionAsync` recreates TTL index with hardcoded `"expireAt"` field, losing original configuration. | Open |
 | MEM-001 | AtomicUpdateDocumentStore.cs | 16-23 | Medium | `_documentLocks` stores SemaphoreSlim indefinitely. Locks never cleaned up on document deletion, causing memory leak with high document churn. | Open |
+| DATA-019 | IndexManager.cs | 662, 686 | Low | SparseIndexWrapper uses `document.Data.ContainsKey()` without null check. Document.Data is nullable, will throw NullReferenceException if null. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
