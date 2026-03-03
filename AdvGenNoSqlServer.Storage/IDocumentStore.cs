@@ -30,6 +30,14 @@ public interface IDocumentStore
     Task<Document?> GetAsync(string collectionName, string documentId);
 
     /// <summary>
+    /// Retrieves multiple documents by their IDs from the specified collection
+    /// </summary>
+    /// <param name="collectionName">The name of the collection</param>
+    /// <param name="documentIds">The IDs of the documents to retrieve</param>
+    /// <returns>Enumerable of found documents</returns>
+    Task<IEnumerable<Document>> GetManyAsync(string collectionName, IEnumerable<string> documentIds);
+
+    /// <summary>
     /// Retrieves all documents from the specified collection
     /// </summary>
     /// <param name="collectionName">The name of the collection</param>

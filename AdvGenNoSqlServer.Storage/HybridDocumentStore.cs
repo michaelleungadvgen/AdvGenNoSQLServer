@@ -142,7 +142,7 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
     }
 
     /// <inheritdoc />
-    public Task<Document?> GetAsync(string collectionName, string documentId)
+    public async Task<Document?> GetAsync(string collectionName, string documentId)
     {
         EnsureInitialized();
         ValidateCollectionName(collectionName);
@@ -152,12 +152,60 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
         {
             if (collection.TryGetValue(documentId, out var document))
             {
-                return Task.FromResult<Document?>(document);
+                return document;
             }
         }
 
         // Cache miss - try to load from disk (read-through)
-        return LoadFromDiskAsync(collectionName, documentId);
+        return await LoadFromDiskAsync(collectionName, documentId);
+    }
+
+    /// <inheritdoc />
+    public async Task<IEnumerable<Document>> GetManyAsync(string collectionName, IEnumerable<string> documentIds)
+    {
+        EnsureInitialized();
+        ValidateCollectionName(collectionName);
+
+        if (documentIds == null)
+            return Enumerable.Empty<Document>();
+
+        var result = new List<Document>();
+        var missingIds = new List<string>();
+
+        // Check cache first
+        if (_cache.TryGetValue(collectionName, out var collection))
+        {
+            foreach (var id in documentIds)
+            {
+                if (collection.TryGetValue(id, out var document))
+                {
+                    result.Add(document);
+                }
+                else
+                {
+                    missingIds.Add(id);
+                }
+            }
+        }
+        else
+        {
+            missingIds.AddRange(documentIds);
+        }
+
+        // Load missing from disk
+        if (missingIds.Count > 0)
+        {
+            foreach (var id in missingIds)
+            {
+                var document = await LoadFromDiskAsync(collectionName, id);
+                if (document != null)
+                {
+                    result.Add(document);
+                }
+            }
+        }
+
+        return result;
     }
 
     /// <inheritdoc />
