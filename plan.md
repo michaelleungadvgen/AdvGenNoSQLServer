@@ -4612,3 +4612,150 @@ public async Task Run[CommandName]Example()
 - [ ] Document revisions examples (3 scenarios)
 - [ ] P2P Cluster examples (6 scenarios)
 - [ ] TLS/mTLS examples (4 scenarios)
+
+## 50. Code Review Remediation Tasks
+
+This section tracks the issues identified in `reviews.md` during the code quality review.
+
+### P0 - Critical (Security/Data Loss)
+
+| Task ID | Component | File | Description | Status |
+|---------|-----------|------|-------------|--------|
+| SEC-001 | AuthenticationManager | `AuthenticationManager.cs` | Password hashing uses SHA256 instead of PBKDF2/bcrypt/Argon2. SHA256 is too fast and vulnerable to brute-force attacks. Must use key derivation function with minimum 100k iterations. | [ ] |
+| SEC-027 | Client | `Client.cs` | Auth payload uses string interpolation `$"{{\"username\":\"{username}\",\"password\":\"{password}\"}}"`. Injection risk if credentials contain special chars. Use JsonSerializer. | [ ] |
+
+### P1 - High Priority
+
+| Task ID | Component | File | Description | Status |
+|---------|-----------|------|-------------|--------|
+| SEC-002 | AuthenticationManager | `AuthenticationManager.cs` | Password hash comparison uses `!=` operator which is vulnerable to timing attacks. Must use constant-time comparison `CryptographicOperations.FixedTimeEquals()`. | [ ] |
+| SEC-003 | AuthenticationManager | `AuthenticationManager.cs` | `_users` and `_activeSessions` Dictionary objects are not thread-safe. Concurrent access from multiple connections will cause race conditions. Use `ConcurrentDictionary<>`. | [ ] |
+| SEC-011 | RoleManager | `RoleManager.cs` | `_roles`, `_userRoles`, and `PermissionRegistry._validPermissions` use non-thread-safe collections. Race conditions under concurrent access. Use `ConcurrentDictionary<>`. | [ ] |
+| PERF-002 | WriteAheadLog | `WriteAheadLog.cs` | `GetAwaiter().GetResult()` in constructor blocks thread. Can cause deadlocks. Use factory pattern or async initialization. | [ ] |
+| PERF-003 | LockManager | `LockManager.cs` | Sync `AcquireLock` uses `GetAwaiter().GetResult()` blocking thread. Remove sync method or use sync-specific implementation. | [ ] |
+| SEC-017 | TlsStreamHelper | `TlsStreamHelper.cs` | Allows localhost certificates with name mismatch - production security risk. Add configuration flag. | [ ] |
+| SEC-018 | TlsStreamHelper | `TlsStreamHelper.cs` | Uses `X509KeyStorageFlags.Exportable` - private keys should not be exportable in production. | [ ] |
+| DATA-006 | PersistentDocumentStore | `PersistentDocumentStore.cs` | Silent exception swallowing when loading documents. Corrupted data is skipped without logging - could hide data loss. | [ ] |
+| BUG-001 | ConnectionHandler | `ConnectionHandler.cs` | `EnableSslAsync` creates new SslStream but discards it - never assigns to `_stream`. Method is non-functional. The SslStream is lost and connection remains plaintext. | [ ] |
+| DATA-010 | TransactionManager | `TransactionManager.cs` | **STUB IMPLEMENTATION**: Commit/Rollback don't actually apply operations! Comments say "In a real implementation...". No ACID guarantees. | [ ] |
+| DATA-012 | AdvancedTransactionManager | `AdvancedTransactionManager.cs` | **STUB**: Same as DATA-010. Commit/Rollback don't apply operations. Has timeout but no actual functionality. | [ ] |
+| DATA-013 | HybridDocumentStore | `HybridDocumentStore.cs` | Silent exception swallowing when loading documents from disk. Corrupted or invalid JSON data is silently skipped without logging - could hide data loss. | [ ] |
+| BUG-003 | AuthenticationService | `AuthenticationService.cs` | `GetUsernameFromToken` always returns `null`. Method is non-functional - comments indicate it was never implemented. | [ ] |
+| SEC-034 | AuthenticationService | `AuthenticationService.cs` | `Authorize` method bypasses permission check entirely. After token validation, it always returns `Success()` without checking user permissions against required permission. Major security flaw. | [ ] |
+
+### P2 - Medium Priority
+
+| Task ID | Component | File | Description | Status |
+|---------|-----------|------|-------------|--------|
+| SEC-004 | AuthenticationManager | `AuthenticationManager.cs` | No rate limiting for authentication attempts. Vulnerable to brute-force attacks. Implement failed attempt tracking and lockout. | [ ] |
+| SEC-005 | AuthenticationManager | `AuthenticationManager.cs` | No password complexity validation. Should enforce minimum length (12+), complexity requirements, and check against common password lists. | [ ] |
+| SEC-006 | JwtTokenProvider | `JwtTokenProvider.cs` | Secret key stored as plain string in memory. Sensitive to memory dump attacks. Consider using SecureString or protected memory. | [ ] |
+| SEC-012 | RoleManager | `RoleManager.cs` | No authorization check on role management methods. Any caller can elevate privileges. Should require `RoleManage` permission. | [ ] |
+| SEC-013 | RoleManager | `RoleManager.cs` | Default roles created in-memory only. Role/permission changes are lost on restart. Need persistence layer. | [ ] |
+| SEC-016 | WriteAheadLog | `WriteAheadLog.cs` | WAL data is unencrypted. Sensitive document data stored in plaintext. Add optional encryption layer. | [ ] |
+| DATA-001 | WriteAheadLog | `WriteAheadLog.cs` | CRC mismatch throws exception, stopping recovery. Consider option to skip corrupted entries for partial recovery. | [ ] |
+| CONC-001 | LockManager | `LockManager.cs` | `List<>` and `HashSet<>` inside `ConcurrentDictionary` are not thread-safe for mutations. Use `ConcurrentBag<>` or explicit locking. | [ ] |
+| CONC-002 | LockManager | `LockManager.cs` | `WaitForUpgradeAsync` releases then reacquires lock, creating race condition window. Implement true atomic upgrade. | [ ] |
+| SEC-019 | TlsStreamHelper | `TlsStreamHelper.cs` | Uses `Console.WriteLine` for security logging. Should use ILogger for proper audit trail. | [ ] |
+| SEC-020 | TlsStreamHelper | `TlsStreamHelper.cs` | No certificate pinning support. Documented in plan.md but not implemented. | [ ] |
+| PERF-004 | BTreeIndex | `BTreeIndex.cs` | Uses coarse-grained locking (single lock). Consider `ReaderWriterLockSlim` for read-heavy workloads. | [ ] |
+| DATA-007 | PersistentDocumentStore | `PersistentDocumentStore.cs` | `File.WriteAllTextAsync` is not atomic. Crash during write corrupts file. Write to temp file then rename. | [ ] |
+| CODE-001 | PersistentDocumentStore | `PersistentDocumentStore.cs` | Uses reflection to access private fields - fragile and breaks if InMemoryDocumentCollection changes. | [ ] |
+| NET-001 | TcpServer | `TcpServer.cs` | Uses `Console.Error.WriteLine` for error logging. Should use ILogger for structured logging and proper audit trail. | [ ] |
+| SEC-022 | TcpServer | `TcpServer.cs` | JSON payload construction uses string interpolation `$"{{\"error\":\"{reason}\"}}"`. If reason contains quotes/special chars, JSON could be malformed or injected. Use JsonSerializer. | [ ] |
+| SEC-024 | ConnectionHandler | `ConnectionHandler.cs` | JSON construction uses string interpolation for error messages. Same injection vulnerability as SEC-022. Use JsonSerializer. | [ ] |
+| NET-002 | ConnectionHandler | `ConnectionHandler.cs` | Uses `Console.Error.WriteLine` for SSL error logging. Should use ILogger for structured logging. | [ ] |
+| PERF-006 | ConnectionHandler | `ConnectionHandler.cs` | Uses blocking `.Wait()` on async `ShutdownAsync()`. Should use `await` with timeout or `CancellationTokenSource`. | [ ] |
+| RES-003 | ConnectionPool | `ConnectionPool.cs` | Class doesn't implement `IDisposable`. The `SemaphoreSlim` should be disposed when pool is no longer needed. | [ ] |
+| SEC-026 | MessageProtocol | `MessageProtocol.cs` | JSON construction uses string interpolation in `CreateCommand` and `CreateError`. Injection risk if command/collection contains special chars. Use JsonSerializer. | [ ] |
+| DOS-001 | MessageProtocol | `MessageProtocol.cs` | Max payload size of 100MB is too large. Could enable memory exhaustion DoS. Reduce to 10MB or make configurable. | [ ] |
+| PERF-007 | Client | `Client.cs` | `Dispose()` uses `GetAwaiter().GetResult()` - sync-over-async pattern. Can cause deadlocks. | [ ] |
+| BUG-002 | ClientFactory | `ClientFactory.cs` | `CreateClient(AdvGenNoSqlClientOptions)` ignores all options except ServerAddress. All SSL, keepalive, retry settings are lost. | [ ] |
+| NET-004 | NoSqlServer | `NoSqlServer.cs` | `_tcpServer.StartAsync(cancellationToken)` is NOT AWAITED! Should be `await _tcpServer.StartAsync(...)` to propagate exceptions. | [ ] |
+| SEC-029 | NoSqlServer | `NoSqlServer.cs` | Simple auth compares plaintext master password without rate limiting. Token is just random GUID with no user association. | [ ] |
+| SEC-031 | FilterEngine | `FilterEngine.cs` | Regex.IsMatch without timeout. Complex patterns could cause ReDoS. Add RegexOptions with MatchTimeout. | [ ] |
+| MEM-004 | TransactionManager | `TransactionManager.cs` | Transactions stored in ConcurrentDictionary indefinitely. No cleanup of completed transactions. Memory leak. | [ ] |
+| CONC-006 | TransactionManager | `TransactionManager.cs` | Single global `_lock` with ConcurrentDictionary is inconsistent. Race between TryGetValue and lock acquisition. | [ ] |
+| CODE-010 | QueryExecutor | `QueryExecutor.cs` | Uses reflection to invoke index methods. Fragile and slow. Should use common IIndex interface. | [ ] |
+| PERF-009 | QueryExecutor | `QueryExecutor.cs` | ApplyProjection modifies original documents in-place. Mutates cached/stored docs causing side effects. Clone docs first. | [ ] |
+| DATA-014 | HybridDocumentStore | `HybridDocumentStore.cs` | `File.WriteAllTextAsync` is not atomic. Crash during write corrupts file. Write to temp file then atomic rename. | [ ] |
+| DATA-015 | HybridDocumentStore | `HybridDocumentStore.cs` | Race condition in `InsertAsync` between `ContainsKey` check and `TryAdd`. Concurrent inserts could bypass duplicate detection. | [ ] |
+| AUDIT-001 | AuthenticationService | `AuthenticationService.cs` | Uses `Console.WriteLine` for audit logging instead of existing `IAuditLogger` interface. Audit logs are lost/inconsistent. | [ ] |
+| CONC-007 | AuthenticationService | `AuthenticationService.cs` | Non-atomic `RegisterUser` - if auth registration succeeds but role assignment fails, user exists without a role. Should cleanup on failure. | [ ] |
+| BUG-004 | MemoryCacheManager | `MemoryCacheManager.cs` | `Clear()` throws `NotImplementedException` - breaks ICacheManager interface contract. Callers expecting Clear() to work will crash. | [ ] |
+| ASYNC-002 | TransactionCoordinator | `TransactionCoordinator.cs` | `async void` in event handlers and timer callbacks. Exceptions would crash process if not caught. Methods have try-catch but risky pattern. | [ ] |
+| PERF-012 | TransactionCoordinator | `TransactionCoordinator.cs` | `AbortAsync(...).Wait()` sync-over-async in Dispose. Can cause deadlocks. | [ ] |
+| BUG-005 | TransactionContext | `TransactionContext.cs` | `RollbackToSavepointAsync` resets operation count but doesn't undo operations. WriteSet is not restored - savepoint rollback is incomplete. | [ ] |
+| CONC-011 | ConfigurationManager | `ConfigurationManager.cs` | `Configuration` property returns mutable reference directly. Callers can modify internal state. Return clone or readonly view. | [ ] |
+| DATA-016 | GarbageCollector | `GarbageCollector.cs` | Tombstones keyed by `documentId` alone, not `collection:documentId`. If different collections have same document ID, only one tombstone is tracked, causing incorrect GC. | [ ] |
+| DATA-017 | TtlDocumentStore | `TtlDocumentStore.cs` | TTL registration happens BEFORE InsertAsync/UpdateAsync. If operation fails, document is still registered for TTL tracking, causing inconsistent state. | [ ] |
+| MEM-001 | AtomicUpdateDocumentStore | `AtomicUpdateDocumentStore.cs` | `_documentLocks` stores SemaphoreSlim indefinitely. Locks never cleaned up on document deletion, causing memory leak with high document churn. | [ ] |
+
+### P3 - Lower Priority
+
+| Task ID | Component | File | Description | Status |
+|---------|-----------|------|-------------|--------|
+| SEC-007 | JwtTokenProvider | `JwtTokenProvider.cs` | No token revocation/blacklist mechanism. Tokens remain valid until expiration even after logout. Consider implementing JWT blacklist. | [ ] |
+| SEC-008 | JwtTokenProvider | `JwtTokenProvider.cs` | ExtractUsername and GetExpirationTime methods do not validate signature before returning data. Could expose claims from tampered tokens. | [ ] |
+| SEC-009 | EncryptionService | `EncryptionService.cs` | Auto-generated key has only TODO for logging. Could lead to data loss if key is not persisted. Should log warning or throw if no key store configured. | [ ] |
+| SEC-010 | EncryptionService | `EncryptionService.cs` | DeriveKeyFromPassword returns salt+key combined. Consider returning a struct with named properties for clarity. | [ ] |
+| SEC-014 | RoleManager | `RoleManager.cs` | `RegisterCustomPermission` not thread-safe. HashSet modification during concurrent reads causes exceptions. | [ ] |
+| SEC-015 | AuditLogger | `AuditLogger.cs` | JSON serialization could expose sensitive data. Consider filtering/masking sensitive fields before logging. | [ ] |
+| PERF-001 | AuditLogger | `AuditLogger.cs` | `GetAwaiter().GetResult()` in Dispose blocks thread. Consider implementing `IAsyncDisposable`. | [ ] |
+| OPS-001 | AuditLogger | `AuditLogger.cs` | No log retention/archival policy. Old log files accumulate indefinitely. Add configurable cleanup. | [ ] |
+| DATA-002 | WriteAheadLog | `WriteAheadLog.cs` | Silent exception swallowing when loading checkpoint hides corruption. Should log warning. | [ ] |
+| DATA-003 | LockManager | `LockManager.cs` | Silent exception swallowing in deadlock detection could hide bugs. Should log warning. | [ ] |
+| SEC-021 | TlsStreamHelper | `TlsStreamHelper.cs` | No TLS 1.3-only option for high-security environments. Consider adding SslProtocols.Tls13 only mode. | [ ] |
+| DATA-004 | BTreeIndex | `BTreeIndex.cs` | Count management in delete uses loop - could be simplified with values.Count decrement. | [ ] |
+| DATA-005 | BTreeIndex | `BTreeIndex.cs` | No index persistence - in-memory only. Rebuilds on startup from documents. | [ ] |
+| CONC-003 | PersistentDocumentStore | `PersistentDocumentStore.cs` | Reflection-based count update with `Interlocked.Increment` then SetValue - potential race condition. | [ ] |
+| SEC-023 | TcpServer | `TcpServer.cs` | Silent exception swallowing in `SendConnectionRejectedAsync` and `SendSslErrorAsync`. Should log exceptions for debugging. | [ ] |
+| RES-001 | TcpServer | `TcpServer.cs` | Fire-and-forget task `_ = HandleConnectionAsync(...)` without exception observation. Exceptions silently lost. Add `.ContinueWith()` for logging. | [ ] |
+| PERF-005 | TcpServer | `TcpServer.cs` | `Dispose()` calls `GetAwaiter().GetResult()` on async DisposeAsync. Common pattern but can deadlock if called from sync context. | [ ] |
+| SEC-025 | ConnectionHandler | `ConnectionHandler.cs` | Silent exception swallowing in `CloseAsync`. Should log for debugging. | [ ] |
+| CODE-002 | ConnectionHandler | `ConnectionHandler.cs` | `await Task.CompletedTask` is unnecessary. Method should return `ValueTask.CompletedTask` or be non-async. | [ ] |
+| MEM-001 | ConnectionHandler | `ConnectionHandler.cs` | `PipeReader` and `PipeWriter` created but never used. Code uses `_stream.ReadAsync/WriteAsync` directly. Dead code. | [ ] |
+| CONC-004 | ConnectionPool | `ConnectionPool.cs` | Release() decrements counters before `_semaphore.Release()`. If Release throws (called too many times), counters become incorrect. | [ ] |
+| CODE-003 | ConnectionPool | `ConnectionPool.cs` | No async versions of `Acquire`. Add `AcquireAsync()` using `_semaphore.WaitAsync()` for non-blocking async usage. | [ ] |
+| MEM-002 | MessageProtocol | `MessageProtocol.cs` | `Serialize` returns rented buffer that caller must return. Error-prone API. Consider IDisposable wrapper struct. | [ ] |
+| CODE-004 | MessageProtocol | `MessageProtocol.cs` | `buffer.AsSpan(offset).ToArray()` creates unnecessary copy. ParseHeader could accept ReadOnlySpan<byte>. | [ ] |
+| DATA-009 | MessageProtocol | `MessageProtocol.cs` | Returns checksum 0 for empty data. Valid but means empty payload with checksum=0 always validates. Document this behavior. | [ ] |
+| SEC-028 | Client | `Client.cs` | Silent exception swallowing in `DisconnectAsync`. Should log for debugging. | [ ] |
+| CODE-005 | Client | `Client.cs` | `PingAsync` catch block swallows all exceptions silently. Should distinguish between connection errors and others. | [ ] |
+| MEM-003 | Client | `Client.cs` | `ReceiveMessageAsync` creates new byte arrays instead of using ArrayPool for header and payload buffers. | [ ] |
+| CODE-006 | ClientOptions | `ClientOptions.cs` | No validation of option values. Negative timeouts, retry delays, or max retry attempts would cause issues at runtime. | [ ] |
+| ASYNC-001 | NoSqlServer | `NoSqlServer.cs` | `async void` event handler. Unavoidable for events but could swallow exceptions. Try-catch mitigates this. | [ ] |
+| SEC-030 | NoSqlServer | `NoSqlServer.cs` | Silent exception swallowing when parsing handshake. Should at least log a warning. | [ ] |
+| CONC-005 | NoSqlServer | `NoSqlServer.cs` | Check-then-act pattern (ExistsAsync then InsertAsync/UpdateAsync) is not atomic. Race condition possible. | [ ] |
+| DOS-002 | QueryParser | `QueryParser.cs` | No limit on JSON depth. Deeply nested JSON could cause stack overflow. Set JsonSerializerOptions.MaxDepth. | [ ] |
+| PERF-008 | FilterEngine | `FilterEngine.cs` | Regex compiled on every call. Cache compiled regex patterns for performance. | [ ] |
+| DATA-011 | TransactionManager | `TransactionManager.cs` | `AsReadOnly()` returns snapshot but Operations could be modified concurrently if AddOperation called during iteration. | [ ] |
+| MEM-005 | AdvancedTransactionManager | `AdvancedTransactionManager.cs` | Cleanup only marks expired active txns as Failed. Completed txns never removed from dictionary. | [ ] |
+| SEC-032 | QueryExecutor | `QueryExecutor.cs` | Silent exception swallowing in QueryIndexAsync. Should log warning. | [ ] |
+| PERF-010 | QueryExecutor | `QueryExecutor.cs` | Sequential document fetching by ID in loop. Could be parallelized or batch-fetched. | [ ] |
+| SEC-033 | HybridDocumentStore | `HybridDocumentStore.cs` | Silent exception swallowing in write queue processing. Write failures are never reported, potentially losing data. | [ ] |
+| CODE-011 | AuthenticationService | `AuthenticationService.cs` | Silent failure when initial role doesn't exist. Role assignment silently skipped. Should log warning or throw. | [ ] |
+| API-001 | IAuditLogger | `IAuditLogger.cs` | Sync/async inconsistency. Only `Log`/`LogAsync` pair exists. Specialized methods (LogAuthentication, LogAuthorizationFailure, etc.) only have sync versions. | [ ] |
+| API-002 | IAuditLogger | `IAuditLogger.cs` | Query methods (GetRecentEvents, GetEventsByUser, GetEventsByType) should have async variants for file/database access patterns. | [ ] |
+| API-003 | ICacheManager | `ICacheManager.cs` | Missing file header/license comment that other files have. Inconsistent code style. | [ ] |
+| API-004 | ICacheManager | `ICacheManager.cs` | No async variants of cache operations (GetAsync, SetAsync). Needed for distributed cache implementations. | [ ] |
+| CONC-008 | LruCache | `LruCache.cs` | `_cache.Values.Where(...).ToList()` under write lock enumerates all values. For large caches, holds lock for long time. Consider batching. | [ ] |
+| MEM-006 | LruCache | `LruCache.cs` | `LruCacheEntry<TValue>` has mutable properties with `default!` for Value. Could be null for reference types despite non-nullable annotation. | [ ] |
+| API-005 | ITransactionManager | `ITransactionManager.cs` | Missing file header/license comment. Also `TransactionOperation.OperationType` uses string instead of enum for type safety. | [ ] |
+| SEC-035 | TransactionCoordinator | `TransactionCoordinator.cs` | Silent exception swallowing in cleanup. Should log error for debugging. | [ ] |
+| ASYNC-003 | TransactionContext | `TransactionContext.cs` | Fire-and-forget `_ = RollbackAsync()` in Dispose. Exceptions lost, rollback may not complete. | [ ] |
+| CONC-009 | TransactionContext | `TransactionContext.cs` | Lock type uses `Shared` for non-Serializable writes. Writes should always use `Exclusive` to prevent write-write conflicts. | [ ] |
+| CODE-012 | ObjectPoolManager | `ObjectPoolManager.cs` | Uses reflection to access Statistics property in `GetAllStatistics`. Fragile and slow. Consider adding Statistics to common interface. | [ ] |
+| CONC-012 | DocumentStore | `DocumentStore.cs` | Unused `ReaderWriterLockSlim _collectionsLock` declared but never used. Dead code and missing disposal (IDisposable not implemented). | [ ] |
+| CONC-013 | InMemoryDocumentCollection | `InMemoryDocumentCollection.cs` | Non-atomic `Clear()` - between `_documents.Clear()` and `Interlocked.Exchange`, concurrent Insert can cause Count to be out of sync with actual documents. | [ ] |
+| CONC-014 | GarbageCollectedDocumentStore | `GarbageCollectedDocumentStore.cs` | Race condition in `DeleteAsync` - document version captured at line 53 may be stale by line 57 if another thread modifies document. | [ ] |
+| DATA-018 | TtlDocumentStore | `TtlDocumentStore.cs` | `ClearCollectionAsync` recreates TTL index with hardcoded `"expireAt"` field, losing original configuration. | [ ] |
+
+### P4 - Info / Notes
+
+| Task ID | Component | File | Description | Status |
+|---------|-----------|------|-------------|--------|
+| NET-003 | Client | `Client.cs` | Redundant encoding: `GetBytes(json)` then `GetByteCount(json)`. Just use `bytes.Length`. | [ ] |
+| CODE-008 | QueryParser | `QueryParser.cs` | Unknown properties silently treated as filter conditions. Could be confusing. Consider whitelist or documentation. | [ ] |
+| CODE-009 | FilterEngine | `FilterEngine.cs` | Wildcard syntax (* and ?) mixed with regex. Potentially confusing. Document the behavior clearly. | [ ] |
+| CONC-010 | ObjectPool | `ObjectPool.cs` | Non-atomic check `_count >= _maxCapacity` before add. Could exceed max capacity briefly under concurrent access. Acceptable for pool semantics. | [ ] |
