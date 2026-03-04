@@ -198,7 +198,7 @@ Files to review:
 - [x] `Indexing/IndexManager.cs` - Index management **[REVIEWED - 1 ISSUE: DATA-019 (Low - null check missing for Document.Data in sparse index)]**
 - [x] `Indexing/CompoundIndexKey.cs` - Compound key support **[REVIEWED - No issues. Excellent readonly struct with lexicographical comparison]**
 - [x] `Indexing/ITtlIndexService.cs` - TTL index interface **[REVIEWED - No issues. Clean interface with background service pattern]**
-- [ ] `Indexing/TtlIndexService.cs` - TTL index implementation
+- [x] `Indexing/TtlIndexService.cs` - TTL index implementation **[REVIEWED - 1 ISSUE: CONC-015 (Medium - PriorityQueue race condition in RegisterDocument)]**
 - [ ] `Indexing/PartialSparseIndex.cs` - Partial/Sparse index
 
 **Review Focus:**
@@ -759,6 +759,7 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | DATA-018 | TtlDocumentStore.cs | 161-165 | Low | `ClearCollectionAsync` recreates TTL index with hardcoded `"expireAt"` field, losing original configuration. | Open |
 | MEM-001 | AtomicUpdateDocumentStore.cs | 16-23 | Medium | `_documentLocks` stores SemaphoreSlim indefinitely. Locks never cleaned up on document deletion, causing memory leak with high document churn. | Open |
 | DATA-019 | IndexManager.cs | 662, 686 | Low | SparseIndexWrapper uses `document.Data.ContainsKey()` without null check. Document.Data is nullable, will throw NullReferenceException if null. | Open |
+| CONC-015 | TtlIndexService.cs | 127-131 | Medium | `RegisterDocument` accesses PriorityQueue (not thread-safe) without collection lock, while `CleanupExpiredDocumentsAsync` uses the lock. Race condition. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
