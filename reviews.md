@@ -199,7 +199,7 @@ Files to review:
 - [x] `Indexing/CompoundIndexKey.cs` - Compound key support **[REVIEWED - No issues. Excellent readonly struct with lexicographical comparison]**
 - [x] `Indexing/ITtlIndexService.cs` - TTL index interface **[REVIEWED - No issues. Clean interface with background service pattern]**
 - [x] `Indexing/TtlIndexService.cs` - TTL index implementation **[REVIEWED - 1 ISSUE: CONC-015 (Medium - PriorityQueue race condition in RegisterDocument)]**
-- [ ] `Indexing/PartialSparseIndex.cs` - Partial/Sparse index
+- [x] `Indexing/PartialSparseIndex.cs` - Partial/Sparse index **[REVIEWED - 1 ISSUE: DATA-020 (Low - nullable Data.ContainsKey() in ShouldIncludeDocument)]**
 
 **Review Focus:**
 - B-tree correctness (insert, delete, rebalance)
@@ -760,6 +760,7 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | MEM-001 | AtomicUpdateDocumentStore.cs | 16-23 | Medium | `_documentLocks` stores SemaphoreSlim indefinitely. Locks never cleaned up on document deletion, causing memory leak with high document churn. | Open |
 | DATA-019 | IndexManager.cs | 662, 686 | Low | SparseIndexWrapper uses `document.Data.ContainsKey()` without null check. Document.Data is nullable, will throw NullReferenceException if null. | Open |
 | CONC-015 | TtlIndexService.cs | 127-131 | Medium | `RegisterDocument` accesses PriorityQueue (not thread-safe) without collection lock, while `CleanupExpiredDocumentsAsync` uses the lock. Race condition. | Open |
+| DATA-020 | PartialSparseIndex.cs | 82 | Low | `ShouldIncludeDocument` calls `document.Data.ContainsKey()` without null check. Document.Data is nullable, will throw NullReferenceException. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
