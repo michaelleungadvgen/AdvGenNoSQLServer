@@ -216,7 +216,7 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
 
         if (_cache.TryGetValue(collectionName, out var collection))
         {
-            return Task.FromResult<IEnumerable<Document>>(collection.Values.ToList());
+            return Task.FromResult<IEnumerable<Document>>(EnumerateCollection(collection));
         }
 
         return Task.FromResult<IEnumerable<Document>>(Array.Empty<Document>());
@@ -497,6 +497,14 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
                     File.Delete(filePath);
                 }
                 break;
+        }
+    }
+
+    private static IEnumerable<Document> EnumerateCollection(ConcurrentDictionary<string, Document> collection)
+    {
+        foreach (var kvp in collection)
+        {
+            yield return kvp.Value;
         }
     }
 
