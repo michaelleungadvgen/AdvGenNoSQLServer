@@ -1,0 +1,21 @@
+# Changes this week
+
+- 2026-03-05: Add test for exception handling in CursorManager.CreateCursorAsync
+- 2026-03-05: Refactor ObjectEqualityComparer to avoid swallowed exceptions during type conversion
+- 2026-03-05: Add test for SkipStage exception handling
+- 2026-03-05: Add test for QueryExecutor exception handling
+- 2026-03-05: Refactor TryConvertToDouble with pattern matching switch
+- 2026-03-05: Merge branch 'master' of https://github.com/michaelleungadvgen/AdvGenNoSQLServer
+- 2026-03-04: docs(plan): add missing DATA-019 task from reviews
+- 2026-03-04: ⚡ Bolt: Remove intermediate list allocation in HybridDocumentStore.GetAllAsync
+- 2026-03-04: 🛡️ Sentinel: [CRITICAL] Fix Path Traversal in Document Stores
+- 2026-03-04: docs: draft System API design document for Web API
+- 2026-03-03: Implement new P0 NoSQL commands (FindOne, Insert, Replace, Upsert)
+- 2026-03-03: ⚡ Bolt: Optimize intermediate memory allocations in query execution pipeline
+- 2026-03-03: Add PathValidator tests and implement missing GetManyAsync in PersistentDocumentStore
+- 2026-03-03: docs: Add PR review for code quality improvements PR
+- 2026-03-03: ⚡ Optimize N+1 query issue in QueryExecutor
+- 2026-03-03: 🔒 [security fix] Fix path traversal vulnerability in FileStorageManager
+- 2026-03-03: Log warning on new encryption key generation
+- 2026-03-03: Fix code quality issues
+- 2026-03-03: docs(plan): add code review remediation tasks
