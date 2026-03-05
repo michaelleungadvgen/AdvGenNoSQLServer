@@ -8,6 +8,7 @@ using AdvGenNoSqlServer.Query.Execution;
 using AdvGenNoSqlServer.Query.Filtering;
 using AdvGenNoSqlServer.Query.Models;
 using AdvGenNoSqlServer.Storage;
+using Moq;
 using Xunit;
 
 namespace AdvGenNoSqlServer.Tests;
@@ -175,6 +176,28 @@ public class CursorTests : IDisposable
         // Assert
         Assert.True(result.Success);
         Assert.Equal(50, result.TotalCount);
+    }
+
+    [Fact]
+    public async Task CursorManager_CreateCursor_ExceptionThrown_ReturnsFailureResult()
+    {
+        // Arrange
+        var mockDocumentStore = new Mock<IDocumentStore>();
+        var mockFilterEngine = new Mock<IFilterEngine>();
+
+        mockDocumentStore.Setup(ds => ds.GetAllAsync(It.IsAny<string>()))
+                         .ThrowsAsync(new Exception("Mocked DocumentStore exception"));
+
+        using var cursorManager = new CursorManager(mockDocumentStore.Object, mockFilterEngine.Object);
+        var options = new CursorOptions { BatchSize = 10 };
+
+        // Act
+        var result = await cursorManager.CreateCursorAsync("testCollection", null, null, options);
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Contains("Failed to create cursor", result.ErrorMessage);
+        Assert.Contains("Mocked DocumentStore exception", result.ErrorMessage);
     }
 
     [Fact]
