@@ -340,7 +340,21 @@ public class GarbageCollector : IGarbageCollector, IDisposable
     /// <inheritdoc />
     public IEnumerable<Tombstone> GetTombstones()
     {
-        return _tombstones.Values.ToList();
+        return EnumerateTombstones();
+    }
+
+    /// <summary>
+    /// Enumerates tombstones lazily to avoid O(N) memory allocations and GC pressure.
+    /// By using yield return, we avoid creating a materialized snapshot of the dictionary
+    /// which acquires locks and allocates a new array internally like .Values.ToList() does.
+    /// Expected impact: Reduced memory allocations and improved GC performance.
+    /// </summary>
+    private IEnumerable<Tombstone> EnumerateTombstones()
+    {
+        foreach (var kvp in _tombstones)
+        {
+            yield return kvp.Value;
+        }
     }
 
     /// <inheritdoc />
@@ -349,9 +363,8 @@ public class GarbageCollector : IGarbageCollector, IDisposable
         if (string.IsNullOrWhiteSpace(collectionName))
             return Enumerable.Empty<Tombstone>();
 
-        return _tombstones.Values
-            .Where(t => t.CollectionName.Equals(collectionName, StringComparison.OrdinalIgnoreCase))
-            .ToList();
+        return EnumerateTombstones()
+            .Where(t => t.CollectionName.Equals(collectionName, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <inheritdoc />

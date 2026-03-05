@@ -216,10 +216,24 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
 
         if (_cache.TryGetValue(collectionName, out var collection))
         {
-            return Task.FromResult<IEnumerable<Document>>(collection.Values.ToList());
+            return Task.FromResult(EnumerateCollection(collection));
         }
 
         return Task.FromResult<IEnumerable<Document>>(Array.Empty<Document>());
+    }
+
+    /// <summary>
+    /// Enumerates the collection lazily to avoid O(N) memory allocations and GC pressure.
+    /// By using yield return, we avoid creating a materialized snapshot of the dictionary
+    /// which acquires locks and allocates a new array internally like .Values.ToList() does.
+    /// Expected impact: Reduced memory allocations and improved GC performance when iterating large collections.
+    /// </summary>
+    private IEnumerable<Document> EnumerateCollection(ConcurrentDictionary<string, Document> collection)
+    {
+        foreach (var kvp in collection)
+        {
+            yield return kvp.Value;
+        }
     }
 
     /// <inheritdoc />
