@@ -4690,6 +4690,10 @@ This section tracks the issues identified in `reviews.md` during the code qualit
 | DATA-016 | GarbageCollector | `GarbageCollector.cs` | Tombstones keyed by `documentId` alone, not `collection:documentId`. If different collections have same document ID, only one tombstone is tracked, causing incorrect GC. | [ ] |
 | DATA-017 | TtlDocumentStore | `TtlDocumentStore.cs` | TTL registration happens BEFORE InsertAsync/UpdateAsync. If operation fails, document is still registered for TTL tracking, causing inconsistent state. | [ ] |
 | MEM-001 | AtomicUpdateDocumentStore | `AtomicUpdateDocumentStore.cs` | `_documentLocks` stores SemaphoreSlim indefinitely. Locks never cleaned up on document deletion, causing memory leak with high document churn. | [ ] |
+| CONC-015 | IndexManager | `TtlIndexService.cs` | `RegisterDocument` accesses PriorityQueue (not thread-safe) without collection lock, while `CleanupExpiredDocumentsAsync` uses the lock. Race condition. | [ ] |
+| CONC-016 | StorageManager | `AdvancedFileStorageManager.cs` | Cache read in `LoadDocumentAsync` happens outside semaphore. Concurrent delete can cause stale cached data to be returned. | [ ] |
+| DATA-021 | StorageManager | `FileStorageManager.cs` | `File.WriteAllText` is non-atomic. Process crash mid-write corrupts file. Use write-to-temp-file + rename pattern for crash safety. | [ ] |
+| DATA-022 | StorageManager | `AdvancedFileStorageManager.cs` | `File.WriteAllTextAsync` is non-atomic. Process crash mid-write corrupts file. Use write-to-temp + rename pattern. | [ ] |
 
 ### P3 - Lower Priority
 
@@ -4750,6 +4754,9 @@ This section tracks the issues identified in `reviews.md` during the code qualit
 | CONC-013 | InMemoryDocumentCollection | `InMemoryDocumentCollection.cs` | Non-atomic `Clear()` - between `_documents.Clear()` and `Interlocked.Exchange`, concurrent Insert can cause Count to be out of sync with actual documents. | [ ] |
 | CONC-014 | GarbageCollectedDocumentStore | `GarbageCollectedDocumentStore.cs` | Race condition in `DeleteAsync` - document version captured at line 53 may be stale by line 57 if another thread modifies document. | [ ] |
 | DATA-018 | TtlDocumentStore | `TtlDocumentStore.cs` | `ClearCollectionAsync` recreates TTL index with hardcoded `"expireAt"` field, losing original configuration. | [ ] |
+| CODE-014 | StorageManager | `FileStorageManager.cs` | Uses `Task.Run` wrapping synchronous I/O. Does not achieve true async I/O, just offloads to thread pool. Use `File.ReadAllTextAsync`/`WriteAllTextAsync`. | [ ] |
+| DATA-019 | IndexManager | `IndexManager.cs` | SparseIndexWrapper uses `document.Data.ContainsKey()` without null check. Document.Data is nullable, will throw NullReferenceException if null. | [ ] |
+| DATA-020 | IndexManager | `PartialSparseIndex.cs` | `ShouldIncludeDocument` calls `document.Data.ContainsKey()` without null check. Document.Data is nullable, will throw NullReferenceException. | [ ] |
 
 ### P4 - Info / Notes
 
