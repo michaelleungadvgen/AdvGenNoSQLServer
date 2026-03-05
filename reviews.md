@@ -211,7 +211,7 @@ Files to review:
 #### 3.2.3 Storage Managers
 Files to review:
 - [x] `Storage/IStorageManager.cs` - Storage interface **[REVIEWED - No issues. Clean minimal storage interface]**
-- [ ] `Storage/FileStorageManager.cs` - File-based storage
+- [x] `Storage/FileStorageManager.cs` - File-based storage **[REVIEWED - 2 ISSUES: DATA-021 (Medium - non-atomic write), CODE-014 (Low - fake async with Task.Run)]**
 - [ ] `Storage/AdvancedFileStorageManager.cs` - Advanced file storage
 
 **Review Focus:**
@@ -761,6 +761,8 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | DATA-019 | IndexManager.cs | 662, 686 | Low | SparseIndexWrapper uses `document.Data.ContainsKey()` without null check. Document.Data is nullable, will throw NullReferenceException if null. | Open |
 | CONC-015 | TtlIndexService.cs | 127-131 | Medium | `RegisterDocument` accesses PriorityQueue (not thread-safe) without collection lock, while `CleanupExpiredDocumentsAsync` uses the lock. Race condition. | Open |
 | DATA-020 | PartialSparseIndex.cs | 82 | Low | `ShouldIncludeDocument` calls `document.Data.ContainsKey()` without null check. Document.Data is nullable, will throw NullReferenceException. | Open |
+| DATA-021 | FileStorageManager.cs | 52 | Medium | `File.WriteAllText` is non-atomic. Process crash mid-write corrupts file. Use write-to-temp-file + rename pattern for crash safety. | Open |
+| CODE-014 | FileStorageManager.cs | 41-54 | Low | Uses `Task.Run` wrapping synchronous I/O. Does not achieve true async I/O, just offloads to thread pool. Use `File.ReadAllTextAsync`/`WriteAllTextAsync`. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
