@@ -745,6 +745,50 @@ public class QueryEngineTests
             Assert.NotNull(stats.ExecutionPlan);
             Assert.NotEmpty(stats.ExecutionPlan);
         }
+
+        [Fact]
+        public async Task ExecuteAsync_DocumentStoreThrows_ReturnsFailureResult()
+        {
+            // Arrange
+            var throwingStore = new ThrowingDocumentStore("Database connection failed");
+            var filterEngine = new FilterEngine();
+            var executor = new QueryExecutor(throwingStore, filterEngine);
+
+            var query = new AdvGenNoSqlServer.Query.Models.Query
+            {
+                CollectionName = "users"
+            };
+
+            // Act
+            var result = await executor.ExecuteAsync(query);
+
+            // Assert
+            Assert.False(result.Success);
+            Assert.Contains("Database connection failed", result.ErrorMessage);
+        }
+
+        private class ThrowingDocumentStore : IDocumentStore
+        {
+            private readonly string _exceptionMessage;
+
+            public ThrowingDocumentStore(string exceptionMessage)
+            {
+                _exceptionMessage = exceptionMessage;
+            }
+
+            public Task<Document> InsertAsync(string collectionName, Document document) => throw new NotImplementedException();
+            public Task<Document?> GetAsync(string collectionName, string documentId) => throw new NotImplementedException();
+            public Task<IEnumerable<Document>> GetManyAsync(string collectionName, IEnumerable<string> documentIds) => throw new NotImplementedException();
+            public Task<IEnumerable<Document>> GetAllAsync(string collectionName) => throw new InvalidOperationException(_exceptionMessage);
+            public Task<Document> UpdateAsync(string collectionName, Document document) => throw new NotImplementedException();
+            public Task<bool> DeleteAsync(string collectionName, string documentId) => throw new NotImplementedException();
+            public Task<bool> ExistsAsync(string collectionName, string documentId) => throw new NotImplementedException();
+            public Task<long> CountAsync(string collectionName) => throw new NotImplementedException();
+            public Task CreateCollectionAsync(string collectionName) => throw new NotImplementedException();
+            public Task<bool> DropCollectionAsync(string collectionName) => throw new NotImplementedException();
+            public Task<IEnumerable<string>> GetCollectionsAsync() => throw new NotImplementedException();
+            public Task ClearCollectionAsync(string collectionName) => throw new NotImplementedException();
+        }
     }
 
     #endregion
