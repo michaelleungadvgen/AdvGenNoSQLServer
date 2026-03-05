@@ -212,7 +212,7 @@ Files to review:
 Files to review:
 - [x] `Storage/IStorageManager.cs` - Storage interface **[REVIEWED - No issues. Clean minimal storage interface]**
 - [x] `Storage/FileStorageManager.cs` - File-based storage **[REVIEWED - 2 ISSUES: DATA-021 (Medium - non-atomic write), CODE-014 (Low - fake async with Task.Run)]**
-- [ ] `Storage/AdvancedFileStorageManager.cs` - Advanced file storage
+- [x] `Storage/AdvancedFileStorageManager.cs` - Advanced file storage **[REVIEWED - 2 ISSUES: CONC-016 (Medium - stale cache from unprotected read), DATA-022 (Medium - non-atomic write)]**
 
 **Review Focus:**
 - File I/O efficiency
@@ -763,6 +763,8 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | DATA-020 | PartialSparseIndex.cs | 82 | Low | `ShouldIncludeDocument` calls `document.Data.ContainsKey()` without null check. Document.Data is nullable, will throw NullReferenceException. | Open |
 | DATA-021 | FileStorageManager.cs | 52 | Medium | `File.WriteAllText` is non-atomic. Process crash mid-write corrupts file. Use write-to-temp-file + rename pattern for crash safety. | Open |
 | CODE-014 | FileStorageManager.cs | 41-54 | Low | Uses `Task.Run` wrapping synchronous I/O. Does not achieve true async I/O, just offloads to thread pool. Use `File.ReadAllTextAsync`/`WriteAllTextAsync`. | Open |
+| CONC-016 | AdvancedFileStorageManager.cs | 86-99 | Medium | Cache read in `LoadDocumentAsync` happens outside semaphore. Concurrent delete can cause stale cached data to be returned. | Open |
+| DATA-022 | AdvancedFileStorageManager.cs | 62 | Medium | `File.WriteAllTextAsync` is non-atomic. Process crash mid-write corrupts file. Use write-to-temp + rename pattern. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
