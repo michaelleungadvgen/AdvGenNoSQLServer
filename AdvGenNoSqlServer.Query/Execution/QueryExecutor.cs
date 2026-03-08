@@ -409,7 +409,8 @@ public class QueryExecutor : IQueryExecutor
         else
         {
             // Inclusion projection - include only specified fields + _id
-            var fieldsToInclude = projection.Where(p => p.Value).Select(p => p.Key).ToList();
+            // OPTIMIZATION: Use HashSet for O(1) lookups during containment checks
+            var fieldsToInclude = projection.Where(p => p.Value).Select(p => p.Key).ToHashSet();
             fieldsToInclude.Add("_id");
 
             foreach (var doc in documents)
