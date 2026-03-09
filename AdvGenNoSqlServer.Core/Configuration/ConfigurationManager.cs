@@ -76,9 +76,9 @@ public class ConfigurationManager : IConfigurationManager, IDisposable
         _configFileName = Path.GetFileName(configPath);
         _configuration = new ServerConfiguration();
         _enableHotReload = enableHotReload;
-        
+
         LoadConfiguration();
-        
+
         if (enableHotReload)
         {
             EnableHotReload();
@@ -200,7 +200,7 @@ public class ConfigurationManager : IConfigurationManager, IDisposable
     private void OnFileWatcherError(object sender, ErrorEventArgs e)
     {
         Console.WriteLine($"[Config] File watcher error: {e.GetException().Message}");
-        
+
         // Attempt to recreate the watcher
         try
         {
@@ -239,7 +239,7 @@ public class ConfigurationManager : IConfigurationManager, IDisposable
     public void UpdateConfiguration(string key, object value)
     {
         var oldConfig = CloneConfiguration(_configuration);
-        
+
         // Simple reflection-based property update
         var property = typeof(ServerConfiguration).GetProperty(key);
         if (property != null && property.CanWrite)
@@ -248,7 +248,7 @@ public class ConfigurationManager : IConfigurationManager, IDisposable
             {
                 var convertedValue = Convert.ChangeType(value, property.PropertyType);
                 property.SetValue(_configuration, convertedValue);
-                
+
                 // Notify subscribers
                 ConfigurationChanged?.Invoke(this, new ConfigurationChangedEventArgs(oldConfig, _configuration, "Manual"));
             }
@@ -355,7 +355,7 @@ public class ConfigurationManager : IConfigurationManager, IDisposable
             {
                 config.EnableDetailedLogging = enableLogging;
             }
-            else if (enableLoggingEnv.Equals("1", StringComparison.OrdinalIgnoreCase) || 
+            else if (enableLoggingEnv.Equals("1", StringComparison.OrdinalIgnoreCase) ||
                      enableLoggingEnv.Equals("yes", StringComparison.OrdinalIgnoreCase))
             {
                 config.EnableDetailedLogging = true;

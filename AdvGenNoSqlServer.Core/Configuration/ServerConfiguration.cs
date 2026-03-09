@@ -208,8 +208,8 @@ public class ServerConfiguration
     /// <summary>
     /// SSL/TLS protocol version to use (default: TLS 1.2 and above)
     /// </summary>
-    public System.Security.Authentication.SslProtocols SslProtocols { get; set; } = 
-        System.Security.Authentication.SslProtocols.Tls12 | 
+    public System.Security.Authentication.SslProtocols SslProtocols { get; set; } =
+        System.Security.Authentication.SslProtocols.Tls12 |
         System.Security.Authentication.SslProtocols.Tls13;
 
     /// <summary>

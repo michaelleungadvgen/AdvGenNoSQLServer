@@ -271,7 +271,7 @@ public class TtlIndexService : ITtlIndexService
     {
         // Document.Data is a Dictionary<string, object>
         var data = document.Data;
-        
+
         if (data != null && data.TryGetValue(config.ExpireAfterField, out var expireValue))
         {
             // Try to parse as DateTime
@@ -301,7 +301,7 @@ public class TtlIndexService : ITtlIndexService
                 return DateTimeOffset.FromUnixTimeSeconds(intTimestamp).UtcDateTime;
             }
         }
-        
+
         if (config.DefaultExpireAfter.HasValue)
         {
             // Use default expiration from document creation time

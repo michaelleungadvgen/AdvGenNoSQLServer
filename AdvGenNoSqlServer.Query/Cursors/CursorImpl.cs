@@ -33,7 +33,7 @@ internal class Cursor : ICursor
     public long DocumentsReturned => Interlocked.Read(ref _documentsReturned);
     public bool IsClosed { get; private set; }
     public string? LastDocumentId { get; private set; }
-    
+
     /// <inheritdoc />
     public bool IsExpired => DateTime.UtcNow > ExpiresAt;
 
@@ -91,7 +91,7 @@ internal class Cursor : ICursor
                 // Take up to batchSize documents from the buffer
                 var toTake = Math.Min(batchSize, _bufferedDocuments.Count);
                 results.AddRange(_bufferedDocuments.Take(toTake));
-                
+
                 // Remove the taken documents from the buffer
                 if (toTake >= _bufferedDocuments.Count)
                 {

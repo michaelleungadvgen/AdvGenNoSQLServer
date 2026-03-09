@@ -134,13 +134,13 @@ public class QueryFilter
     {
         var result = new QueryFilter();
         var andList = new List<object>();
-        
+
         // Add current conditions as a dictionary
         andList.Add(Conditions.ToDictionary(kvp => kvp.Key, kvp => kvp.Value));
-        
+
         // Add other conditions as a dictionary
         andList.Add(other.Conditions.ToDictionary(kvp => kvp.Key, kvp => kvp.Value));
-        
+
         result.Conditions["$and"] = andList;
         return result;
     }
@@ -152,13 +152,13 @@ public class QueryFilter
     {
         var result = new QueryFilter();
         var orList = new List<object>();
-        
+
         // Add current conditions as a dictionary
         orList.Add(Conditions.ToDictionary(kvp => kvp.Key, kvp => kvp.Value));
-        
+
         // Add other conditions as a dictionary
         orList.Add(other.Conditions.ToDictionary(kvp => kvp.Key, kvp => kvp.Value));
-        
+
         result.Conditions["$or"] = orList;
         return result;
     }

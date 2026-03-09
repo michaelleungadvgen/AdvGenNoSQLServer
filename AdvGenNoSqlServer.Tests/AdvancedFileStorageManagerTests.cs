@@ -41,7 +41,7 @@ public class AdvancedFileStorageManagerTests : IDisposable
         Assert.Equal(document.Id, result.Id);
         Assert.Equal(document.CreatedAt, result.CreatedAt);
         Assert.Equal(document.Version, result.Version);
-        
+
         // Compare dictionary contents
         Assert.NotNull(result.Data);
         Assert.Single(result.Data);
@@ -75,7 +75,7 @@ public class AdvancedFileStorageManagerTests : IDisposable
                 var result = await _storageManager.LoadDocumentAsync(collectionName, document.Id);
                 Assert.NotNull(result);
                 Assert.Equal(document.Id, result.Id);
-                
+
                 // Compare dictionary contents
                 Assert.NotNull(result.Data);
                 Assert.Single(result.Data);

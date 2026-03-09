@@ -19,8 +19,8 @@ namespace AdvGenNoSqlServer.Client
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>The document if found, null otherwise</returns>
         public async Task<Dictionary<string, object>?> GetAsync(
-            string collection, 
-            string id, 
+            string collection,
+            string id,
             CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrEmpty(collection))
@@ -39,9 +39,9 @@ namespace AdvGenNoSqlServer.Client
             };
 
             var message = NoSqlMessage.Create(
-                Network.MessageType.Command, 
+                Network.MessageType.Command,
                 System.Text.Json.JsonSerializer.Serialize(payload));
-            
+
             var response = await SendAndReceiveAsync(message, cancellationToken);
             var result = ParseResponse(response);
 
@@ -70,8 +70,8 @@ namespace AdvGenNoSqlServer.Client
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>The ID of the stored document</returns>
         public async Task<string> SetAsync(
-            string collection, 
-            object document, 
+            string collection,
+            object document,
             CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrEmpty(collection))
@@ -112,8 +112,8 @@ namespace AdvGenNoSqlServer.Client
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>True if the document was deleted, false if not found</returns>
         public async Task<bool> DeleteAsync(
-            string collection, 
-            string id, 
+            string collection,
+            string id,
             CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrEmpty(collection))
@@ -132,9 +132,9 @@ namespace AdvGenNoSqlServer.Client
             };
 
             var message = NoSqlMessage.Create(
-                Network.MessageType.Command, 
+                Network.MessageType.Command,
                 System.Text.Json.JsonSerializer.Serialize(payload));
-            
+
             var response = await SendAndReceiveAsync(message, cancellationToken);
             var result = ParseResponse(response);
 
@@ -161,8 +161,8 @@ namespace AdvGenNoSqlServer.Client
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns>True if the document exists, false otherwise</returns>
         public async Task<bool> ExistsAsync(
-            string collection, 
-            string id, 
+            string collection,
+            string id,
             CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrEmpty(collection))
@@ -181,9 +181,9 @@ namespace AdvGenNoSqlServer.Client
             };
 
             var message = NoSqlMessage.Create(
-                Network.MessageType.Command, 
+                Network.MessageType.Command,
                 System.Text.Json.JsonSerializer.Serialize(payload));
-            
+
             var response = await SendAndReceiveAsync(message, cancellationToken);
             var result = ParseResponse(response);
 

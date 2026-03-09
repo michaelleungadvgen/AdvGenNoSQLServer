@@ -256,7 +256,7 @@ public class RoleManagerTests
         _roleManager.CreateRole("TestRole");
 
         // Act & Assert
-        Assert.Throws<ArgumentException>(() => 
+        Assert.Throws<ArgumentException>(() =>
             _roleManager.AddPermissionToRole("TestRole", "invalid:permission"));
     }
 

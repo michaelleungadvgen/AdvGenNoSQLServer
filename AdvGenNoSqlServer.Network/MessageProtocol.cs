@@ -166,15 +166,15 @@ namespace AdvGenNoSqlServer.Network
             sb.Append("{");
             sb.Append($"\"command\":\"{command}\",");
             sb.Append($"\"collection\":\"{collection}\"");
-            
+
             if (document != null)
             {
                 sb.Append(",");
                 sb.Append($"\"document\":{System.Text.Json.JsonSerializer.Serialize(document)}");
             }
-            
+
             sb.Append("}");
-            
+
             return Create(MessageType.Command, sb.ToString());
         }
 

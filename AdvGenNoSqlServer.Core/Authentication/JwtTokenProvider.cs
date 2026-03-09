@@ -162,8 +162,8 @@ public class JwtTokenProvider : IJwtTokenProvider
                 return TokenValidationResult.Failed("Invalid token audience");
 
             // Extract expiration time
-            DateTime? expirationTime = payload.Exp.HasValue 
-                ? FromUnixTimeSeconds(payload.Exp.Value) 
+            DateTime? expirationTime = payload.Exp.HasValue
+                ? FromUnixTimeSeconds(payload.Exp.Value)
                 : null;
 
             return TokenValidationResult.Success(
@@ -191,14 +191,14 @@ public class JwtTokenProvider : IJwtTokenProvider
     public string? RefreshToken(string token)
     {
         var validationResult = ValidateToken(token);
-        
+
         if (!validationResult.IsValid)
             return null;
 
         // Generate new token with same claims but new expiration
         return GenerateToken(
-            validationResult.Username!, 
-            validationResult.Roles, 
+            validationResult.Username!,
+            validationResult.Roles,
             validationResult.Permissions,
             _defaultExpiration
         );

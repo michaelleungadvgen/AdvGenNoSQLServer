@@ -32,20 +32,20 @@ public class Program
         Console.WriteLine();
 
         var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder(args);
-        
+
         // Configure logging
         builder.Logging.SetMinimumLevel(LogLevel.Information);
         builder.Logging.AddConsole();
-        
+
         // Register all services
         ConfigureServices(builder.Services);
-        
+
         using var host = builder.Build();
-        
+
         // Start the host
         await host.RunAsync();
     }
-    
+
     /// <summary>
     /// Configures services for dependency injection.
     /// </summary>
@@ -57,7 +57,7 @@ public class Program
             var configPath = "appsettings.json";
             return new Core.Configuration.ConfigurationManager(configPath, enableHotReload: true);
         });
-        
+
         // Add cache manager
         services.AddSingleton<ICacheManager>(provider =>
         {
@@ -68,7 +68,7 @@ public class Program
                 maxSizeInBytes: config.MaxCacheSizeInBytes > 0 ? config.MaxCacheSizeInBytes : 104857600,
                 defaultTtlMilliseconds: config.DefaultCacheTtlMilliseconds > 0 ? config.DefaultCacheTtlMilliseconds : 1800000);
         });
-        
+
         // Add audit logger
         services.AddSingleton<IAuditLogger>(provider =>
         {
@@ -76,7 +76,7 @@ public class Program
             var config = configManager.Configuration;
             return new AuditLogger(config);
         });
-        
+
         // Add authentication manager
         services.AddSingleton<AuthenticationManager>(provider =>
         {
@@ -84,7 +84,7 @@ public class Program
             var config = configManager.Configuration;
             return new AuthenticationManager(config);
         });
-        
+
         // Add Write-Ahead Log
         services.AddSingleton<IWriteAheadLog>(provider =>
         {
@@ -97,13 +97,13 @@ public class Program
             };
             return new WriteAheadLog(walOptions);
         });
-        
+
         // Add Lock Manager
         services.AddSingleton<ILockManager>(provider =>
         {
             return new LockManager(enableDeadlockDetection: true);
         });
-        
+
         // Add transaction coordinator
         services.AddSingleton<ITransactionCoordinator>(provider =>
         {
@@ -111,7 +111,7 @@ public class Program
             var lockManager = provider.GetRequiredService<ILockManager>();
             return new TransactionCoordinator(writeAheadLog, lockManager);
         });
-        
+
         // Add the hosted NoSQL server service
         services.AddHostedService<NoSqlServerHost>();
     }
@@ -174,7 +174,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
         await _tcpServer.StartAsync(cancellationToken);
 
         _logger.LogInformation("NoSQL Server started successfully");
-        
+
         // Log server start event
         _auditLogger.Log(new AuditEvent
         {
@@ -183,7 +183,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
             Details = $"v1.0.0 - Max Connections: {config.MaxConcurrentConnections}",
             Timestamp = DateTime.UtcNow
         });
-        
+
         // Log startup banner
         Console.WriteLine();
         Console.ForegroundColor = ConsoleColor.Green;
@@ -198,7 +198,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Stopping NoSQL Server...");
-        
+
         // Log server stop event
         _auditLogger.Log(new AuditEvent
         {
@@ -239,7 +239,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
         {
             storagePath = Path.Combine(AppContext.BaseDirectory, storagePath);
         }
-        
+
         if (!string.IsNullOrEmpty(storagePath))
         {
             Directory.CreateDirectory(storagePath);
@@ -250,7 +250,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
     {
         var remoteEndPoint = e.Client.Client?.RemoteEndPoint?.ToString() ?? "unknown";
         _logger.LogDebug("Connection established: {ConnectionId} from {RemoteAddress}", e.ConnectionId, remoteEndPoint);
-        
+
         _auditLogger.Log(new AuditEvent
         {
             EventType = AuditEventType.ConnectionEstablished,
@@ -264,7 +264,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
     private void OnConnectionClosed(object? sender, ConnectionEventArgs e)
     {
         _logger.LogDebug("Connection closed: {ConnectionId}", e.ConnectionId);
-        
+
         _auditLogger.Log(new AuditEvent
         {
             EventType = AuditEventType.ConnectionClosed,
@@ -350,10 +350,10 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
         {
             var payload = message.GetPayloadAsString();
             using var doc = System.Text.Json.JsonDocument.Parse(payload);
-            
+
             string? username = null;
             string? password = null;
-            
+
             if (doc.RootElement.TryGetProperty("username", out var usernameProp))
                 username = usernameProp.GetString();
             if (doc.RootElement.TryGetProperty("password", out var passwordProp))
@@ -374,7 +374,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
             }
 
             var result = _authManager.Authenticate(username, password);
-            
+
             if (result != null)
             {
                 _auditLogger.Log(new AuditEvent
@@ -432,14 +432,14 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
         {
             var payload = message.GetPayloadAsString();
             using var doc = System.Text.Json.JsonDocument.Parse(payload);
-            
+
             if (!doc.RootElement.TryGetProperty("command", out var commandProp))
             {
                 return NoSqlMessage.CreateError("INVALID_COMMAND", "Missing command property");
             }
 
             var command = commandProp.GetString()?.ToLowerInvariant();
-            
+
             return command switch
             {
                 "get" => await HandleGetCommandAsync(doc.RootElement),
@@ -474,7 +474,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
         }
 
         var document = await _documentStore!.GetAsync(collection, id);
-        
+
         if (document == null)
         {
             return NoSqlMessage.CreateSuccess(new { found = false, document = (object?)null });
@@ -492,7 +492,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
         }
 
         var collection = collectionProp.GetString();
-        
+
         if (string.IsNullOrEmpty(collection))
         {
             return NoSqlMessage.CreateError("INVALID_COMMAND", "Collection is required");
@@ -500,7 +500,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
 
         var json = documentProp.GetRawText();
         var document = System.Text.Json.JsonSerializer.Deserialize<Core.Models.Document>(json);
-        
+
         if (document == null)
         {
             return NoSqlMessage.CreateError("INVALID_DOCUMENT", "Failed to parse document");
@@ -520,7 +520,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
         {
             await _documentStore.InsertAsync(collection, document);
         }
-        
+
         return NoSqlMessage.CreateSuccess(new { stored = true, id = document.Id });
     }
 
@@ -541,7 +541,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
         }
 
         var deleted = await _documentStore!.DeleteAsync(collection, id);
-        
+
         return NoSqlMessage.CreateSuccess(new { deleted });
     }
 
@@ -562,14 +562,14 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
         }
 
         var exists = await _documentStore!.ExistsAsync(collection, id);
-        
+
         return NoSqlMessage.CreateSuccess(new { exists });
     }
 
     private async Task<NoSqlMessage> HandleCountCommandAsync(System.Text.Json.JsonElement commandElement)
     {
         long count = 0;
-        
+
         if (commandElement.TryGetProperty("collection", out var collectionProp))
         {
             var collection = collectionProp.GetString();
@@ -586,7 +586,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
                 count += await _documentStore.CountAsync(collection);
             }
         }
-        
+
         return NoSqlMessage.CreateSuccess(new { count });
     }
 
@@ -598,8 +598,9 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
 
     private Task<NoSqlMessage> HandleBulkOperationAsync(NoSqlMessage message, string connectionId)
     {
-        return Task.FromResult(NoSqlMessage.CreateSuccess(new { 
-            success = true, 
+        return Task.FromResult(NoSqlMessage.CreateSuccess(new
+        {
+            success = true,
             message = "Bulk operations supported",
             totalProcessed = 0
         }));

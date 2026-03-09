@@ -29,7 +29,7 @@ public class SkipStage : IAggregationStage
     {
         if (skip < 0)
             throw new ArgumentException("Skip must be non-negative", nameof(skip));
-        
+
         _skip = skip;
     }
 

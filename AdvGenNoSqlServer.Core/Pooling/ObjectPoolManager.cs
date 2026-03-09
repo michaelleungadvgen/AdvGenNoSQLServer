@@ -40,7 +40,7 @@ public class ObjectPoolManager : IDisposable
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Pool name cannot be null or empty.", nameof(name));
 
-        return (IObjectPool<T>)_pools.GetOrAdd(name, _ => 
+        return (IObjectPool<T>)_pools.GetOrAdd(name, _ =>
             new ObjectPool<T>(maxCapacity, factory, resetAction));
     }
 
@@ -139,7 +139,7 @@ public class ObjectPoolManager : IDisposable
         {
             var pool = kvp.Value;
             var poolType = pool.GetType();
-            
+
             // Use reflection to get the Statistics property
             var statisticsProperty = poolType.GetProperty("Statistics");
             if (statisticsProperty != null)
@@ -163,7 +163,7 @@ public class ObjectPoolManager : IDisposable
         if (!_disposed)
         {
             _disposed = true;
-            
+
             foreach (var pool in _pools.Values)
             {
                 if (pool is IDisposable disposable)

@@ -19,7 +19,7 @@ public class GarbageCollectorTests : IDisposable
     {
         _testDataPath = Path.Combine(Path.GetTempPath(), $"nosql_gc_test_{Guid.NewGuid()}");
         Directory.CreateDirectory(_testDataPath);
-        
+
         _defaultOptions = new GarbageCollectorOptions
         {
             Enabled = true,
@@ -68,7 +68,7 @@ public class GarbageCollectorTests : IDisposable
         };
 
         var gc = new GarbageCollector(options);
-        
+
         // Should not track when disabled
         gc.RecordDeletion("test", "doc1", 1);
         var stats = gc.GetStatistics();
@@ -128,10 +128,10 @@ public class GarbageCollectorTests : IDisposable
 
         gc.RecordDeletion("users", "doc1", 1);
         var firstTombstone = gc.GetTombstone("doc1");
-        
+
         // Wait a tiny bit to ensure different timestamp
         Thread.Sleep(10);
-        
+
         gc.RecordDeletion("users", "doc1", 2);
         var secondTombstone = gc.GetTombstone("doc1");
 
@@ -242,7 +242,7 @@ public class GarbageCollectorTests : IDisposable
         Assert.Equal(1, gc.GetStatistics().TotalTombstones);
 
         var removed = gc.RemoveTombstone("doc1");
-        
+
         Assert.True(removed);
         Assert.Equal(0, gc.GetStatistics().TotalTombstones);
         Assert.Null(gc.GetTombstone("doc1"));
@@ -284,7 +284,7 @@ public class GarbageCollectorTests : IDisposable
     public async Task CollectAsync_WithExpiredTombstones_RemovesFilesAndTombstones()
     {
         var gc = new GarbageCollector(_defaultOptions);
-        
+
         // Create a test file
         var testFile = Path.Combine(_testDataPath, "test_doc.json");
         await File.WriteAllTextAsync(testFile, "{\"test\": \"data\"}");
@@ -301,7 +301,7 @@ public class GarbageCollectorTests : IDisposable
 
         Assert.Equal(1, cleaned);
         Assert.False(File.Exists(testFile));
-        
+
         var stats = gc.GetStatistics();
         Assert.Equal(0, stats.TotalTombstones);
         Assert.Equal(1, stats.CleanedTombstones);
@@ -341,7 +341,7 @@ public class GarbageCollectorTests : IDisposable
         var gc = new GarbageCollector(options);
 
         gc.RecordDeletion("users", "doc1", 1);
-        
+
         var cleaned = await gc.CollectAsync();
 
         Assert.Equal(0, cleaned);
@@ -429,11 +429,11 @@ public class GarbageCollectorTests : IDisposable
         var gc = new GarbageCollector(_defaultOptions);
 
         gc.RecordDeletion("users", "doc1", 1);
-        
+
         var stats1 = gc.GetStatistics();
-        
+
         gc.RecordDeletion("users", "doc2", 1);
-        
+
         var stats2 = gc.GetStatistics();
 
         // stats1 should be unchanged (it's a snapshot)

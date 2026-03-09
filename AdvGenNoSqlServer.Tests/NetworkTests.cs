@@ -573,7 +573,7 @@ namespace AdvGenNoSqlServer.Tests
                 MaxConcurrentConnections = 2,
                 ConnectionTimeout = TimeSpan.FromSeconds(1)
             };
-            
+
             var server = new TcpServer(limitedConfig);
             await server.StartAsync();
 

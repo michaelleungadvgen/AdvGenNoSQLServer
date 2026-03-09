@@ -9,6 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace AdvGenNoSqlServer.Core.Models;
+
 public class Document
 {
     public required string Id { get; set; }

@@ -40,8 +40,9 @@ public class SecurityReproductionTests : IDisposable
         var relativePathToSensitiveFile = Path.GetRelativePath(_testBasePath, sensitiveFile);
         // Remove .json from what we want the final path to be, because FileStorageManager appends .json
         var documentIdWithTraversal = "../../" + Path.GetFileName(sensitiveFile).Replace(".json", "");
-        if (documentIdWithTraversal.EndsWith(".txt")) {
-             documentIdWithTraversal = documentIdWithTraversal.Substring(0, documentIdWithTraversal.Length - 4);
+        if (documentIdWithTraversal.EndsWith(".txt"))
+        {
+            documentIdWithTraversal = documentIdWithTraversal.Substring(0, documentIdWithTraversal.Length - 4);
         }
 
         // Wait, the vulnerable code is:

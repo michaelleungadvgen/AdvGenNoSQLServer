@@ -42,7 +42,7 @@ public class FileStorageManagerTests : IDisposable
         Assert.Equal(document.CreatedAt, result.CreatedAt);
         Assert.Equal(document.UpdatedAt, result.UpdatedAt);
         Assert.Equal(document.Version, result.Version);
-        
+
         // Compare dictionary contents
         Assert.NotNull(result.Data);
         Assert.Single(result.Data);

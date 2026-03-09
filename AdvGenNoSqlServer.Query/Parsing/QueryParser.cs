@@ -57,7 +57,7 @@ public class QueryParser : IQueryParser
             {
                 case "collection":
                 case "collectionname":
-                    query.CollectionName = property.Value.GetString() 
+                    query.CollectionName = property.Value.GetString()
                         ?? throw new QueryParseException("Collection name cannot be null");
                     break;
 

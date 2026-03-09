@@ -171,15 +171,15 @@ public class ObjectPoolTests
     public void Statistics_InUse_CalculatesCorrectly()
     {
         using var pool = new ObjectPool<TestObject>(maxCapacity: 10);
-        
+
         var obj1 = pool.Rent();
         var obj2 = pool.Rent();
-        
+
         Assert.Equal(2, pool.Statistics.InUse);
-        
+
         pool.Return(obj1);
         Assert.Equal(1, pool.Statistics.InUse);
-        
+
         pool.Return(obj2);
         Assert.Equal(0, pool.Statistics.InUse);
     }
@@ -188,10 +188,10 @@ public class ObjectPoolTests
     public void Statistics_Reset_ClearsCounters()
     {
         using var pool = new ObjectPool<TestObject>(maxCapacity: 10);
-        
+
         var obj = pool.Rent();
         pool.Return(obj);
-        
+
         pool.Statistics.Reset();
 
         Assert.Equal(0, pool.Statistics.TotalRented);
@@ -298,7 +298,7 @@ public class ObjectPoolTests
 
         var buffer = pool.Rent(1024);
         Assert.Equal(1, pool.TotalRented);
-        
+
         pool.Return(buffer);
         Assert.Equal(1, pool.TotalReturned);
         Assert.Equal(0, pool.InUse);
@@ -311,7 +311,7 @@ public class ObjectPoolTests
 
         var buffer = pool.Rent(1024);
         pool.Return(buffer);
-        
+
         pool.ResetStatistics();
 
         Assert.Equal(0, pool.TotalRented);
@@ -496,7 +496,7 @@ public class ObjectPoolTests
     public void PooledObject_Dispose_ReturnsToPool()
     {
         using var pool = new ObjectPool<TestObject>();
-        
+
         using (var pooled = pool.RentDisposable())
         {
             Assert.NotNull(pooled.Value);
@@ -678,13 +678,13 @@ public class ObjectPoolTests
     {
         using var pool = new StringBuilderPool(maxPoolSize: 10);
         var sb = pool.Rent();
-        
+
         // Append enough to grow capacity beyond max
         for (int i = 0; i < 1000; i++)
         {
             sb.Append("Large content that will expand the capacity significantly ");
         }
-        
+
         var largeCapacity = sb.Capacity;
         pool.Return(sb);
         var sb2 = pool.Rent();

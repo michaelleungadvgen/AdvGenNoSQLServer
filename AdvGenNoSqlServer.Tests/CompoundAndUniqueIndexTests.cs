@@ -217,9 +217,9 @@ public class CompoundAndUniqueIndexTests
         // Try to update second document to have the same key as first
         // (This requires delete then insert, so the insert will fail)
         Assert.True(index.Delete("jane@example.com", "user2"));
-        
+
         // Now trying to insert as john@example.com should fail
-        Assert.Throws<DuplicateKeyException>(() => 
+        Assert.Throws<DuplicateKeyException>(() =>
             index.Insert("john@example.com", "user2"));
     }
 
@@ -388,7 +388,7 @@ public class CompoundAndUniqueIndexTests
         manager.IndexDocument("users", doc1);
         manager.IndexDocument("users", doc2);
 
-        Assert.Throws<DuplicateKeyException>(() => 
+        Assert.Throws<DuplicateKeyException>(() =>
             manager.UpdateDocument("users", doc2, updatedDoc2));
     }
 
@@ -449,9 +449,9 @@ public class CompoundAndUniqueIndexTests
     public void CompoundIndexKey_ToString_FormatsCorrectly()
     {
         var key = new CompoundIndexKey("IT", 25, true);
-        
+
         var str = key.ToString();
-        
+
         Assert.Equal("(IT, 25, True)", str);
     }
 
@@ -544,7 +544,7 @@ public class CompoundAndUniqueIndexTests
         var results = index.GetGreaterThanOrEqual(new CompoundIndexKey("Electronics", 30)).ToList();
 
         Assert.True(results.Count >= 3); // At least Electronics 30, 40, 50
-        Assert.All(results, r => 
+        Assert.All(results, r =>
         {
             // Either Electronics with price >= 30, or any Clothing, or any Food
             Assert.True(
@@ -605,7 +605,7 @@ public class CompoundAndUniqueIndexTests
     public void IndexManager_GetCompoundIndex_ReturnsCorrectIndex()
     {
         var manager = new IndexManager();
-        
+
         var createdIndex = manager.CreateCompoundIndex(
             "users",
             new[] { "department", "age" },
@@ -636,13 +636,13 @@ public class CompoundAndUniqueIndexTests
     public void IndexManager_HasCompoundIndex_ReturnsCorrectResult()
     {
         var manager = new IndexManager();
-        
+
         manager.CreateCompoundIndex(
             "users",
             new[] { "department", "age" },
             isUnique: false,
-            keySelector: doc => new object?[] 
-            { 
+            keySelector: doc => new object?[]
+            {
                 doc.Data.TryGetValue("department", out var dept) ? dept : null,
                 doc.Data.TryGetValue("age", out var age) ? age : null
             });
@@ -655,7 +655,7 @@ public class CompoundAndUniqueIndexTests
     public void IndexManager_GetIndexStats_CompoundIndex_ShowsCorrectType()
     {
         var manager = new IndexManager();
-        
+
         manager.CreateCompoundIndex(
             "users",
             new[] { "department", "age" },
@@ -677,7 +677,7 @@ public class CompoundAndUniqueIndexTests
     public void IndexManager_GetIndexStats_UniqueCompoundIndex_ShowsCorrectType()
     {
         var manager = new IndexManager();
-        
+
         manager.CreateCompoundIndex(
             "users",
             new[] { "tenantId", "email" },
@@ -699,7 +699,7 @@ public class CompoundAndUniqueIndexTests
     public void IndexManager_DropIndex_CompoundIndex_RemovesCorrectly()
     {
         var manager = new IndexManager();
-        
+
         manager.CreateCompoundIndex(
             "users",
             new[] { "department", "age" },
@@ -841,7 +841,7 @@ public class CompoundAndUniqueIndexTests
         manager.IndexDocument("users", tenantAAdmin);
         manager.IndexDocument("users", tenantBAdmin); // Should succeed
 
-        Assert.Throws<DuplicateKeyException>(() => 
+        Assert.Throws<DuplicateKeyException>(() =>
             manager.IndexDocument("users", anotherTenantAAdmin));
     }
 
@@ -891,10 +891,10 @@ public class CompoundAndUniqueIndexTests
         // Note: GetGreaterThanOrEqual returns all keys >= the specified key in lexicographical order
         // This includes tenant-1, cust-2 and all subsequent customers/tenants
         Assert.True(results.Count >= 4);
-        
+
         // Verify we got the expected tenant-1, cust-2 orders
-        var tenant1Cust2Orders = results.Where(r => 
-            r.Key[0]?.ToString() == "tenant-1" && 
+        var tenant1Cust2Orders = results.Where(r =>
+            r.Key[0]?.ToString() == "tenant-1" &&
             r.Key[1]?.ToString() == "cust-2").ToList();
         Assert.True(tenant1Cust2Orders.Count >= 4);
     }

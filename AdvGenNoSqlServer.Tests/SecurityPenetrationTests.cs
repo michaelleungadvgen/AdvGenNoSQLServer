@@ -32,7 +32,7 @@ public class SecurityPenetrationTests
         // Arrange
         var provider = CreateProvider();
         var token = provider.GenerateToken("testuser", new[] { "User" }, new[] { "document:read" });
-        
+
         // Act - Tamper with the payload (middle section)
         var parts = token.Split('.');
         var tamperedPayload = Convert.ToBase64String(Encoding.UTF8.GetBytes("{\"sub\":\"admin\",\"role\":\"Admin\"}"))
@@ -40,7 +40,7 @@ public class SecurityPenetrationTests
             .Replace("/", "_")
             .TrimEnd('=');
         var tamperedToken = $"{parts[0]}.{tamperedPayload}.{parts[2]}";
-        
+
         // Assert
         var result = provider.ValidateToken(tamperedToken);
         Assert.False(result.IsValid);
@@ -52,11 +52,11 @@ public class SecurityPenetrationTests
         // Arrange
         var provider = CreateProvider();
         var token = provider.GenerateToken("testuser", new[] { "User" }, new[] { "document:read" });
-        
+
         // Act - Tamper with the signature
         var parts = token.Split('.');
         var tamperedToken = $"{parts[0]}.{parts[1]}.invalidsignature123";
-        
+
         // Assert
         var result = provider.ValidateToken(tamperedToken);
         Assert.False(result.IsValid);
@@ -75,9 +75,9 @@ public class SecurityPenetrationTests
             .Replace("/", "_")
             .TrimEnd('=');
         var maliciousToken = $"{header}.{payload}.";
-        
+
         var provider = CreateProvider();
-        
+
         // Assert
         var result = provider.ValidateToken(maliciousToken);
         Assert.False(result.IsValid);
@@ -89,10 +89,10 @@ public class SecurityPenetrationTests
         // Arrange
         var provider = new JwtTokenProvider(TestSecretKey, TimeSpan.FromMilliseconds(10), "TestIssuer", "TestAudience");
         var token = provider.GenerateToken("testuser", new[] { "User" }, new[] { "document:read" });
-        
+
         // Wait for expiration
         Thread.Sleep(100);
-        
+
         // Assert
         var result = provider.ValidateToken(token);
         Assert.False(result.IsValid);
@@ -103,7 +103,7 @@ public class SecurityPenetrationTests
     {
         // Arrange
         var provider = CreateProvider();
-        
+
         // Assert
         Assert.False(provider.ValidateToken("").IsValid);
         Assert.False(provider.ValidateToken("   ").IsValid);
@@ -114,7 +114,7 @@ public class SecurityPenetrationTests
     {
         // Arrange
         var provider = CreateProvider();
-        
+
         // Assert - Various malformed tokens
         Assert.False(provider.ValidateToken("not-a-jwt").IsValid);
         Assert.False(provider.ValidateToken("only-one-part").IsValid);
@@ -129,10 +129,10 @@ public class SecurityPenetrationTests
         // Arrange - Generate token with one key
         var provider1 = new JwtTokenProvider("first-256-bit-secret-key-for-testing!", TimeSpan.FromHours(1));
         var token = provider1.GenerateToken("testuser", new[] { "User" }, new[] { "document:read" });
-        
+
         // Act - Validate with different key
         var provider2 = new JwtTokenProvider("second-256-bit-secret-key-for-testing!", TimeSpan.FromHours(1));
-        
+
         // Assert
         var result = provider2.ValidateToken(token);
         Assert.False(result.IsValid);
@@ -144,15 +144,15 @@ public class SecurityPenetrationTests
         // Arrange - Use a very short expiration time
         var provider = new JwtTokenProvider(TestSecretKey, TimeSpan.FromMilliseconds(10), "TestIssuer", "TestAudience");
         var token = provider.GenerateToken("testuser", new[] { "User" }, new[] { "document:read" });
-        
+
         // First validation should pass immediately after generation
         var firstValidation = provider.ValidateToken(token);
         // Note: Token may be immediately expired depending on implementation
         // The key test is that after waiting, the token is definitely invalid
-        
+
         // Wait for expiration (much longer than token lifetime)
         Thread.Sleep(300);
-        
+
         // Reuse attempt should fail after expiration
         var secondValidation = provider.ValidateToken(token);
         Assert.False(secondValidation.IsValid);
@@ -174,7 +174,7 @@ public class SecurityPenetrationTests
         };
         var authService = new AuthenticationService(config);
         authService.RegisterUser("testuser", "correctpassword");
-        
+
         // Act - Attempt multiple wrong passwords
         var failedAttempts = 0;
         for (int i = 0; i < 5; i++)
@@ -182,10 +182,10 @@ public class SecurityPenetrationTests
             var result = authService.Authenticate("testuser", $"wrongpassword{i}");
             if (result == null) failedAttempts++;
         }
-        
+
         // Assert - All should fail
         Assert.Equal(5, failedAttempts);
-        
+
         // Even with correct password after many failed attempts
         var finalResult = authService.Authenticate("testuser", "correctpassword");
         Assert.NotNull(finalResult); // System should still work (no lockout in basic implementation)
@@ -197,18 +197,18 @@ public class SecurityPenetrationTests
         // Arrange
         var authService = new AuthenticationService(new ServerConfiguration());
         var commonPasswords = new[] { "password", "123456", "qwerty", "admin", "letmein" };
-        
+
         // Act & Assert - Try to register with weak passwords
         foreach (var weakPassword in commonPasswords)
         {
             // The system should either reject weak passwords or handle them securely
             var username = $"user_{weakPassword.GetHashCode()}";
             var result = authService.RegisterUser(username, weakPassword);
-            
+
             // Registration may succeed, but we verify the password is properly hashed
             var authResult = authService.Authenticate(username, weakPassword);
             Assert.NotNull(authResult); // Should authenticate with correct password
-            
+
             var wrongAuth = authService.Authenticate(username, "wrongpassword");
             Assert.Null(wrongAuth); // Should reject wrong password
         }
@@ -220,11 +220,11 @@ public class SecurityPenetrationTests
         // Arrange
         var authService = new AuthenticationService(new ServerConfiguration());
         authService.RegisterUser("testuser", "correctpassword");
-        
+
         // Warm up
         authService.Authenticate("testuser", "correctpassword");
         authService.Authenticate("testuser", "wrongpassword");
-        
+
         // Act - Measure timing for correct password
         var sw = Stopwatch.StartNew();
         for (int i = 0; i < 100; i++)
@@ -233,7 +233,7 @@ public class SecurityPenetrationTests
         }
         sw.Stop();
         var correctPasswordTime = sw.Elapsed.TotalMilliseconds;
-        
+
         // Measure timing for wrong password
         sw.Restart();
         for (int i = 0; i < 100; i++)
@@ -242,7 +242,7 @@ public class SecurityPenetrationTests
         }
         sw.Stop();
         var wrongPasswordTime = sw.Elapsed.TotalMilliseconds;
-        
+
         // Assert - Timing should be reasonably similar (within factor of 5)
         // This is a basic check; real timing attack resistance requires constant-time comparison
         var ratio = Math.Max(correctPasswordTime, wrongPasswordTime) / Math.Min(correctPasswordTime, wrongPasswordTime);
@@ -259,16 +259,16 @@ public class SecurityPenetrationTests
         // Arrange
         var roleManager = new RoleManager();
         var authService = new AuthenticationService(new ServerConfiguration { RequireAuthentication = true });
-        
+
         // Create admin and regular user
         authService.RegisterUser("admin", "adminpass", RoleNames.Admin);
         authService.RegisterUser("user", "userpass", RoleNames.User);
-        
+
         // Act & Assert - Regular user should not be able to escalate privileges
         var userRoles = authService.GetUserRoles("user");
         Assert.DoesNotContain(RoleNames.Admin, userRoles);
         Assert.Contains(RoleNames.User, userRoles);
-        
+
         // Verify admin has different permissions
         var adminRoles = authService.GetUserRoles("admin");
         Assert.Contains(RoleNames.Admin, adminRoles);
@@ -279,11 +279,11 @@ public class SecurityPenetrationTests
     {
         // Arrange
         var roleManager = new RoleManager();
-        
+
         // Create a role with limited permissions
         roleManager.CreateRole("LimitedRole", permissions: new[] { Permissions.DocumentRead });
         roleManager.AssignRoleToUser("limiteduser", "LimitedRole");
-        
+
         // Act & Assert - Verify limited user doesn't have write permissions
         var userPermissions = roleManager.GetUserPermissions("limiteduser");
         Assert.Contains(Permissions.DocumentRead, userPermissions);
@@ -297,15 +297,15 @@ public class SecurityPenetrationTests
     {
         // Arrange
         var roleManager = new RoleManager();
-        
+
         // Act - Create, delete, and recreate a role
         roleManager.CreateRole("TestRole", permissions: new[] { Permissions.DocumentRead });
         Assert.True(roleManager.RoleExists("TestRole"));
-        
+
         var deleted = roleManager.DeleteRole("TestRole");
         Assert.True(deleted);
         Assert.False(roleManager.RoleExists("TestRole"));
-        
+
         // Should be able to recreate
         var recreated = roleManager.CreateRole("TestRole");
         Assert.True(recreated);
@@ -319,14 +319,14 @@ public class SecurityPenetrationTests
         var roleManager = new RoleManager();
         roleManager.CreateRole("TempRole", permissions: new[] { Permissions.DocumentRead, Permissions.DocumentWrite });
         roleManager.AssignRoleToUser("tempuser", "TempRole");
-        
+
         // Verify user has permissions
         var permissionsBefore = roleManager.GetUserPermissions("tempuser");
         Assert.Contains(Permissions.DocumentRead, permissionsBefore);
-        
+
         // Act - Delete the role
         roleManager.DeleteRole("TempRole");
-        
+
         // Assert - User should no longer have those permissions
         var permissionsAfter = roleManager.GetUserPermissions("tempuser");
         Assert.DoesNotContain(Permissions.DocumentRead, permissionsAfter);
@@ -344,15 +344,15 @@ public class SecurityPenetrationTests
         var key = new byte[32];
         RandomNumberGenerator.Fill(key);
         var service = new EncryptionService(key);
-        
+
         var plaintext = "Sensitive data that must be protected";
         var encryptedBase64 = service.Encrypt(plaintext);
-        
+
         // Act - Tamper with the encrypted data
         var encryptedBytes = Convert.FromBase64String(encryptedBase64);
         encryptedBytes[20] = (byte)(encryptedBytes[20] ^ 0xFF); // Flip some bits
         var tamperedBase64 = Convert.ToBase64String(encryptedBytes);
-        
+
         // Assert - Decryption should fail (EncryptionException is thrown for tampered data)
         Assert.Throws<EncryptionException>(() => service.Decrypt(tamperedBase64));
     }
@@ -365,13 +365,13 @@ public class SecurityPenetrationTests
         var key2 = new byte[32];
         RandomNumberGenerator.Fill(key1);
         RandomNumberGenerator.Fill(key2);
-        
+
         var service1 = new EncryptionService(key1);
         var service2 = new EncryptionService(key2);
-        
+
         var plaintext = "Secret message";
         var encrypted = service1.Encrypt(plaintext);
-        
+
         // Assert - Decryption with wrong key should fail (EncryptionException is thrown)
         Assert.Throws<EncryptionException>(() => service2.Decrypt(encrypted));
     }
@@ -383,10 +383,10 @@ public class SecurityPenetrationTests
         var key = new byte[32];
         RandomNumberGenerator.Fill(key);
         var service = new EncryptionService(key);
-        
+
         // Assert - Empty or very short input should fail
         // Note: Implementation may return null or throw depending on the case
-        Assert.True(string.IsNullOrEmpty(service.Decrypt("")) || 
+        Assert.True(string.IsNullOrEmpty(service.Decrypt("")) ||
                     Assert.Throws<EncryptionException>(() => service.Decrypt("")) != null);
     }
 
@@ -396,19 +396,19 @@ public class SecurityPenetrationTests
         // Arrange
         var oldKey = new byte[32];
         RandomNumberGenerator.Fill(oldKey);
-        
+
         var service = new EncryptionService(oldKey);
         var plaintext = "Important data";
         var encrypted = service.Encrypt(plaintext);
-        
+
         // Act - Simulate key rotation
         var newKey = new byte[32];
         RandomNumberGenerator.Fill(newKey);
         var newService = new EncryptionService(newKey);
-        
+
         // Decrypt with new key should fail (EncryptionException is thrown)
         Assert.Throws<EncryptionException>(() => newService.Decrypt(encrypted));
-        
+
         // But old service should still work
         var decrypted = service.Decrypt(encrypted);
         Assert.Equal(plaintext, decrypted);
@@ -428,21 +428,21 @@ public class SecurityPenetrationTests
     {
         // Arrange
         var authService = new AuthenticationService(new ServerConfiguration());
-        
+
         // Create a safe username by sanitizing the input
         var safeUsername = "user_" + maliciousInput.GetHashCode();
-        
+
         // Act - Register with a safe username but use malicious input as password
         // (Passwords are hashed, so they can contain any characters safely)
         var result = authService.RegisterUser(safeUsername, maliciousInput);
-        
+
         // Assert - Should handle without exception
         Assert.True(result);
-        
+
         // Should be able to authenticate with the same malicious password
         var authResult = authService.Authenticate(safeUsername, maliciousInput);
         Assert.NotNull(authResult);
-        
+
         // Wrong password should still fail
         var wrongResult = authService.Authenticate(safeUsername, maliciousInput + "wrong");
         Assert.Null(wrongResult);
@@ -454,7 +454,7 @@ public class SecurityPenetrationTests
         // Arrange
         var authService = new AuthenticationService(new ServerConfiguration());
         var longUsername = new string('a', 1000);
-        
+
         // Act & Assert - Should handle gracefully (either accept or reject, not crash)
         try
         {
@@ -489,14 +489,14 @@ public class SecurityPenetrationTests
             "user-name",
             "User123"
         };
-        
+
         // Act & Assert
         foreach (var username in specialUsernames)
         {
             var uniqueUsername = $"{username}_{Guid.NewGuid():N}";
             var result = authService.RegisterUser(uniqueUsername, "password123");
             Assert.True(result, $"Should handle username: {username}");
-            
+
             var auth = authService.Authenticate(uniqueUsername, "password123");
             Assert.NotNull(auth);
         }
@@ -508,7 +508,7 @@ public class SecurityPenetrationTests
         // Arrange
         var authService = new AuthenticationService(new ServerConfiguration());
         var roleManager = new RoleManager();
-        
+
         // Act & Assert - Empty inputs should throw exceptions or be rejected
         // Note: Implementation may vary - some methods throw, others may return false
         try
@@ -520,7 +520,7 @@ public class SecurityPenetrationTests
         {
             // Expected behavior - empty strings rejected
         }
-        
+
         try
         {
             authService.RegisterUser("user", "");
@@ -529,7 +529,7 @@ public class SecurityPenetrationTests
         {
             // Expected behavior
         }
-        
+
         // RoleManager should throw for empty role names
         Assert.Throws<ArgumentException>(() => roleManager.CreateRole(""));
     }
@@ -544,14 +544,14 @@ public class SecurityPenetrationTests
         // Arrange
         var provider = CreateProvider();
         var tokens = new HashSet<string>();
-        
+
         // Act - Generate multiple tokens for same user
         for (int i = 0; i < 100; i++)
         {
             var token = provider.GenerateToken("testuser", new[] { "User" }, new[] { "document:read" });
             tokens.Add(token);
         }
-        
+
         // Assert - All tokens should be unique (due to timestamps/nonce)
         // Note: In a real implementation with precise timestamps, this should equal 100
         // If the implementation doesn't include timestamps, this will be 1
@@ -564,7 +564,7 @@ public class SecurityPenetrationTests
         // Arrange
         var authService = new AuthenticationService(new ServerConfiguration());
         authService.RegisterUser("testuser", "password123");
-        
+
         // Act - Simulate concurrent authentications
         var tokens = new List<AuthToken>();
         Parallel.For(0, 10, _ =>
@@ -575,7 +575,7 @@ public class SecurityPenetrationTests
                 if (token != null) tokens.Add(token);
             }
         });
-        
+
         // Assert - All valid authentications should succeed
         Assert.True(tokens.Count >= 1, "At least some authentications should succeed");
     }
@@ -590,19 +590,19 @@ public class SecurityPenetrationTests
         // Arrange
         var config = new ServerConfiguration();
         var auditLogger = new AuditLogger(config, "./test_audit_logs", true, 100, 0);
-        
+
         var authService = new AuthenticationService(new ServerConfiguration { RequireAuthentication = true });
         authService.RegisterUser("testuser", "correctpassword");
-        
+
         // Act
         authService.Authenticate("testuser", "wrongpassword");
         authService.Authenticate("testuser", "wrongpassword2");
-        
+
         // Assert - Audit log should contain failed attempts
         var recentEvents = auditLogger.GetRecentEvents(10);
-        var failedAuthEvents = recentEvents.Where(e => 
+        var failedAuthEvents = recentEvents.Where(e =>
             e.EventType == AuditEventType.AuthenticationFailure).ToList();
-        
+
         Assert.True(failedAuthEvents.Count >= 0, "Should have some audit trail");
     }
 
@@ -612,11 +612,11 @@ public class SecurityPenetrationTests
         // Arrange
         var config = new ServerConfiguration();
         var auditLogger = new AuditLogger(config, "./test_audit_logs", true, 100, 0);
-        
+
         // Act - Log an event with potential sensitive data
         var sensitivePassword = "SuperSecretPassword123!";
         auditLogger.LogAuthentication("testuser", "127.0.0.1");
-        
+
         // Assert - Verify no sensitive data in logs
         var events = auditLogger.GetRecentEvents(10);
         foreach (var evt in events)
