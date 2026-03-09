@@ -70,6 +70,12 @@ public class AuthenticationManager
         return token;
     }
 
+    public AuthToken? GetToken(string tokenId)
+    {
+        _activeSessions.TryGetValue(tokenId, out var token);
+        return token;
+    }
+
     public bool ValidateToken(string tokenId)
     {
         if (!_activeSessions.TryGetValue(tokenId, out var token))
