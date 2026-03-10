@@ -256,7 +256,7 @@ Files to review:
 
 #### 3.3.4 Aggregation
 Files to review:
-- [ ] `Aggregation/IAggregationStage.cs` - Stage interface
+- [x] `Aggregation/IAggregationStage.cs` - Stage interface **[REVIEWED - No issues. Clean interface with sync/async Execute and contextual exceptions]**
 - [ ] `Aggregation/AggregationPipeline.cs` - Pipeline implementation
 - [ ] `Aggregation/AggregationPipelineBuilder.cs` - Pipeline builder
 - [ ] `Aggregation/AggregationResult.cs` - Result model
