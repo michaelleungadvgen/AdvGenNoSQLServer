@@ -127,8 +127,24 @@ public class QueryExecutor : IQueryExecutor
     /// <inheritdoc />
     public async Task<bool> ExistsAsync(Query.Models.Query query, CancellationToken cancellationToken = default)
     {
-        var count = await CountAsync(query, cancellationToken);
-        return count > 0;
+        // Get candidate documents using index if available
+        var candidateIds = await GetCandidateDocumentIdsAsync(query);
+
+        // Fetch documents
+        IEnumerable<Document> documents;
+        if (candidateIds != null)
+        {
+            documents = await _documentStore.GetManyAsync(query.CollectionName, candidateIds);
+        }
+        else
+        {
+            documents = await _documentStore.GetAllAsync(query.CollectionName);
+        }
+
+        // Apply filters and check for existence lazily
+        // OPTIMIZATION: Use .Any() instead of .LongCount() to short-circuit as soon as the first match is found,
+        // avoiding full collection materialization and evaluation.
+        return _filterEngine.Filter(documents, query.Filter).Any();
     }
 
     /// <inheritdoc />
