@@ -293,8 +293,8 @@ public class GarbageCollectedDocumentStoreTests : IDisposable
             var doc = new Document
             {
                 Id = $"item-{i:00}",
-                Data = new Dictionary<string, object> 
-                { 
+                Data = new Dictionary<string, object>
+                {
                     { "name", $"Item {i}" },
                     { "value", i * 10 }
                 },
@@ -320,11 +320,11 @@ public class GarbageCollectedDocumentStoreTests : IDisposable
         var cleaned = await store.CollectGarbageAsync();
 
         Assert.Equal(3, cleaned);
-        Assert.Equal(0, store.GarbageCollector.GetTombstones("inventory").Count());
+        Assert.Empty(store.GarbageCollector.GetTombstones("inventory"));
 
         // Phase 4: Verify remaining documents are intact
         Assert.Equal(7L, await store.CountAsync("inventory"));
-        
+
         var item01 = await store.GetAsync("inventory", "item-01");
         Assert.NotNull(item01);
         Assert.Equal("Item 1", item01.Data!["name"]);

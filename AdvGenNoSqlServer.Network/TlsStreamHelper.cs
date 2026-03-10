@@ -191,8 +191,8 @@ namespace AdvGenNoSqlServer.Network
 
             request.CertificateExtensions.Add(
                 new X509EnhancedKeyUsageExtension(
-                    new System.Security.Cryptography.OidCollection 
-                    { 
+                    new System.Security.Cryptography.OidCollection
+                    {
                         new System.Security.Cryptography.Oid("1.3.6.1.5.5.7.3.1") // Server Authentication
                     },
                     false));
@@ -212,10 +212,10 @@ namespace AdvGenNoSqlServer.Network
             // Use ephemeral key set to allow export
             var export = certificate.Export(X509ContentType.Pfx, (string?)null);
             var loadedCert = X509CertificateLoader.LoadPkcs12(
-                export, 
+                export,
                 null,
                 X509KeyStorageFlags.Exportable | X509KeyStorageFlags.PersistKeySet);
-            
+
             return loadedCert;
         }
 

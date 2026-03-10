@@ -69,7 +69,7 @@ public class AggregationPipelineTests
     {
         // Arrange
         var pipeline = new AggregationPipeline();
-        
+
         // Act
         pipeline.AddStage(new LimitStage(10));
         pipeline.AddStage(new SkipStage(5));
@@ -84,7 +84,7 @@ public class AggregationPipelineTests
         // Arrange
         var pipeline = new AggregationPipeline();
         pipeline.AddStage(new LimitStage(10));
-        
+
         // Act
         pipeline.Clear();
 
@@ -224,7 +224,7 @@ public class AggregationPipelineTests
 
         // Assert
         Assert.Equal(3, result.Count);
-        
+
         var groupA = result.First(r => "A".Equals(r.Data!["_id"]));
         Assert.Equal(40.0, groupA.Data["totalValue"]);
         Assert.Equal(2, groupA.Data["count"]);
@@ -801,7 +801,7 @@ public class AggregationPipelineTests
         // Assert
         Assert.True(result.Success);
         Assert.Equal(2, result.Count);
-        
+
         // B: 20+40 = 60
         var groupB = result.Documents.First(d => "B".Equals(d.Data!["_id"]));
         Assert.Equal(2, groupB.Data!["count"]);

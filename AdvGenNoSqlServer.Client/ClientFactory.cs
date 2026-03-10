@@ -14,7 +14,7 @@ public static class AdvGenNoSqlClientFactory
     {
         return new AdvGenNoSqlClient(options.ServerAddress);
     }
-    
+
     /// <summary>
     /// Creates a new instance of the AdvGenNoSqlClient with the specified server address.
     /// </summary>

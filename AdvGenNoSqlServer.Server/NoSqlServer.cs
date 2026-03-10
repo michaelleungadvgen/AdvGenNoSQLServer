@@ -103,7 +103,7 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
 
     private void OnConnectionEstablished(object? sender, ConnectionEventArgs e)
     {
-        _logger.LogDebug("Connection established: {ConnectionId} from {RemoteAddress}", 
+        _logger.LogDebug("Connection established: {ConnectionId} from {RemoteAddress}",
             e.ConnectionId, e.Client.Client?.RemoteEndPoint?.ToString() ?? "unknown");
     }
 
@@ -116,7 +116,7 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
     {
         try
         {
-            _logger.LogDebug("Received message type {MessageType} from {ConnectionId}", 
+            _logger.LogDebug("Received message type {MessageType} from {ConnectionId}",
                 e.Message.MessageType, e.ConnectionId);
 
             var response = await HandleMessageAsync(e.Message, e.ConnectionId);
@@ -125,7 +125,7 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error handling message from {ConnectionId}", e.ConnectionId);
-            
+
             // Send error response
             var errorResponse = NoSqlMessage.CreateError("INTERNAL_ERROR", "An error occurred processing the message");
             await e.SendResponseAsync(errorResponse);
@@ -206,17 +206,17 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
         {
             var payload = message.GetPayloadAsString();
             using var doc = JsonDocument.Parse(payload);
-            
+
             string? username = null;
             string? password = null;
-            
+
             if (doc.RootElement.TryGetProperty("username", out var usernameProp))
                 username = usernameProp.GetString();
             if (doc.RootElement.TryGetProperty("password", out var passwordProp))
                 password = passwordProp.GetString();
 
             var config = _configurationManager.Configuration;
-            
+
             // Simple authentication check
             if (!config.RequireAuthentication)
             {
@@ -252,14 +252,14 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
         {
             var payload = message.GetPayloadAsString();
             using var doc = JsonDocument.Parse(payload);
-            
+
             if (!doc.RootElement.TryGetProperty("command", out var commandProp))
             {
                 return Task.FromResult(NoSqlMessage.CreateError("INVALID_COMMAND", "Missing command property"));
             }
 
             var command = commandProp.GetString()?.ToLowerInvariant();
-            
+
             return command switch
             {
                 "get" => HandleGetCommand(doc.RootElement),

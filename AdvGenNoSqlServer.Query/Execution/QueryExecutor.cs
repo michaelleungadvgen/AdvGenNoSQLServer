@@ -303,12 +303,12 @@ public class QueryExecutor : IQueryExecutor
         {
             var convertedValue = Convert.ChangeType(value, keyType);
             var tryGetValueMethod = indexType.GetMethod("TryGetValue", new[] { keyType, typeof(string).MakeByRefType() });
-            
+
             if (tryGetValueMethod != null)
             {
                 var parameters = new object?[] { convertedValue, null };
                 var result = (bool)tryGetValueMethod.Invoke(index, parameters)!;
-                
+
                 if (result && parameters[1] != null)
                 {
                     documentIds.Add((string)parameters[1]!);
@@ -409,7 +409,9 @@ public class QueryExecutor : IQueryExecutor
         else
         {
             // Inclusion projection - include only specified fields + _id
-            var fieldsToInclude = projection.Where(p => p.Value).Select(p => p.Key).ToList();
+            // OPTIMIZATION: Use HashSet for O(1) Contains lookups to drastically improve performance
+            // when projecting documents with many properties across large result sets.
+            var fieldsToInclude = projection.Where(p => p.Value).Select(p => p.Key).ToHashSet();
             fieldsToInclude.Add("_id");
 
             foreach (var doc in documents)

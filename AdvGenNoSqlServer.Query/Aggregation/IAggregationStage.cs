@@ -53,7 +53,7 @@ public class AggregationStageException : Exception
     /// <summary>
     /// Creates a new AggregationStageException with an inner exception
     /// </summary>
-    public AggregationStageException(string stageType, string message, Exception innerException) 
+    public AggregationStageException(string stageType, string message, Exception innerException)
         : base(message, innerException)
     {
         StageType = stageType;
@@ -73,6 +73,6 @@ public class AggregationPipelineException : Exception
     /// <summary>
     /// Creates a new AggregationPipelineException with an inner exception
     /// </summary>
-    public AggregationPipelineException(string message, Exception innerException) 
+    public AggregationPipelineException(string message, Exception innerException)
         : base(message, innerException) { }
 }

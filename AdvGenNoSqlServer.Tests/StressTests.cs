@@ -152,14 +152,14 @@ namespace NoSqlServer.Tests
             }
 
             // Assert
-            Assert.True(successCount >= concurrentClients * 0.95, 
+            Assert.True(successCount >= concurrentClients * 0.95,
                 $"Expected at least 95% success rate, got {successCount}/{concurrentClients}");
-            Assert.True(failureCount <= concurrentClients * 0.05, 
+            Assert.True(failureCount <= concurrentClients * 0.05,
                 $"Failure count {failureCount} exceeds 5% threshold");
 
             // Performance metrics
-            var avgResponseTime = _responseTimes.Count > 0 
-                ? TimeSpan.FromMilliseconds(_responseTimes.Average(t => t.TotalMilliseconds)) 
+            var avgResponseTime = _responseTimes.Count > 0
+                ? TimeSpan.FromMilliseconds(_responseTimes.Average(t => t.TotalMilliseconds))
                 : TimeSpan.Zero;
             Debug.WriteLine($"Concurrent Connections Test: {successCount}/{concurrentClients} succeeded");
             Debug.WriteLine($"Total time: {stopwatch.Elapsed.TotalSeconds:F2}s");
@@ -223,8 +223,8 @@ namespace NoSqlServer.Tests
             // Assert
             var throughput = totalOperations / stopwatch.Elapsed.TotalSeconds;
             Assert.True(throughput >= 100, $"Throughput {throughput:F0} ops/sec below minimum 100 ops/sec");
-            Assert.True(successCount >= totalOperations * 0.98, 
-                $"Success rate {(double)successCount/totalOperations:P} below 98%");
+            Assert.True(successCount >= totalOperations * 0.98,
+                $"Success rate {(double)successCount / totalOperations:P} below 98%");
 
             Debug.WriteLine($"High Throughput Test: {successCount}/{totalOperations} succeeded");
             Debug.WriteLine($"Total time: {stopwatch.Elapsed.TotalSeconds:F2}s");
@@ -280,7 +280,7 @@ namespace NoSqlServer.Tests
             stopwatch.Stop();
 
             // Assert
-            Assert.True(successCount >= cycles * 0.95, 
+            Assert.True(successCount >= cycles * 0.95,
                 $"Expected at least 95% success rate, got {successCount}/{cycles}");
 
             Debug.WriteLine($"Connection Storm Test: {successCount}/{cycles} succeeded");

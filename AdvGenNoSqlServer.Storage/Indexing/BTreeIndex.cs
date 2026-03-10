@@ -240,13 +240,13 @@ public class BTreeIndex<TKey, TValue> : IBTreeIndex<TKey, TValue> where TKey : I
             if (node.IsLeaf)
             {
                 var values = node.Values[index];
-                
+
                 if (hasSpecificValue)
                 {
                     // Remove only the specific value
                     bool removed = values.Remove(specificValue!);
                     if (!removed) return false;
-                    
+
                     if (values.Count == 0)
                     {
                         // Remove the entire key entry
@@ -263,7 +263,7 @@ public class BTreeIndex<TKey, TValue> : IBTreeIndex<TKey, TValue> where TKey : I
                     node.Keys.RemoveAt(index);
                     node.Values.RemoveAt(index);
                     isEmpty = node.KeyCount == 0;
-                    
+
                     // Adjust Count for all values that were under this key
                     for (int i = 0; i < valueCount - 1; i++)
                     {
@@ -308,14 +308,14 @@ public class BTreeIndex<TKey, TValue> : IBTreeIndex<TKey, TValue> where TKey : I
     private bool DeleteFromInternalNode(BTreeNode<TKey, TValue> node, int index, TKey key, TValue? specificValue, bool hasSpecificValue, out bool isEmpty)
     {
         isEmpty = false;
-        
+
         if (hasSpecificValue)
         {
             // For specific value deletion in internal node, we need to find the value in leaves
             var values = node.Values[index];
             bool removed = values.Remove(specificValue!);
             if (!removed) return false;
-            
+
             if (values.Count == 0)
             {
                 // Fall through to handle empty key case
@@ -325,7 +325,7 @@ public class BTreeIndex<TKey, TValue> : IBTreeIndex<TKey, TValue> where TKey : I
                 return true;
             }
         }
-        
+
         var leftChild = node.Children[index];
         var rightChild = node.Children[index + 1];
 
@@ -514,7 +514,7 @@ public class BTreeIndex<TKey, TValue> : IBTreeIndex<TKey, TValue> where TKey : I
                     var key = leaf.Keys[i];
                     int cmpStart = key.CompareTo(startKey);
                     int cmpEnd = key.CompareTo(endKey);
-                    
+
                     if (cmpStart < 0) continue;
                     if (cmpEnd > 0) yield break;
 

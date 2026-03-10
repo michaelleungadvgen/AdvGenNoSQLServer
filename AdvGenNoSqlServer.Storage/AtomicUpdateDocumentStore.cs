@@ -42,7 +42,7 @@ public class AtomicUpdateDocumentStore : DocumentStore, IAtomicUpdateOperations
 
             // Clone the document data to avoid modifying the original
             var newData = CloneData(document.Data);
-            
+
             // Get or create the current value
             var currentValue = GetFieldValue(newData, fieldPath);
             double newValue;
@@ -214,7 +214,7 @@ public class AtomicUpdateDocumentStore : DocumentStore, IAtomicUpdateOperations
 
             // Get the array
             var currentValue = GetFieldValue(newData, fieldPath);
-            
+
             if (currentValue == null)
             {
                 // Field doesn't exist, nothing to pull

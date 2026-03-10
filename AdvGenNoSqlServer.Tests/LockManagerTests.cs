@@ -437,7 +437,7 @@ public class LockManagerTests : IDisposable
             // Note: Due to timing, we check if either transaction was able to proceed
             // or if deadlock was detected
             var completed = await Task.WhenAny(task1, task2);
-            
+
             // Either deadlock was detected or one task completed
             Assert.True(deadlockDetected || completed.IsCompleted);
         }

@@ -15,12 +15,12 @@ public enum PartialIndexType
     /// Standard index that includes all documents
     /// </summary>
     None,
-    
+
     /// <summary>
     /// Sparse index - only includes documents that have the indexed field
     /// </summary>
     Sparse,
-    
+
     /// <summary>
     /// Partial index - only includes documents matching a filter expression
     /// </summary>
@@ -36,14 +36,14 @@ public interface IPartialIndex
     /// Gets the type of partial index
     /// </summary>
     PartialIndexType PartialType { get; }
-    
+
     /// <summary>
     /// Checks if a document should be included in this index
     /// </summary>
     /// <param name="document">The document to check</param>
     /// <returns>True if the document should be indexed, false otherwise</returns>
     bool ShouldIncludeDocument(Document document);
-    
+
     /// <summary>
     /// Gets the field name being indexed
     /// </summary>

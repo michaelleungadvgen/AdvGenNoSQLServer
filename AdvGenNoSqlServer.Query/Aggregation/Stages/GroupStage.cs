@@ -136,16 +136,16 @@ public class GroupStage : IAggregationStage
             foreach (var doc in documents)
             {
                 object? key = null;
-                
+
                 if (_groupByField != null)
                 {
                     key = GetFieldValue(doc, _groupByField);
                 }
 
                 // Find existing group or create new one
-                var existingGroup = groups.FirstOrDefault(g => 
+                var existingGroup = groups.FirstOrDefault(g =>
                     (g.Key == null && key == null) || (g.Key?.Equals(key) == true));
-                
+
                 if (existingGroup.Documents == null)
                 {
                     groups.Add((key, new List<Document> { doc }));
@@ -344,7 +344,7 @@ internal class ObjectEqualityComparer : IEqualityComparer<object?>
     {
         if (ReferenceEquals(x, y)) return true;
         if (x is null || y is null) return false;
-        
+
         // Try numeric comparison
         if (x is IConvertible cx && y is IConvertible cy)
         {

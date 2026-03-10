@@ -122,7 +122,7 @@ public static class ObjectPoolExtensions
     /// <param name="func">The async function to execute with the rented object.</param>
     /// <returns>A task containing the result of the function.</returns>
     public static async Task<TResult> RentAndExecuteAsync<T, TResult>(
-        this IObjectPool<T> pool, 
+        this IObjectPool<T> pool,
         Func<T, Task<TResult>> func) where T : class
     {
         if (func == null)
@@ -147,7 +147,7 @@ public static class ObjectPoolExtensions
     /// <param name="func">The async action to execute with the rented object.</param>
     /// <returns>A task representing the operation.</returns>
     public static async Task RentAndExecuteAsync<T>(
-        this IObjectPool<T> pool, 
+        this IObjectPool<T> pool,
         Func<T, Task> func) where T : class
     {
         if (func == null)

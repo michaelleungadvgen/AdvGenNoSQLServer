@@ -38,40 +38,40 @@ public class Program
         else
         {
             string benchmarkName = args[0].ToLowerInvariant();
-            
+
             switch (benchmarkName)
             {
                 case "documentstore":
                 case "1":
                     BenchmarkRunner.Run<DocumentStoreBenchmarks>(config);
                     break;
-                    
+
                 case "queryengine":
                 case "2":
                     BenchmarkRunner.Run<QueryEngineBenchmarks>(config);
                     break;
-                    
+
                 case "btreeindex":
                 case "index":
                 case "3":
                     BenchmarkRunner.Run<BTreeIndexBenchmarks>(config);
                     break;
-                    
+
                 case "cache":
                 case "4":
                     BenchmarkRunner.Run<CacheBenchmarks>(config);
                     break;
-                    
+
                 case "serialization":
                 case "5":
                     BenchmarkRunner.Run<SerializationBenchmarks>(config);
                     break;
-                    
+
                 case "all":
                 case "6":
                     BenchmarkRunner.Run(typeof(Program).Assembly, config);
                     break;
-                    
+
                 default:
                     Console.WriteLine($"Unknown benchmark: {args[0]}");
                     Console.WriteLine("Available options: DocumentStore, QueryEngine, BTreeIndex, Cache, Serialization, All");

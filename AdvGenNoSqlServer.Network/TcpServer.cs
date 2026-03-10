@@ -136,7 +136,7 @@ namespace AdvGenNoSqlServer.Network
             }
 
             // Close all active connections
-            var closeTasks = _activeConnections.Values.Select(conn => 
+            var closeTasks = _activeConnections.Values.Select(conn =>
                 conn.CloseAsync().AsTask()).ToList();
 
             if (closeTasks.Count > 0)
@@ -156,7 +156,7 @@ namespace AdvGenNoSqlServer.Network
                 try
                 {
                     var client = await _listener!.AcceptTcpClientAsync(cancellationToken);
-                    
+
                     // Configure socket options for performance
                     ConfigureSocket(client);
 
@@ -186,7 +186,7 @@ namespace AdvGenNoSqlServer.Network
             client.SendBufferSize = Configuration.SendBufferSize;
             client.ReceiveTimeout = (int)Configuration.ConnectionTimeout.TotalMilliseconds;
             client.SendTimeout = (int)Configuration.ConnectionTimeout.TotalMilliseconds;
-            
+
             if (client.Client.AddressFamily == AddressFamily.InterNetwork ||
                 client.Client.AddressFamily == AddressFamily.InterNetworkV6)
             {
@@ -336,9 +336,9 @@ namespace AdvGenNoSqlServer.Network
         /// </summary>
         public async Task BroadcastAsync(NoSqlMessage message, CancellationToken cancellationToken = default)
         {
-            var tasks = _activeConnections.Values.Select(conn => 
+            var tasks = _activeConnections.Values.Select(conn =>
                 conn.SendAsync(message, cancellationToken).AsTask());
-            
+
             await Task.WhenAll(tasks);
         }
 
@@ -377,7 +377,7 @@ namespace AdvGenNoSqlServer.Network
 
             _cancellationTokenSource?.Dispose();
             _listener?.Stop();
-            
+
             foreach (var handler in _activeConnections.Values)
             {
                 handler.Dispose();

@@ -498,7 +498,7 @@ public class PersistentDocumentStore : IPersistentDocumentStore
         // This is necessary because we want to load documents with their original timestamps and versions
         var collectionType = typeof(InMemoryDocumentCollection);
         var documentsField = collectionType.GetField("_documents", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        
+
         if (documentsField != null)
         {
             var documents = (ConcurrentDictionary<string, Document>)documentsField.GetValue(collection)!;

@@ -221,7 +221,7 @@ public class AuthenticationService
         var status = success ? "SUCCESS" : "FAILED";
         var timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
         var ipInfo = clientIp != null ? $" from {clientIp}" : "";
-        
+
         // This would be replaced with proper logging
         Console.WriteLine($"[AUTH] {timestamp} - {status}: {username}{ipInfo}");
     }

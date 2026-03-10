@@ -41,9 +41,9 @@ public class IndexManager
         lock (_lock)
         {
             var collectionIndex = _collectionIndexes.GetOrAdd(collectionName, _ => new CollectionIndexes(collectionName));
-            
+
             string indexName = $"{collectionName}_{fieldName}_idx";
-            
+
             if (collectionIndex.HasIndex(fieldName))
             {
                 throw new InvalidOperationException($"Index already exists for field '{fieldName}' in collection '{collectionName}'");
@@ -51,7 +51,7 @@ public class IndexManager
 
             var index = new BTreeIndex<TKey, string>(indexName, collectionName, fieldName, isUnique, minDegree);
             collectionIndex.AddIndex(fieldName, index, keySelector);
-            
+
             return index;
         }
     }
@@ -83,10 +83,10 @@ public class IndexManager
         lock (_lock)
         {
             var collectionIndex = _collectionIndexes.GetOrAdd(collectionName, _ => new CollectionIndexes(collectionName));
-            
+
             string indexName = $"{collectionName}_{string.Join("_", fieldNames)}_idx";
             string indexKey = string.Join("+", fieldNames);
-            
+
             if (collectionIndex.HasIndex(indexKey))
             {
                 throw new InvalidOperationException($"Compound index already exists for fields '{indexKey}' in collection '{collectionName}'");
@@ -94,7 +94,7 @@ public class IndexManager
 
             var index = new BTreeIndex<CompoundIndexKey, string>(indexName, collectionName, indexKey, isUnique, minDegree);
             collectionIndex.AddCompoundIndex(indexKey, index, keySelector, fieldNames);
-            
+
             return index;
         }
     }
@@ -154,8 +154,8 @@ public class IndexManager
         Func<Document, T1> selector1,
         Func<Document, T2> selector2,
         Func<Document, T3> selector3,
-        int minDegree = 4) 
-        where T1 : IComparable<T1> 
+        int minDegree = 4)
+        where T1 : IComparable<T1>
         where T2 : IComparable<T2>
         where T3 : IComparable<T3>
     {
@@ -177,9 +177,9 @@ public class IndexManager
     {
         ArgumentException.ThrowIfNullOrEmpty(collectionName, nameof(collectionName));
         ArgumentNullException.ThrowIfNull(fieldNames, nameof(fieldNames));
-        
+
         string indexKey = string.Join("+", fieldNames);
-        
+
         if (_collectionIndexes.TryGetValue(collectionName, out var collectionIndex))
         {
             return collectionIndex.GetCompoundIndex(indexKey);
@@ -223,18 +223,18 @@ public class IndexManager
         lock (_lock)
         {
             var collectionIndex = _collectionIndexes.GetOrAdd(collectionName, _ => new CollectionIndexes(collectionName));
-            
+
             string indexName = $"{collectionName}_{fieldName}_sparse_idx";
-            
+
             if (collectionIndex.HasIndex(fieldName))
             {
                 throw new InvalidOperationException($"Index already exists for field '{fieldName}' in collection '{collectionName}'");
             }
 
             var index = new SparseBTreeIndex<TKey>(indexName, collectionName, fieldName, isUnique, minDegree);
-            
+
             collectionIndex.AddSparseIndex(fieldName, index, keySelector);
-            
+
             return index;
         }
     }
@@ -397,7 +397,7 @@ public class IndexManager
     private class CollectionIndexes
     {
         private readonly ConcurrentDictionary<string, IIndexWrapper> _indexes = new();
-        
+
         public string CollectionName { get; }
 
         public CollectionIndexes(string collectionName)
@@ -482,14 +482,14 @@ public class IndexManager
             return _indexes.Select(kvp =>
             {
                 string baseType = kvp.Value.IsUnique ? "Unique " : "";
-                
+
                 string indexType = kvp.Value switch
                 {
                     CompoundIndexWrapper => baseType + "Compound B-Tree",
                     _ when kvp.Value.GetType().Name.StartsWith("SparseIndexWrapper") => baseType + "Sparse B-Tree",
                     _ => baseType + "B-Tree"
                 };
-                
+
                 return new IndexStats
                 {
                     FieldName = kvp.Key,

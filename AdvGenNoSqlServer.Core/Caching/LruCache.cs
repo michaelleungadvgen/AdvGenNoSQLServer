@@ -31,7 +31,7 @@ public class LruCache<TValue> : IDisposable
     private readonly ConcurrentDictionary<string, LruCacheEntry<TValue>> _cache;
     private readonly ReaderWriterLockSlim _lock;
     private readonly Timer? _cleanupTimer;
-    
+
     private long _currentSizeInBytes;
     private long _totalHits;
     private long _totalMisses;
