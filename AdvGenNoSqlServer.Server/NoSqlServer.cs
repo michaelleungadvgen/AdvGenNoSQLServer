@@ -20,7 +20,7 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
 {
     private readonly ILogger<NoSqlServer> _logger;
     private readonly IConfigurationManager _configurationManager;
-    private HybridDocumentStore? _documentStore;
+    private IDocumentStore? _documentStore;
     private TcpServer? _tcpServer;
     private bool _disposed;
 
@@ -43,23 +43,33 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
         _logger.LogInformation("Max connections: {MaxConnections}", config.MaxConcurrentConnections);
         _logger.LogInformation("Storage path: {StoragePath}", config.StoragePath);
 
-        // Initialize hybrid document store (cache + disk)
-        var storagePath = config.StoragePath;
-        if (string.IsNullOrEmpty(storagePath))
+        if (config.InMemoryOnly)
         {
-            storagePath = "data";
+            _logger.LogInformation("Initializing in-memory only storage (high-performance cache mode)");
+            _documentStore = new DocumentStore();
+            _logger.LogInformation("In-memory storage initialized successfully");
         }
-
-        // Ensure storage path is absolute
-        if (!Path.IsPathRooted(storagePath))
+        else
         {
-            storagePath = Path.Combine(AppContext.BaseDirectory, storagePath);
-        }
+            // Initialize hybrid document store (cache + disk)
+            var storagePath = config.StoragePath;
+            if (string.IsNullOrEmpty(storagePath))
+            {
+                storagePath = "data";
+            }
 
-        _logger.LogInformation("Initializing hybrid storage at: {Path}", storagePath);
-        _documentStore = new HybridDocumentStore(storagePath);
-        await _documentStore.InitializeAsync();
-        _logger.LogInformation("Hybrid storage initialized successfully");
+            // Ensure storage path is absolute
+            if (!Path.IsPathRooted(storagePath))
+            {
+                storagePath = Path.Combine(AppContext.BaseDirectory, storagePath);
+            }
+
+            _logger.LogInformation("Initializing hybrid storage at: {Path}", storagePath);
+            var hybridStore = new HybridDocumentStore(storagePath);
+            await hybridStore.InitializeAsync();
+            _documentStore = hybridStore;
+            _logger.LogInformation("Hybrid storage initialized successfully");
+        }
 
         // Create and configure the TCP server
         _tcpServer = new TcpServer(config);
@@ -68,7 +78,7 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
         _tcpServer.MessageReceived += OnMessageReceivedAsync;
 
         // Start the TCP server
-        _tcpServer.StartAsync(cancellationToken);
+        await _tcpServer.StartAsync(cancellationToken);
 
         _logger.LogInformation("NoSQL Server started successfully");
     }
@@ -89,14 +99,25 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
         }
 
         // Flush and dispose document store
-        if (_documentStore != null)
+        if (_documentStore is HybridDocumentStore hybridStore)
         {
             _logger.LogInformation("Flushing pending writes to disk...");
-            await _documentStore.FlushAsync();
-            await _documentStore.DisposeAsync();
-            _documentStore = null;
+            await hybridStore.FlushAsync();
+            await hybridStore.DisposeAsync();
             _logger.LogInformation("Storage shutdown complete");
         }
+        else if (_documentStore is IAsyncDisposable asyncDisposable)
+        {
+            await asyncDisposable.DisposeAsync();
+            _logger.LogInformation("Storage shutdown complete");
+        }
+        else if (_documentStore is IDisposable disposable)
+        {
+            disposable.Dispose();
+            _logger.LogInformation("Storage shutdown complete");
+        }
+
+        _documentStore = null;
 
         _logger.LogInformation("NoSQL Server stopped successfully");
     }
@@ -734,9 +755,13 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
         _disposed = true;
         _tcpServer?.Dispose();
 
-        if (_documentStore != null)
+        if (_documentStore is IAsyncDisposable asyncDisposable)
         {
-            await _documentStore.DisposeAsync();
+            await asyncDisposable.DisposeAsync();
+        }
+        else if (_documentStore is IDisposable disposable)
+        {
+            disposable.Dispose();
         }
     }
 }

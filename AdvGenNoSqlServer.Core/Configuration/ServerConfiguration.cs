@@ -70,6 +70,11 @@ public class ServerConfiguration
     public string StoragePath { get; set; } = "data";
 
     /// <summary>
+    /// Whether to operate in memory-only mode without disk persistence (useful for high-performance caching)
+    /// </summary>
+    public bool InMemoryOnly { get; set; } = false;
+
+    /// <summary>
     /// Whether to enable detailed logging
     /// </summary>
     public bool EnableDetailedLogging { get; set; } = false;
