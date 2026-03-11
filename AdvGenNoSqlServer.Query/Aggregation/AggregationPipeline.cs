@@ -54,7 +54,7 @@ public class AggregationPipeline
     public AggregationPipeline AddStages(IEnumerable<IAggregationStage> stages)
     {
         if (stages == null) throw new ArgumentNullException(nameof(stages));
-        
+
         foreach (var stage in stages)
         {
             _stages.Add(stage);

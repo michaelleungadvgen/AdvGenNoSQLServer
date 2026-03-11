@@ -124,8 +124,8 @@ namespace AdvGenNoSqlServer.Network
                 AvailableSlots = AvailableSlots,
                 TotalAcquired = _totalAcquired,
                 TotalReleased = _totalReleased,
-                UtilizationPercent = _maxConnections > 0 
-                    ? (double)_activeConnections / _maxConnections * 100 
+                UtilizationPercent = _maxConnections > 0
+                    ? (double)_activeConnections / _maxConnections * 100
                     : 0
             };
         }

@@ -70,9 +70,8 @@ public class AuthenticationService
     /// </summary>
     public string? GetUsernameFromToken(string tokenId)
     {
-        // This would need to be added to AuthenticationManager
-        // For now, we'll implement a simple version
-        return null;
+        var token = _authManager.GetToken(tokenId);
+        return token?.Username;
     }
 
     /// <summary>
@@ -187,15 +186,25 @@ public class AuthenticationService
             return AuthorizationResult.Failed("Invalid or expired token");
         }
 
-        // Get username from token - we need to track this mapping
-        // For now, we'll check if authentication is required
+        // Get username from token
+        var username = GetUsernameFromToken(tokenId);
+        if (string.IsNullOrEmpty(username))
+        {
+            return AuthorizationResult.Failed("Cannot identify user from token");
+        }
+
+        // If auth not required, skip permission check
         if (!_configuration.RequireAuthentication)
         {
             return AuthorizationResult.Success();
         }
 
-        // This is a simplified version - in production, we'd map tokens to users
-        // and check permissions accordingly
+        // Check if user has the required permission
+        if (!_roleManager.UserHasPermission(username, requiredPermission))
+        {
+            return AuthorizationResult.Failed($"User lacks required permission: {requiredPermission}");
+        }
+
         return AuthorizationResult.Success();
     }
 
@@ -221,7 +230,7 @@ public class AuthenticationService
         var status = success ? "SUCCESS" : "FAILED";
         var timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
         var ipInfo = clientIp != null ? $" from {clientIp}" : "";
-        
+
         // This would be replaced with proper logging
         Console.WriteLine($"[AUTH] {timestamp} - {status}: {username}{ipInfo}");
     }

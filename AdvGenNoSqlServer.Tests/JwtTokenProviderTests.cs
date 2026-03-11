@@ -103,7 +103,7 @@ public class JwtTokenProviderTests
     public void GenerateToken_WithEmptyUsername_ThrowsArgumentException()
     {
         var provider = CreateProvider();
-        Assert.Throws<ArgumentException>(() => 
+        Assert.Throws<ArgumentException>(() =>
             provider.GenerateToken("", new[] { "User" }, new[] { "document.read" }));
     }
 
@@ -111,7 +111,7 @@ public class JwtTokenProviderTests
     public void GenerateToken_WithNullUsername_ThrowsArgumentException()
     {
         var provider = CreateProvider();
-        Assert.Throws<ArgumentException>(() => 
+        Assert.Throws<ArgumentException>(() =>
             provider.GenerateToken(null!, new[] { "User" }, new[] { "document.read" }));
     }
 
@@ -150,7 +150,7 @@ public class JwtTokenProviderTests
     {
         var provider = CreateProvider();
         var customExpiration = TimeSpan.FromMinutes(30);
-        
+
         var beforeGeneration = DateTime.UtcNow;
         var token = provider.GenerateToken("testuser", new[] { "User" }, new[] { "read" }, customExpiration);
         var afterGeneration = DateTime.UtcNow;
@@ -161,7 +161,7 @@ public class JwtTokenProviderTests
         // Expiration should be approximately 30 minutes from now (with 5 second tolerance)
         var expectedMin = beforeGeneration.Add(customExpiration).AddSeconds(-5);
         var expectedMax = afterGeneration.Add(customExpiration).AddSeconds(5);
-        Assert.True(expirationTime >= expectedMin && expirationTime <= expectedMax, 
+        Assert.True(expirationTime >= expectedMin && expirationTime <= expectedMax,
             $"Expected expiration between {expectedMin} and {expectedMax}, but was {expirationTime}");
     }
 
@@ -239,7 +239,7 @@ public class JwtTokenProviderTests
     {
         var provider = CreateProvider();
         var token = provider.GenerateToken("testuser", new[] { "User" }, new[] { "read" });
-        
+
         // Modify the signature
         var modifiedToken = token.Substring(0, token.LastIndexOf('.') + 1) + "modified";
 
@@ -254,7 +254,7 @@ public class JwtTokenProviderTests
     {
         var provider = CreateProvider();
         var token = provider.GenerateToken("testuser", new[] { "User" }, new[] { "read" });
-        
+
         // Modify the payload
         var parts = token.Split('.');
         parts[1] = "modifiedpayload";
@@ -393,7 +393,7 @@ public class JwtTokenProviderTests
         var refreshedToken = provider.RefreshToken(originalToken);
         var newExpiration = provider.GetExpirationTime(refreshedToken!);
 
-        Assert.True(newExpiration > originalExpiration, 
+        Assert.True(newExpiration > originalExpiration,
             $"New expiration {newExpiration} should be later than original {originalExpiration}");
     }
 
@@ -465,7 +465,7 @@ public class JwtTokenProviderTests
     {
         var provider = CreateProvider();
         var token = provider.GenerateToken("testuser", new[] { "User" }, new[] { "read" });
-        
+
         // Modify signature but extraction should still work
         var parts = token.Split('.');
         var modifiedToken = $"{parts[0]}.{parts[1]}.invalid";

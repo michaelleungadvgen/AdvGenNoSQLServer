@@ -104,7 +104,7 @@ namespace AdvGenNoSqlServer.Examples
                 // Verify connection with ping
                 Console.WriteLine("\n📡 Testing connection with ping...");
                 var pingResult = await client.PingAsync();
-                
+
                 if (pingResult)
                 {
                     Console.ForegroundColor = ConsoleColor.Green;
@@ -212,7 +212,7 @@ namespace AdvGenNoSqlServer.Examples
 
                 // Use SetAsync for CREATE (properly formats the request for the server)
                 var createdId = await client.SetAsync(collection, userDocument);
-                
+
                 Console.ForegroundColor = ConsoleColor.Green;
                 Console.WriteLine("   ✓ Document created successfully!");
                 Console.ResetColor();
@@ -279,10 +279,10 @@ namespace AdvGenNoSqlServer.Examples
 
                 // Verify deletion
                 Console.WriteLine("\n5️⃣  VERIFY Deletion:");
-                
+
                 // Use ExistsAsync for verification
                 var exists = await client.ExistsAsync(collection, userId);
-                
+
                 Console.WriteLine($"   Document exists: {exists}");
                 if (!exists)
                 {
@@ -417,7 +417,7 @@ namespace AdvGenNoSqlServer.Examples
 
                 Console.WriteLine("\n   Step 2: OPERATIONS");
                 Console.WriteLine("   └─ Debit account 'ACC_001' by $100");
-                
+
                 // In a real implementation, the server would support transaction commands
                 // For now, we simulate the concept with individual operations
                 var debitAccount = new { _id = "ACC_001", owner = "Alice", balance = 900 };
@@ -593,7 +593,7 @@ namespace AdvGenNoSqlServer.Examples
                 foreach (var db in databases)
                 {
                     Console.WriteLine($"\n📁 Working with database: {db}");
-                    
+
                     // Insert sample document
                     var doc = new
                     {
@@ -603,7 +603,7 @@ namespace AdvGenNoSqlServer.Examples
                     };
 
                     var response = await client.ExecuteCommandAsync("set", db, doc);
-                    
+
                     if (response.Success)
                     {
                         Console.WriteLine($"   ✓ Inserted document into {db}");
@@ -613,7 +613,7 @@ namespace AdvGenNoSqlServer.Examples
                 // List all collections (simulating database discovery)
                 Console.WriteLine("\n📋 Listing all collections (databases):");
                 var listResponse = await client.ExecuteCommandAsync("listcollections", "", new { });
-                
+
                 if (listResponse.Success && listResponse.Data != null)
                 {
                     Console.WriteLine($"   Collections: {JsonSerializer.Serialize(listResponse.Data)}");
@@ -668,7 +668,7 @@ namespace AdvGenNoSqlServer.Examples
 
                     // In a real scenario, different users would have different permissions
                     var authResult = await client.AuthenticateAsync(user.Username, user.Password);
-                    
+
                     if (authResult)
                     {
                         Console.ForegroundColor = ConsoleColor.Green;
@@ -723,7 +723,7 @@ namespace AdvGenNoSqlServer.Examples
                 foreach (var tenant in tenants)
                 {
                     Console.WriteLine($"\n🏢 Setting up {tenant.Name} ({tenant.Id})");
-                    
+
                     // Use tenant-prefixed collections for isolation
                     var customerCollection = $"{tenant.Id}_customers";
                     var orderCollection = $"{tenant.Id}_orders";

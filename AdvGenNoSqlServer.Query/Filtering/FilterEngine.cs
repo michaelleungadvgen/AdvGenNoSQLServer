@@ -252,7 +252,7 @@ public class FilterEngine : IFilterEngine
             var regexPattern = "^" + System.Text.RegularExpressions.Regex.Escape(patternString)
                 .Replace("\\*", ".*")
                 .Replace("\\?", ".") + "$";
-            return System.Text.RegularExpressions.Regex.IsMatch(fieldString, regexPattern, 
+            return System.Text.RegularExpressions.Regex.IsMatch(fieldString, regexPattern,
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase);
         }
 
@@ -316,7 +316,7 @@ public class FilterEngine : IFilterEngine
 
     private static bool IsNumeric(object value)
     {
-        return value is sbyte or byte or short or ushort or int or uint or long or ulong 
+        return value is sbyte or byte or short or ushort or int or uint or long or ulong
             or float or double or decimal;
     }
 

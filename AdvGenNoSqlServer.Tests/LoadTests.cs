@@ -52,7 +52,7 @@ namespace AdvGenNoSqlServer.Tests
         {
             _server?.StopAsync().Wait(TimeSpan.FromSeconds(5));
             _server?.Dispose();
-            
+
             // Cleanup test data directories
             foreach (var path in _testDataPaths)
             {
@@ -70,15 +70,15 @@ namespace AdvGenNoSqlServer.Tests
         private async Task StartTestServerAsync()
         {
             _server = new TcpServer(_testConfig);
-            _server.ConnectionEstablished += (s, e) => 
+            _server.ConnectionEstablished += (s, e) =>
             {
                 _output.WriteLine($"Client connected: {e.ConnectionId}");
             };
-            _server.ConnectionClosed += (s, e) => 
+            _server.ConnectionClosed += (s, e) =>
             {
                 _output.WriteLine($"Client disconnected: {e.ConnectionId}");
             };
-            
+
             // Echo server - respond to messages
             _server.MessageReceived += async (s, e) =>
             {
@@ -103,7 +103,7 @@ namespace AdvGenNoSqlServer.Tests
                         break;
                 }
             };
-            
+
             await _server.StartAsync(CancellationToken.None);
             await Task.Delay(100); // Give server time to start
         }
@@ -126,7 +126,7 @@ namespace AdvGenNoSqlServer.Tests
         {
             _output.WriteLine($"\n=== {testName} Results ===");
             _output.WriteLine($"Duration: {duration.TotalSeconds:F2}s");
-            
+
             foreach (var kvp in _operationCounters)
             {
                 var opsPerSec = kvp.Value / duration.TotalSeconds;
@@ -137,7 +137,7 @@ namespace AdvGenNoSqlServer.Tests
             {
                 var latencies = kvp.Value;
                 if (latencies.Count == 0) continue;
-                
+
                 lock (latencies)
                 {
                     var sorted = latencies.OrderBy(x => x).ToList();
@@ -193,7 +193,7 @@ namespace AdvGenNoSqlServer.Tests
             const int clientCount = 100;
             const int operationsPerClient = 100;
             const int durationSeconds = 30;
-            
+
             var cts = new CancellationTokenSource(TimeSpan.FromSeconds(durationSeconds));
             var stopwatch = Stopwatch.StartNew();
 
@@ -208,7 +208,7 @@ namespace AdvGenNoSqlServer.Tests
                     while (!cts.Token.IsCancellationRequested && operationCount < operationsPerClient)
                     {
                         var sw = Stopwatch.StartNew();
-                        
+
                         var pong = await client.PingAsync();
                         if (pong)
                         {
@@ -217,7 +217,7 @@ namespace AdvGenNoSqlServer.Tests
                         }
 
                         operationCount++;
-                        
+
                         // Small delay to simulate realistic operation timing
                         if (operationCount % 10 == 0)
                         {
@@ -247,7 +247,7 @@ namespace AdvGenNoSqlServer.Tests
             var totalPings = _operationCounters.GetValueOrDefault("Ping");
             var pingsPerSec = totalPings / stopwatch.Elapsed.TotalSeconds;
             _output.WriteLine($"Ping throughput: {pingsPerSec:F2}/sec");
-            
+
             Assert.True(pingsPerSec > 50, $"Ping throughput should exceed 50/sec, got {pingsPerSec:F2}");
         }
 
@@ -261,7 +261,7 @@ namespace AdvGenNoSqlServer.Tests
             await StartTestServerAsync();
             const int burstSize = 200;
             const int rampUpMs = 5000; // Ramp up over 5 seconds
-            
+
             var stopwatch = Stopwatch.StartNew();
             var connectionTimes = new ConcurrentBag<(int clientId, double connectMs)>();
 
@@ -274,7 +274,7 @@ namespace AdvGenNoSqlServer.Tests
 
                 var sw = Stopwatch.StartNew();
                 var client = new AdvGenNoSqlClient($"127.0.0.1:{_testConfig.Port}");
-                
+
                 try
                 {
                     await client.ConnectAsync();
@@ -282,7 +282,7 @@ namespace AdvGenNoSqlServer.Tests
                     connectionTimes.Add((clientId, sw.Elapsed.TotalMilliseconds));
                     RecordOperation("Connection");
                     RecordLatency("Connection", sw.Elapsed.TotalMilliseconds);
-                    
+
                     // Keep connection open briefly
                     await Task.Delay(100);
                     await client.DisconnectAsync();
@@ -326,7 +326,7 @@ namespace AdvGenNoSqlServer.Tests
             await StartTestServerAsync();
             const int clientCount = 50;
             const int durationSeconds = 60;
-            
+
             var cts = new CancellationTokenSource(TimeSpan.FromSeconds(durationSeconds));
             var stopwatch = Stopwatch.StartNew();
             var intervalMetrics = new ConcurrentDictionary<int, long>(); // Second -> Operation count
@@ -348,7 +348,7 @@ namespace AdvGenNoSqlServer.Tests
                         {
                             RecordOperation("Ping");
                             RecordLatency("Ping", sw.Elapsed.TotalMilliseconds);
-                            
+
                             var currentSecond = (int)(stopwatch.Elapsed.TotalSeconds);
                             intervalMetrics.AddOrUpdate(currentSecond, 1, (_, count) => count + 1);
                         }
@@ -394,7 +394,7 @@ namespace AdvGenNoSqlServer.Tests
                 _output.WriteLine($"Coefficient of variation: {coefficientOfVariation:P2}");
 
                 // Assert consistency (CV should be low for stable throughput)
-                Assert.True(coefficientOfVariation < 0.5, 
+                Assert.True(coefficientOfVariation < 0.5,
                     $"Throughput should be consistent (CV < 50%), got {coefficientOfVariation:P2}");
             }
 
@@ -416,7 +416,7 @@ namespace AdvGenNoSqlServer.Tests
             const int clientCount = 30;
             const int durationSeconds = 30;
             var random = new Random();
-            
+
             var cts = new CancellationTokenSource(TimeSpan.FromSeconds(durationSeconds));
             var stopwatch = Stopwatch.StartNew();
 
@@ -508,7 +508,7 @@ namespace AdvGenNoSqlServer.Tests
             await StartTestServerAsync();
             const int overloadClientCount = 150; // More than typical capacity
             const int durationSeconds = 20;
-            
+
             var cts = new CancellationTokenSource(TimeSpan.FromSeconds(durationSeconds));
             var stopwatch = Stopwatch.StartNew();
             var errorCount = 0;

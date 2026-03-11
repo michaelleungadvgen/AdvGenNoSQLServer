@@ -216,10 +216,20 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
 
         if (_cache.TryGetValue(collectionName, out var collection))
         {
-            return Task.FromResult<IEnumerable<Document>>(collection.Values.ToList());
+            // Avoid .Values.ToList() allocation, instead iterate the concurrent dictionary
+            // to provide a true zero-allocation lazy evaluation enumerable.
+            return Task.FromResult<IEnumerable<Document>>(EnumerateCollection(collection));
         }
 
         return Task.FromResult<IEnumerable<Document>>(Array.Empty<Document>());
+    }
+
+    private static IEnumerable<Document> EnumerateCollection(ConcurrentDictionary<string, Document> collection)
+    {
+        foreach (var kvp in collection)
+        {
+            yield return kvp.Value;
+        }
     }
 
     /// <inheritdoc />

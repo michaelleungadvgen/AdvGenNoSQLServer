@@ -53,15 +53,15 @@ public class ProjectStage : IAggregationStage
                 // Check if the only exclusion is _id (which is allowed with inclusions)
                 var inclusions = _projections.Where(p => p.Value).Select(p => p.Key).ToList();
                 var exclusions = _projections.Where(p => !p.Value).Select(p => p.Key).ToList();
-                
+
                 // Allow mixing only if _id is the only exclusion field
                 // OR if _id is the only inclusion field
                 var onlyIdIsExcluded = exclusions.Count == 1 && exclusions[0] == "_id";
                 var onlyIdIsIncluded = inclusions.Count == 1 && inclusions[0] == "_id";
-                
+
                 if (!onlyIdIsExcluded && !onlyIdIsIncluded)
                 {
-                    throw new AggregationStageException(StageType, 
+                    throw new AggregationStageException(StageType,
                         "Cannot mix inclusion and exclusion projections in the same $project stage (except for _id)");
                 }
             }

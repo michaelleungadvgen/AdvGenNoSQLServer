@@ -361,7 +361,7 @@ public class GarbageCollector : IGarbageCollector, IDisposable
             return false;
 
         var removed = _tombstones.TryRemove(documentId, out _);
-        
+
         if (removed)
         {
             _statsLock.EnterWriteLock();
@@ -382,7 +382,7 @@ public class GarbageCollector : IGarbageCollector, IDisposable
     public void ClearAllTombstones()
     {
         _tombstones.Clear();
-        
+
         _statsLock.EnterWriteLock();
         try
         {

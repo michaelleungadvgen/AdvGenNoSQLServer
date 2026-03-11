@@ -85,8 +85,8 @@ public class DocumentStoreBenchmarks
     {
         // Use a unique collection to avoid affecting other benchmarks
         var collectionName = $"delete_benchmark_{Guid.NewGuid():N}";
-        var doc = new Document 
-        { 
+        var doc = new Document
+        {
             Id = "temp-doc",
             Data = new Dictionary<string, object> { ["temp"] = true }
         };

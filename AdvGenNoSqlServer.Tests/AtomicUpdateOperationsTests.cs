@@ -203,7 +203,7 @@ public class AtomicUpdateOperationsTests
         var store = CreateStore();
         await store.CreateCollectionAsync("test");
 
-        var doc = CreateTestDocument("doc1", new Dictionary<string, object>{});
+        var doc = CreateTestDocument("doc1", new Dictionary<string, object> { });
         await store.InsertAsync("test", doc);
 
         var result = await store.PushAsync("test", "doc1", "items", "item1");
@@ -338,7 +338,7 @@ public class AtomicUpdateOperationsTests
         var store = CreateStore();
         await store.CreateCollectionAsync("test");
 
-        var doc = CreateTestDocument("doc1", new Dictionary<string, object>{});
+        var doc = CreateTestDocument("doc1", new Dictionary<string, object> { });
         await store.InsertAsync("test", doc);
 
         var result = await store.PullAsync("test", "doc1", "items", "item1");
@@ -490,7 +490,7 @@ public class AtomicUpdateOperationsTests
         var store = CreateStore();
         await store.CreateCollectionAsync("test");
 
-        var doc = CreateTestDocument("doc1", new Dictionary<string, object>{});
+        var doc = CreateTestDocument("doc1", new Dictionary<string, object> { });
         await store.InsertAsync("test", doc);
 
         var result = await store.SetAsync("test", "doc1", "newField", "newValue");
@@ -523,7 +523,7 @@ public class AtomicUpdateOperationsTests
         var store = CreateStore();
         await store.CreateCollectionAsync("test");
 
-        var doc = CreateTestDocument("doc1", new Dictionary<string, object>{});
+        var doc = CreateTestDocument("doc1", new Dictionary<string, object> { });
         await store.InsertAsync("test", doc);
 
         var result = await store.SetAsync("test", "doc1", "level1.level2.level3", "deepValue");
@@ -538,7 +538,7 @@ public class AtomicUpdateOperationsTests
         var store = CreateStore();
         await store.CreateCollectionAsync("test");
 
-        var doc = CreateTestDocument("doc1", new Dictionary<string, object>{});
+        var doc = CreateTestDocument("doc1", new Dictionary<string, object> { });
         await store.InsertAsync("test", doc);
 
         var complexValue = new Dictionary<string, object>
@@ -874,7 +874,7 @@ public class AtomicUpdateOperationsTests
             ["price"] = 29.99,
             ["quantity"] = 2
         };
-        
+
         // Set total amount to 0 and clear items
         await store.SetAsync("carts", "cart1", "totalAmount", 0);
         await store.SetAsync("carts", "cart1", "itemCount", 0);

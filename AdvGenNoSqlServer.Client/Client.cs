@@ -279,8 +279,8 @@ namespace AdvGenNoSqlServer.Client
         /// <param name="cancellationToken">Cancellation token.</param>
         /// <returns>The command response.</returns>
         public async Task<NoSqlResponse> ExecuteCommandAsync(
-            string command, 
-            string collection, 
+            string command,
+            string collection,
             object? document = null,
             CancellationToken cancellationToken = default)
         {
@@ -316,7 +316,7 @@ namespace AdvGenNoSqlServer.Client
         /// <param name="cancellationToken">Cancellation token.</param>
         /// <returns>True if authentication successful.</returns>
         public async Task<bool> AuthenticateAsync(
-            string username, 
+            string username,
             string password,
             CancellationToken cancellationToken = default)
         {
@@ -369,7 +369,7 @@ namespace AdvGenNoSqlServer.Client
                 try
                 {
                     await _stream.WriteAsync(
-                        serializedMessage.AsMemory(0, messageLength), 
+                        serializedMessage.AsMemory(0, messageLength),
                         cancellationToken);
                     await _stream.FlushAsync(cancellationToken);
                 }
@@ -478,7 +478,7 @@ namespace AdvGenNoSqlServer.Client
                 try
                 {
                     await Task.Delay(_options.KeepAliveInterval, cancellationToken);
-                    
+
                     if (!await PingAsync(CancellationToken.None))
                     {
                         ErrorOccurred?.Invoke(this, new NoSqlClientException("Keep-alive ping failed"));

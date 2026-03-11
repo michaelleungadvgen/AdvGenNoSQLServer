@@ -92,7 +92,7 @@ public class TokenValidationResult
     /// </summary>
     public DateTime? ExpirationTime { get; }
 
-    private TokenValidationResult(bool isValid, string? username, IReadOnlyList<string> roles, 
+    private TokenValidationResult(bool isValid, string? username, IReadOnlyList<string> roles,
         IReadOnlyList<string> permissions, string? errorMessage, DateTime? expirationTime)
     {
         IsValid = isValid;
@@ -106,10 +106,10 @@ public class TokenValidationResult
     /// <summary>
     /// Creates a successful validation result
     /// </summary>
-    public static TokenValidationResult Success(string username, IEnumerable<string> roles, 
+    public static TokenValidationResult Success(string username, IEnumerable<string> roles,
         IEnumerable<string> permissions, DateTime expirationTime)
     {
-        return new TokenValidationResult(true, username, roles.ToList().AsReadOnly(), 
+        return new TokenValidationResult(true, username, roles.ToList().AsReadOnly(),
             permissions.ToList().AsReadOnly(), null, expirationTime);
     }
 
@@ -118,7 +118,7 @@ public class TokenValidationResult
     /// </summary>
     public static TokenValidationResult Failed(string errorMessage)
     {
-        return new TokenValidationResult(false, null, Array.Empty<string>(), 
+        return new TokenValidationResult(false, null, Array.Empty<string>(),
             Array.Empty<string>(), errorMessage, null);
     }
 }

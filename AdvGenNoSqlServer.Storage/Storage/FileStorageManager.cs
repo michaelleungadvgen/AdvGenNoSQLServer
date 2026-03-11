@@ -36,7 +36,7 @@ public class FileStorageManager : IStorageManager
     public async Task SaveDocumentAsync(string collectionName, Document document)
     {
         await EnsureCollectionAsync(collectionName);
-        
+
         var collectionLock = _collectionLocks.GetOrAdd(collectionName, _ => new object());
         await Task.Run(() =>
         {
@@ -44,10 +44,10 @@ public class FileStorageManager : IStorageManager
             {
                 var collectionPath = PathValidator.GetSafePath(_basePath, Path.Combine(_basePath, collectionName));
                 var documentPath = PathValidator.GetSafePath(collectionPath, Path.Combine(collectionPath, $"{document.Id}.json"));
-                
+
                 // Serialize the document to JSON
                 var json = JsonSerializer.Serialize(document, _jsonOptions);
-                
+
                 // Write to file
                 File.WriteAllText(documentPath, json);
             }
@@ -57,7 +57,7 @@ public class FileStorageManager : IStorageManager
     public async Task<Document?> LoadDocumentAsync(string collectionName, string documentId)
     {
         await EnsureCollectionAsync(collectionName);
-        
+
         var collectionLock = _collectionLocks.GetOrAdd(collectionName, _ => new object());
         return await Task.Run(() =>
         {
@@ -88,7 +88,7 @@ public class FileStorageManager : IStorageManager
     public async Task DeleteDocumentAsync(string collectionName, string documentId)
     {
         await EnsureCollectionAsync(collectionName);
-        
+
         var collectionLock = _collectionLocks.GetOrAdd(collectionName, _ => new object());
         await Task.Run(() =>
         {
@@ -108,7 +108,7 @@ public class FileStorageManager : IStorageManager
     public async Task<bool> DocumentExistsAsync(string collectionName, string documentId)
     {
         await EnsureCollectionAsync(collectionName);
-        
+
         var collectionLock = _collectionLocks.GetOrAdd(collectionName, _ => new object());
         return await Task.Run(() =>
         {
@@ -124,7 +124,7 @@ public class FileStorageManager : IStorageManager
     public async Task<IEnumerable<string>> ListDocumentsAsync(string collectionName)
     {
         await EnsureCollectionAsync(collectionName);
-        
+
         var collectionLock = _collectionLocks.GetOrAdd(collectionName, _ => new object());
         return await Task.Run(() =>
         {

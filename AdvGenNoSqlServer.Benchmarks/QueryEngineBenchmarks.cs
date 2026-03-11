@@ -132,10 +132,10 @@ public class QueryEngineBenchmarks
     [Benchmark]
     public void FilterEngineSimpleMatch()
     {
-        var doc = new Document 
-        { 
-            Id = "test", 
-            Data = new Dictionary<string, object> { ["age"] = 25, ["active"] = true } 
+        var doc = new Document
+        {
+            Id = "test",
+            Data = new Dictionary<string, object> { ["age"] = 25, ["active"] = true }
         };
         var filter = QueryFilter.Eq("active", true);
         _filterEngine.Matches(doc, filter);
@@ -144,8 +144,8 @@ public class QueryEngineBenchmarks
     [Benchmark]
     public void FilterEngineComplexMatch()
     {
-        var doc = new Document 
-        { 
+        var doc = new Document
+        {
             Id = "test",
             Data = new Dictionary<string, object>
             {

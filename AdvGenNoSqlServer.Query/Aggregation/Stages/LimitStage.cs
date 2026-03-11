@@ -29,7 +29,7 @@ public class LimitStage : IAggregationStage
     {
         if (limit < 0)
             throw new ArgumentException("Limit must be non-negative", nameof(limit));
-        
+
         _limit = limit;
     }
 

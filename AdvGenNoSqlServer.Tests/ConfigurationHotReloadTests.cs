@@ -370,9 +370,9 @@ public class ConfigurationHotReloadTests : IDisposable
     public void ConfigurationManager_MultiplePropertiesChanged_ShouldTrackAll()
     {
         // Arrange
-        var initialConfig = new ServerConfiguration 
-        { 
-            Port = 9090, 
+        var initialConfig = new ServerConfiguration
+        {
+            Port = 9090,
             MaxCacheItemCount = 1000,
             EnableDetailedLogging = false
         };
