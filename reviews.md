@@ -258,7 +258,7 @@ Files to review:
 Files to review:
 - [x] `Aggregation/IAggregationStage.cs` - Stage interface **[REVIEWED - No issues. Clean interface with sync/async Execute and contextual exceptions]**
 - [x] `Aggregation/AggregationPipeline.cs` - Pipeline implementation **[REVIEWED - 1 ISSUE: CODE-015 (Low - AddStages skips null check on individual stages)]**
-- [ ] `Aggregation/AggregationPipelineBuilder.cs` - Pipeline builder
+- [x] `Aggregation/AggregationPipelineBuilder.cs` - Pipeline builder **[REVIEWED - No issues. Excellent fluent API with rich static factory helpers]**
 - [ ] `Aggregation/AggregationResult.cs` - Result model
 
 **Review Focus:**
