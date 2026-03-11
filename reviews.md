@@ -257,7 +257,7 @@ Files to review:
 #### 3.3.4 Aggregation
 Files to review:
 - [x] `Aggregation/IAggregationStage.cs` - Stage interface **[REVIEWED - No issues. Clean interface with sync/async Execute and contextual exceptions]**
-- [ ] `Aggregation/AggregationPipeline.cs` - Pipeline implementation
+- [x] `Aggregation/AggregationPipeline.cs` - Pipeline implementation **[REVIEWED - 1 ISSUE: CODE-015 (Low - AddStages skips null check on individual stages)]**
 - [ ] `Aggregation/AggregationPipelineBuilder.cs` - Pipeline builder
 - [ ] `Aggregation/AggregationResult.cs` - Result model
 
@@ -765,6 +765,7 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | CODE-014 | FileStorageManager.cs | 41-54 | Low | Uses `Task.Run` wrapping synchronous I/O. Does not achieve true async I/O, just offloads to thread pool. Use `File.ReadAllTextAsync`/`WriteAllTextAsync`. | Open |
 | CONC-016 | AdvancedFileStorageManager.cs | 86-99 | Medium | Cache read in `LoadDocumentAsync` happens outside semaphore. Concurrent delete can cause stale cached data to be returned. | Open |
 | DATA-022 | AdvancedFileStorageManager.cs | 62 | Medium | `File.WriteAllTextAsync` is non-atomic. Process crash mid-write corrupts file. Use write-to-temp + rename pattern. | Open |
+| CODE-015 | AggregationPipeline.cs | 58-62 | Low | `AddStages` does not null-check individual stages unlike `AddStage`. Null stage silently enters list and causes NullReferenceException at execution instead of ArgumentNullException at add time. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
