@@ -259,7 +259,7 @@ Files to review:
 - [x] `Aggregation/IAggregationStage.cs` - Stage interface **[REVIEWED - No issues. Clean interface with sync/async Execute and contextual exceptions]**
 - [x] `Aggregation/AggregationPipeline.cs` - Pipeline implementation **[REVIEWED - 1 ISSUE: CODE-015 (Low - AddStages skips null check on individual stages)]**
 - [x] `Aggregation/AggregationPipelineBuilder.cs` - Pipeline builder **[REVIEWED - No issues. Excellent fluent API with rich static factory helpers]**
-- [ ] `Aggregation/AggregationResult.cs` - Result model
+- [x] `Aggregation/AggregationResult.cs` - Result model **[REVIEWED - 1 ISSUE: CODE-016 (Low - mutable public setters; use `init`; redundant Documents init in FailureResult)]**
 
 **Review Focus:**
 - Stage ordering
@@ -766,6 +766,7 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | CONC-016 | AdvancedFileStorageManager.cs | 86-99 | Medium | Cache read in `LoadDocumentAsync` happens outside semaphore. Concurrent delete can cause stale cached data to be returned. | Open |
 | DATA-022 | AdvancedFileStorageManager.cs | 62 | Medium | `File.WriteAllTextAsync` is non-atomic. Process crash mid-write corrupts file. Use write-to-temp + rename pattern. | Open |
 | CODE-015 | AggregationPipeline.cs | 58-62 | Low | `AddStages` does not null-check individual stages unlike `AddStage`. Null stage silently enters list and causes NullReferenceException at execution instead of ArgumentNullException at add time. | Open |
+| CODE-016 | AggregationResult.cs | 17,27,37,42 | Low | Result type has public setters on all properties. Callers can mutate results post-construction. Replace `set` with `init` accessors to enforce immutability and signal intent. `FailureResult` redundantly sets `Documents = new List<Document>()` (property initializer already does this). | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
