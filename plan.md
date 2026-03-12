@@ -4628,6 +4628,7 @@ This section tracks the issues identified in `reviews.md` during the code qualit
 
 | Task ID | Component | File | Description | Status |
 |---------|-----------|------|-------------|--------|
+| PERF-013 | CursorImpl | `CursorImpl.cs` | `FetchDocumentsAsync` calls `GetAllAsync` on the full collection on every invocation. Both `GetNextBatchAsync` and `HasMoreAsync` call it independently. Iterating N batches = O(C×N) full collection scans. Cache the full filtered+sorted result on first fetch. | [ ] |
 | SEC-002 | AuthenticationManager | `AuthenticationManager.cs` | Password hash comparison uses `!=` operator which is vulnerable to timing attacks. Must use constant-time comparison `CryptographicOperations.FixedTimeEquals()`. | [ ] |
 | SEC-003 | AuthenticationManager | `AuthenticationManager.cs` | `_users` and `_activeSessions` Dictionary objects are not thread-safe. Concurrent access from multiple connections will cause race conditions. Use `ConcurrentDictionary<>`. | [ ] |
 | SEC-011 | RoleManager | `RoleManager.cs` | `_roles`, `_userRoles`, and `PermissionRegistry._validPermissions` use non-thread-safe collections. Race conditions under concurrent access. Use `ConcurrentDictionary<>`. | [ ] |
@@ -4647,6 +4648,13 @@ This section tracks the issues identified in `reviews.md` during the code qualit
 
 | Task ID | Component | File | Description | Status |
 |---------|-----------|------|-------------|--------|
+| CONC-015 | TtlIndexService | `TtlIndexService.cs` | `RegisterDocument` accesses PriorityQueue (not thread-safe) without collection lock, while `CleanupExpiredDocumentsAsync` uses the lock. Race condition. | [ ] |
+| DATA-021 | FileStorageManager | `FileStorageManager.cs` | `File.WriteAllText` is non-atomic. Process crash mid-write corrupts file. Use write-to-temp-file + rename pattern for crash safety. | [ ] |
+| CONC-016 | AdvancedFileStorageManager | `AdvancedFileStorageManager.cs` | Cache read in `LoadDocumentAsync` happens outside semaphore. Concurrent delete can cause stale cached data to be returned. | [ ] |
+| DATA-022 | AdvancedFileStorageManager | `AdvancedFileStorageManager.cs` | `File.WriteAllTextAsync` is non-atomic. Process crash mid-write corrupts file. Use write-to-temp + rename pattern. | [ ] |
+| SEC-036 | Cursor | `Cursor.cs` | `ResumeToken` is Base64-encoded JSON with no HMAC/signature. Clients can tamper with `FilterJson`, `SortJson`, or `LastDocumentId` to manipulate pagination. Sign tokens with HMAC-SHA256 before returning to clients. | [ ] |
+| DATA-023 | CursorImpl | `CursorImpl.cs` | Position-based pagination re-fetches live data each batch. Documents inserted/deleted between calls cause result skips or duplicates. Cursors should snapshot the result set at creation time. | [ ] |
+| BUG-007 | CursorImpl | `CursorImpl.cs` | `ExtendExpiration` is a complete no-op. It computes `originalTimeout` but never modifies `ExpiresAt`. Cursor expires on the original schedule even with constant active use. | [ ] |
 | SEC-004 | AuthenticationManager | `AuthenticationManager.cs` | No rate limiting for authentication attempts. Vulnerable to brute-force attacks. Implement failed attempt tracking and lockout. | [ ] |
 | SEC-005 | AuthenticationManager | `AuthenticationManager.cs` | No password complexity validation. Should enforce minimum length (12+), complexity requirements, and check against common password lists. | [ ] |
 | SEC-006 | JwtTokenProvider | `JwtTokenProvider.cs` | Secret key stored as plain string in memory. Sensitive to memory dump attacks. Consider using SecureString or protected memory. | [ ] |
@@ -4695,6 +4703,14 @@ This section tracks the issues identified in `reviews.md` during the code qualit
 
 | Task ID | Component | File | Description | Status |
 |---------|-----------|------|-------------|--------|
+| DATA-019 | IndexManager | `IndexManager.cs` | SparseIndexWrapper uses `document.Data.ContainsKey()` without null check. Document.Data is nullable, will throw NullReferenceException if null. | [ ] |
+| DATA-020 | PartialSparseIndex | `PartialSparseIndex.cs` | `ShouldIncludeDocument` calls `document.Data.ContainsKey()` without null check. Document.Data is nullable, will throw NullReferenceException. | [ ] |
+| CODE-014 | FileStorageManager | `FileStorageManager.cs` | Uses `Task.Run` wrapping synchronous I/O. Does not achieve true async I/O, just offloads to thread pool. Use `File.ReadAllTextAsync`/`WriteAllTextAsync`. | [ ] |
+| CODE-015 | AggregationPipeline | `AggregationPipeline.cs` | `AddStages` does not null-check individual stages unlike `AddStage`. Null stage silently enters list and causes NullReferenceException at execution instead of ArgumentNullException at add time. | [ ] |
+| CODE-016 | AggregationResult | `AggregationResult.cs` | Result type has public setters on all properties. Callers can mutate results post-construction. Replace `set` with `init` accessors to enforce immutability and signal intent. `FailureResult` redundantly sets `Documents = new List<Document>()` (property initializer already does this). | [ ] |
+| CODE-017 | Cursor | `Cursor.cs` | `ICursor.Sort` is typed as `List<SortField>?` instead of `IReadOnlyList<SortField>?`. Callers can mutate the active cursor's sort specification mid-flight. | [ ] |
+| BUG-008 | CursorImpl | `CursorImpl.cs` | `_resumeAfterPosition` is hardcoded to `0` in the constructor. The `ResumeToken` parameter is accepted but never used. Resume tokens are silently ignored and cursors always start from position 0. | [ ] |
+| CONC-017 | CursorImpl | `CursorImpl.cs` | `IsClosed` is written in `CloseAsync`/`DisposeAsync` without holding `_lock` and is not `volatile`. Racy reads in `GetNextBatchAsync`/`HasMoreAsync` are not guaranteed by C# memory model on all architectures. | [ ] |
 | SEC-007 | JwtTokenProvider | `JwtTokenProvider.cs` | No token revocation/blacklist mechanism. Tokens remain valid until expiration even after logout. Consider implementing JWT blacklist. | [ ] |
 | SEC-008 | JwtTokenProvider | `JwtTokenProvider.cs` | ExtractUsername and GetExpirationTime methods do not validate signature before returning data. Could expose claims from tampered tokens. | [ ] |
 | SEC-009 | EncryptionService | `EncryptionService.cs` | Auto-generated key has only TODO for logging. Could lead to data loss if key is not persisted. Should log warning or throw if no key store configured. | [ ] |
