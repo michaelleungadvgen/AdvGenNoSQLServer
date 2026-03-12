@@ -269,7 +269,7 @@ Files to review:
 #### 3.3.5 Cursors
 Files to review:
 - [x] `Cursors/Cursor.cs` - Cursor model **[REVIEWED - 2 ISSUES: SEC-036 (Medium - unsigned resume token), CODE-017 (Low - mutable Sort list in interface)]**
-- [ ] `Cursors/CursorImpl.cs` - Cursor implementation
+- [x] `Cursors/CursorImpl.cs` - Cursor implementation **[REVIEWED - 5 ISSUES: PERF-013 (High - full scan per batch), DATA-023, BUG-007 (Medium - ExtendExpiration no-op), BUG-008, CONC-017 (Low)]**
 - [ ] `Cursors/CursorManager.cs` - Cursor lifecycle management
 - [ ] `Cursors/CursorQueryExecutor.cs` - Cursor-based execution
 - [ ] `Cursors/CursorEnabledQueryExecutor.cs` - Cursor-enabled executor
@@ -769,6 +769,11 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | CODE-016 | AggregationResult.cs | 17,27,37,42 | Low | Result type has public setters on all properties. Callers can mutate results post-construction. Replace `set` with `init` accessors to enforce immutability and signal intent. `FailureResult` redundantly sets `Documents = new List<Document>()` (property initializer already does this). | Open |
 | SEC-036 | Cursor.cs | 119-138 | Medium | `ResumeToken` is Base64-encoded JSON with no HMAC/signature. Clients can tamper with `FilterJson`, `SortJson`, or `LastDocumentId` to manipulate pagination. Sign tokens with HMAC-SHA256 before returning to clients. | Open |
 | CODE-017 | Cursor.cs | 33 | Low | `ICursor.Sort` is typed as `List<SortField>?` instead of `IReadOnlyList<SortField>?`. Callers can mutate the active cursor's sort specification mid-flight. | Open |
+| PERF-013 | CursorImpl.cs | 189 | High | `FetchDocumentsAsync` calls `GetAllAsync` on the full collection on every invocation. Both `GetNextBatchAsync` and `HasMoreAsync` call it independently. Iterating N batches = O(C×N) full collection scans. Cache the full filtered+sorted result on first fetch. | Open |
+| DATA-023 | CursorImpl.cs | 209 | Medium | Position-based pagination re-fetches live data each batch. Documents inserted/deleted between calls cause result skips or duplicates. Cursors should snapshot the result set at creation time. | Open |
+| BUG-007 | CursorImpl.cs | 253-259 | Medium | `ExtendExpiration` is a complete no-op. It computes `originalTimeout` but never modifies `ExpiresAt`. Cursor expires on the original schedule even with constant active use. | Open |
+| BUG-008 | CursorImpl.cs | 65 | Low | `_resumeAfterPosition` is hardcoded to `0` in the constructor. The `ResumeToken` parameter is accepted but never used. Resume tokens are silently ignored and cursors always start from position 0. | Open |
+| CONC-017 | CursorImpl.cs | 173,181 | Low | `IsClosed` is written in `CloseAsync`/`DisposeAsync` without holding `_lock` and is not `volatile`. Racy reads in `GetNextBatchAsync`/`HasMoreAsync` are not guaranteed by C# memory model on all architectures. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
