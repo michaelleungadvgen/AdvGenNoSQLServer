@@ -271,8 +271,8 @@ Files to review:
 - [x] `Cursors/Cursor.cs` - Cursor model **[REVIEWED - 2 ISSUES: SEC-036 (Medium - unsigned resume token), CODE-017 (Low - mutable Sort list in interface)]**
 - [x] `Cursors/CursorImpl.cs` - Cursor implementation **[REVIEWED - 5 ISSUES: PERF-013 (High - full scan per batch), DATA-023, BUG-007 (Medium - ExtendExpiration no-op), BUG-008, CONC-017 (Low)]**
 - [x] `Cursors/CursorManager.cs` - Cursor lifecycle management **[REVIEWED - 4 ISSUES: ASYNC-004, BUG-009 (Medium - double scan per operation), CODE-018, MEM-007 (Low)]**
-- [ ] `Cursors/CursorQueryExecutor.cs` - Cursor-based execution
-- [ ] `Cursors/CursorEnabledQueryExecutor.cs` - Cursor-enabled executor
+- [x] `Cursors/CursorQueryExecutor.cs` - Cursor-based execution **[REVIEWED - No issues. Clean interface extending IQueryExecutor with cursor-specific pagination methods]**
+- [x] `Cursors/CursorEnabledQueryExecutor.cs` - Cursor-enabled executor **[REVIEWED - 3 ISSUES: CODE-019 (Medium - cursor leak in limit-only mode), BUG-010 (Medium - incorrect TotalCount), CODE-020 (Low - hard-coupled constructor)]**
 
 **Review Focus:**
 - Cursor timeout handling
@@ -778,6 +778,9 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | BUG-009 | CursorManager.cs | 203-204,284-285 | Medium | `CreateCursorAsync` and `GetMoreAsync` each call `GetNextBatchAsync` immediately followed by `HasMoreAsync`. `HasMoreAsync` pre-fetches a full batch to determine if more exist. Every cursor operation issues 2 full collection scans instead of 1, compounding PERF-013. | Open |
 | CODE-018 | CursorManager.cs | 346 | Low | `AverageCursorLifetimeMs` always returns hardcoded 300,000ms. Formula `(UtcNow - UtcNow.AddMinutes(-10)).TotalMilliseconds / 2` is constant and meaningless. Real cursor lifetimes are never tracked. | Open |
 | MEM-007 | CursorManager.cs | 436-441 | Low | Implements `IDisposable` but not `IAsyncDisposable`. `Dispose` blocks on async `KillAllCursorsAsync`. Should implement `IAsyncDisposable.DisposeAsync` and `await` the cleanup. | Open |
+| CODE-019 | CursorEnabledQueryExecutor.cs | 55-64 | Medium | `ExecuteAsync` silently switches to cursor mode for limit-only queries. The created cursor is never killed in `ExecuteWithCursorInternalAsync` — leaks in `_cursorManager._cursors` for up to 10 minutes per call. Call `KillCursorAsync` after returning the first batch. | Open |
+| BUG-010 | CursorEnabledQueryExecutor.cs | 139 | Medium | `TotalCount = cursorResult.TotalCount ?? cursorResult.Documents.Count` — when `IncludeTotalCount` is false (default), falls back to first-batch size, not the real total. Callers receive incorrect TotalCount values. | Open |
+| CODE-020 | CursorEnabledQueryExecutor.cs | 26-33 | Low | Primary constructor hard-codes `new CursorManager(...)` — bypasses DI and couples to concrete implementation. Use the overloaded constructor accepting `ICursorManager` from DI instead. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
