@@ -1632,6 +1632,38 @@ dotnet run --configuration Release -- DocumentStore # Run document store benchma
 
 ## Available Tasks (Not Started)
 
+### Agent-48: Fix High/Critical Code Review Issues
+**Scope**: Address critical and high severity findings from the expert code review
+**Components**:
+- Fix SEC-001: Replace SHA256 with PBKDF2/bcrypt/Argon2 in AuthenticationManager
+- Fix SEC-027: Use JsonSerializer for Auth payload in Client.cs
+- Fix SEC-002: Use constant-time comparison in AuthenticationManager
+- Fix SEC-003: Use thread-safe collections in AuthenticationManager
+- Fix SEC-011: Use thread-safe collections in RoleManager
+- Fix PERF-002: Remove GetAwaiter().GetResult() from WriteAheadLog constructor
+- Fix PERF-003: Remove GetAwaiter().GetResult() from LockManager AcquireLock
+- Fix SEC-017: Disable development mode certificate bypass in production
+- Fix SEC-018: Remove exportable flag from server certificates
+- Fix DATA-006: Log errors when loading documents from disk
+- Fix BUG-001: Fix EnableSslAsync assigning to stream
+- Fix DATA-010 & DATA-012: Implement actual Commit/Rollback functionality
+- Fix DATA-013: Log exceptions on disk cache load in HybridDocumentStore
+- Fix BUG-003: Implement GetUsernameFromToken
+- Fix SEC-034: Implement actual permission check in Authorize
+- Fix PERF-013: Optimize CursorImpl FetchDocumentsAsync to avoid full table scans
+
+### Agent-49: Fix Medium Severity Code Review Issues
+**Scope**: Address medium severity findings from the expert code review
+**Components**:
+- Address various thread safety, configuration, and state management issues marked as Medium in reviews.md.
+- Notable items: SEC-004 (rate limiting), SEC-013 (persist role configuration), DATA-015 (race condition in HybridDocumentStore InsertAsync), SEC-036 (sign cursor resume tokens).
+
+### Agent-50: Fix Low Severity Code Review Issues & Info Items
+**Scope**: Address low severity and info findings from the expert code review
+**Components**:
+- Address style issues, optimization opportunities, and documentation updates marked as Low or Info in reviews.md.
+
+
 From PROJECT_STATUS.md - Phase 2 (Network & TCP):
 - [ ] Client Library TCP connection implementation
 - [ ] Message protocol implementation  
