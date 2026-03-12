@@ -268,7 +268,7 @@ Files to review:
 
 #### 3.3.5 Cursors
 Files to review:
-- [ ] `Cursors/Cursor.cs` - Cursor model
+- [x] `Cursors/Cursor.cs` - Cursor model **[REVIEWED - 2 ISSUES: SEC-036 (Medium - unsigned resume token), CODE-017 (Low - mutable Sort list in interface)]**
 - [ ] `Cursors/CursorImpl.cs` - Cursor implementation
 - [ ] `Cursors/CursorManager.cs` - Cursor lifecycle management
 - [ ] `Cursors/CursorQueryExecutor.cs` - Cursor-based execution
@@ -767,6 +767,8 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | DATA-022 | AdvancedFileStorageManager.cs | 62 | Medium | `File.WriteAllTextAsync` is non-atomic. Process crash mid-write corrupts file. Use write-to-temp + rename pattern. | Open |
 | CODE-015 | AggregationPipeline.cs | 58-62 | Low | `AddStages` does not null-check individual stages unlike `AddStage`. Null stage silently enters list and causes NullReferenceException at execution instead of ArgumentNullException at add time. | Open |
 | CODE-016 | AggregationResult.cs | 17,27,37,42 | Low | Result type has public setters on all properties. Callers can mutate results post-construction. Replace `set` with `init` accessors to enforce immutability and signal intent. `FailureResult` redundantly sets `Documents = new List<Document>()` (property initializer already does this). | Open |
+| SEC-036 | Cursor.cs | 119-138 | Medium | `ResumeToken` is Base64-encoded JSON with no HMAC/signature. Clients can tamper with `FilterJson`, `SortJson`, or `LastDocumentId` to manipulate pagination. Sign tokens with HMAC-SHA256 before returning to clients. | Open |
+| CODE-017 | Cursor.cs | 33 | Low | `ICursor.Sort` is typed as `List<SortField>?` instead of `IReadOnlyList<SortField>?`. Callers can mutate the active cursor's sort specification mid-flight. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
