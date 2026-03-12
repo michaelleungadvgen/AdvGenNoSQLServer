@@ -270,7 +270,7 @@ Files to review:
 Files to review:
 - [x] `Cursors/Cursor.cs` - Cursor model **[REVIEWED - 2 ISSUES: SEC-036 (Medium - unsigned resume token), CODE-017 (Low - mutable Sort list in interface)]**
 - [x] `Cursors/CursorImpl.cs` - Cursor implementation **[REVIEWED - 5 ISSUES: PERF-013 (High - full scan per batch), DATA-023, BUG-007 (Medium - ExtendExpiration no-op), BUG-008, CONC-017 (Low)]**
-- [ ] `Cursors/CursorManager.cs` - Cursor lifecycle management
+- [x] `Cursors/CursorManager.cs` - Cursor lifecycle management **[REVIEWED - 4 ISSUES: ASYNC-004, BUG-009 (Medium - double scan per operation), CODE-018, MEM-007 (Low)]**
 - [ ] `Cursors/CursorQueryExecutor.cs` - Cursor-based execution
 - [ ] `Cursors/CursorEnabledQueryExecutor.cs` - Cursor-enabled executor
 
@@ -774,6 +774,10 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | BUG-007 | CursorImpl.cs | 253-259 | Medium | `ExtendExpiration` is a complete no-op. It computes `originalTimeout` but never modifies `ExpiresAt`. Cursor expires on the original schedule even with constant active use. | Open |
 | BUG-008 | CursorImpl.cs | 65 | Low | `_resumeAfterPosition` is hardcoded to `0` in the constructor. The `ResumeToken` parameter is accepted but never used. Resume tokens are silently ignored and cursors always start from position 0. | Open |
 | CONC-017 | CursorImpl.cs | 173,181 | Low | `IsClosed` is written in `CloseAsync`/`DisposeAsync` without holding `_lock` and is not `volatile`. Racy reads in `GetNextBatchAsync`/`HasMoreAsync` are not guaranteed by C# memory model on all architectures. | Open |
+| ASYNC-004 | CursorManager.cs | 408,440 | Medium | `CloseAsync().GetAwaiter().GetResult()` in timer callback and `KillAllCursorsAsync().GetResult()` in `Dispose` — sync-over-async. Can deadlock when thread pool is exhausted or `SemaphoreSlim.WaitAsync` in cursor requires a free thread. | Open |
+| BUG-009 | CursorManager.cs | 203-204,284-285 | Medium | `CreateCursorAsync` and `GetMoreAsync` each call `GetNextBatchAsync` immediately followed by `HasMoreAsync`. `HasMoreAsync` pre-fetches a full batch to determine if more exist. Every cursor operation issues 2 full collection scans instead of 1, compounding PERF-013. | Open |
+| CODE-018 | CursorManager.cs | 346 | Low | `AverageCursorLifetimeMs` always returns hardcoded 300,000ms. Formula `(UtcNow - UtcNow.AddMinutes(-10)).TotalMilliseconds / 2` is constant and meaningless. Real cursor lifetimes are never tracked. | Open |
+| MEM-007 | CursorManager.cs | 436-441 | Low | Implements `IDisposable` but not `IAsyncDisposable`. `Dispose` blocks on async `KillAllCursorsAsync`. Should implement `IAsyncDisposable.DisposeAsync` and `await` the cleanup. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
