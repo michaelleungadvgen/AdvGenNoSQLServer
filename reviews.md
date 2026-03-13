@@ -281,8 +281,8 @@ Files to review:
 
 #### 3.3.6 Models
 Files to review:
-- [ ] `Models/Query.cs` - Query model
-- [ ] `Models/QueryResult.cs` - Result model
+- [x] `Models/Query.cs` - Query model **[REVIEWED - No issues. Rich builder pattern (Eq/Gt/In/And/Or), correct JsonElement conversion. Clean.]**
+- [x] `Models/QueryResult.cs` - Result model **[REVIEWED - No issues. Elegant `HasMore` computed property, consistent factory methods.]**
 
 ---
 
