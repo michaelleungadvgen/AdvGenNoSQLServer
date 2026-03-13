@@ -427,9 +427,39 @@ public class CursorTests : IDisposable
     [Fact]
     public void CursorResult_Success_CreatesCorrectResult()
     {
-        // This test would require a mock cursor, so we'll just test the static factory
+        // Arrange
+        var mockCursor = new Mock<ICursor>();
+        mockCursor.Setup(c => c.TotalCount).Returns(42);
+
+        var documents = new List<Document>
+        {
+            new Document { Id = "doc1" },
+            new Document { Id = "doc2" }
+        };
+
+        bool hasMore = true;
+        long executionTimeMs = 123;
+
+        // Act
+        var result = CursorResult.SuccessResult(mockCursor.Object, documents, hasMore, executionTimeMs);
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.Null(result.ErrorMessage);
+        Assert.Same(mockCursor.Object, result.Cursor);
+        Assert.Same(documents, result.Documents);
+        Assert.Equal(42, result.TotalCount);
+        Assert.True(result.HasMore);
+        Assert.Equal(123, result.ExecutionTimeMs);
+    }
+
+    [Fact]
+    public void CursorResult_Failure_CreatesCorrectResult()
+    {
+        // Act
         var result = CursorResult.FailureResult("Test error");
 
+        // Assert
         Assert.False(result.Success);
         Assert.Equal("Test error", result.ErrorMessage);
         Assert.Empty(result.Documents);
