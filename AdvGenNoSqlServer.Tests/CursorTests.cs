@@ -425,14 +425,43 @@ public class CursorTests : IDisposable
     #region CursorResult Tests
 
     [Fact]
-    public void CursorResult_Success_CreatesCorrectResult()
+    public void CursorResult_SuccessResult_CreatesCorrectResult()
     {
-        // This test would require a mock cursor, so we'll just test the static factory
+        // Arrange
+        var mockCursor = new Mock<ICursor>();
+        mockCursor.SetupGet(c => c.TotalCount).Returns(100);
+
+        var documents = new List<Document>
+        {
+            new Document { Id = "doc1", Data = new Dictionary<string, object>() }
+        };
+
+        // Act
+        var result = CursorResult.SuccessResult(mockCursor.Object, documents, true, 150);
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.Null(result.ErrorMessage);
+        Assert.Equal(mockCursor.Object, result.Cursor);
+        Assert.Same(documents, result.Documents);
+        Assert.Equal(100, result.TotalCount);
+        Assert.True(result.HasMore);
+        Assert.Equal(150, result.ExecutionTimeMs);
+    }
+
+    [Fact]
+    public void CursorResult_FailureResult_CreatesCorrectResult()
+    {
         var result = CursorResult.FailureResult("Test error");
 
         Assert.False(result.Success);
         Assert.Equal("Test error", result.ErrorMessage);
         Assert.Empty(result.Documents);
+        Assert.Null(result.Cursor);
+        Assert.Null(result.TotalCount);
+        Assert.False(result.HasMore);
+        Assert.Null(result.ResumeToken);
+        Assert.Equal(0, result.ExecutionTimeMs);
     }
 
     #endregion
