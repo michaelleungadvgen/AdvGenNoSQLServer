@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 // See LICENSE.txt for license information.
 
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using AdvGenNoSqlServer.Core.Configuration;
@@ -10,8 +11,8 @@ namespace AdvGenNoSqlServer.Core.Authentication;
 
 public class AuthenticationManager
 {
-    private readonly Dictionary<string, UserCredentials> _users = new();
-    private readonly Dictionary<string, AuthToken> _activeSessions = new();
+    private readonly ConcurrentDictionary<string, UserCredentials> _users = new();
+    private readonly ConcurrentDictionary<string, AuthToken> _activeSessions = new();
     private readonly TimeSpan _tokenExpiration;
     private readonly ServerConfiguration _configuration;
 
@@ -32,13 +33,10 @@ public class AuthenticationManager
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
             return false;
 
-        if (_users.ContainsKey(username))
-            return false;
-
         var salt = GenerateSalt();
         var hashedPassword = HashPassword(password, salt);
 
-        _users[username] = new UserCredentials
+        var credentials = new UserCredentials
         {
             Username = username,
             PasswordHash = hashedPassword,
@@ -46,7 +44,7 @@ public class AuthenticationManager
             CreatedAt = DateTime.UtcNow
         };
 
-        return true;
+        return _users.TryAdd(username, credentials);
     }
 
     public AuthToken? Authenticate(string username, string password)
@@ -55,7 +53,9 @@ public class AuthenticationManager
             return null;
 
         var hashedPassword = HashPassword(password, credentials.Salt);
-        if (hashedPassword != credentials.PasswordHash)
+        if (!CryptographicOperations.FixedTimeEquals(
+                Convert.FromBase64String(hashedPassword),
+                Convert.FromBase64String(credentials.PasswordHash)))
             return null;
 
         var token = new AuthToken
@@ -83,7 +83,7 @@ public class AuthenticationManager
 
         if (DateTime.UtcNow > token.ExpiresAt)
         {
-            _activeSessions.Remove(tokenId);
+            _activeSessions.TryRemove(tokenId, out _);
             return false;
         }
 
@@ -92,7 +92,7 @@ public class AuthenticationManager
 
     public void RevokeToken(string tokenId)
     {
-        _activeSessions.Remove(tokenId);
+        _activeSessions.TryRemove(tokenId, out _);
     }
 
     public void RevokeAllUserTokens(string username)
@@ -104,7 +104,7 @@ public class AuthenticationManager
 
         foreach (var tokenId in tokensToRemove)
         {
-            _activeSessions.Remove(tokenId);
+            _activeSessions.TryRemove(tokenId, out _);
         }
     }
 
@@ -114,7 +114,9 @@ public class AuthenticationManager
             return false;
 
         var hashedOldPassword = HashPassword(oldPassword, credentials.Salt);
-        if (hashedOldPassword != credentials.PasswordHash)
+        if (!CryptographicOperations.FixedTimeEquals(
+                Convert.FromBase64String(hashedOldPassword),
+                Convert.FromBase64String(credentials.PasswordHash)))
             return false;
 
         var newSalt = GenerateSalt();
@@ -129,7 +131,7 @@ public class AuthenticationManager
 
     public bool RemoveUser(string username)
     {
-        if (!_users.Remove(username))
+        if (!_users.TryRemove(username, out _))
             return false;
 
         RevokeAllUserTokens(username);
@@ -149,15 +151,8 @@ public class AuthenticationManager
     private static string HashPassword(string password, string salt)
     {
         var saltBytes = Convert.FromBase64String(salt);
-        var passwordBytes = Encoding.UTF8.GetBytes(password);
-        var combined = new byte[saltBytes.Length + passwordBytes.Length];
-
-        Buffer.BlockCopy(saltBytes, 0, combined, 0, saltBytes.Length);
-        Buffer.BlockCopy(passwordBytes, 0, combined, saltBytes.Length, passwordBytes.Length);
-
-        using var sha256 = SHA256.Create();
-        var hash = sha256.ComputeHash(combined);
-        return Convert.ToBase64String(hash);
+        using var pbkdf2 = new Rfc2898DeriveBytes(password, saltBytes, 100000, HashAlgorithmName.SHA256);
+        return Convert.ToBase64String(pbkdf2.GetBytes(32));
     }
 }
 
