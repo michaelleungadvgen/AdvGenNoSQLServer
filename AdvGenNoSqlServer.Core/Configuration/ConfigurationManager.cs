@@ -169,11 +169,11 @@ public class ConfigurationManager : IConfigurationManager, IDisposable
         }
 
         // Reload on a background thread to avoid blocking the watcher
-        Task.Run(() =>
+        Task.Run(async () =>
         {
             try
             {
-                Thread.Sleep(100); // Brief delay to ensure file write is complete
+                await Task.Delay(100); // Brief delay to ensure file write is complete
                 ReloadConfigurationInternal("File");
             }
             catch (Exception ex)
