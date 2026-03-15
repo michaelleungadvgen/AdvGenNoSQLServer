@@ -3,6 +3,7 @@
 // See LICENSE.txt for license information.
 
 using AdvGenNoSqlServer.Core.Models;
+using AdvGenNoSqlServer.Core.Security;
 using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Threading.Channels;
@@ -407,7 +408,7 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
 
             foreach (var (_, document) in collection)
             {
-                var filePath = Path.Combine(collectionPath, $"{document.Id}.json");
+                var filePath = PathValidator.GetSafePath(collectionPath, Path.Combine(collectionPath, $"{document.Id}.json"));
                 var json = JsonSerializer.Serialize(document, _jsonOptions);
                 await File.WriteAllTextAsync(filePath, json);
             }
@@ -416,7 +417,8 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
 
     private async Task<Document?> LoadFromDiskAsync(string collectionName, string documentId)
     {
-        var filePath = Path.Combine(_basePath, collectionName, $"{documentId}.json");
+        var collectionPath = Path.Combine(_basePath, collectionName);
+        var filePath = PathValidator.GetSafePath(collectionPath, Path.Combine(collectionPath, $"{documentId}.json"));
 
         if (!File.Exists(filePath))
         {
@@ -491,7 +493,7 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
             Directory.CreateDirectory(collectionPath);
         }
 
-        var filePath = Path.Combine(collectionPath, $"{operation.Document.Id}.json");
+        var filePath = PathValidator.GetSafePath(collectionPath, Path.Combine(collectionPath, $"{operation.Document.Id}.json"));
 
         switch (operation.Type)
         {
