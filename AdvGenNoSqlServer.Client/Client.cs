@@ -322,7 +322,7 @@ namespace AdvGenNoSqlServer.Client
         {
             EnsureConnected();
 
-            var authPayload = $"{{\"username\":\"{username}\",\"password\":\"{password}\"}}";
+            var authPayload = System.Text.Json.JsonSerializer.Serialize(new { username, password });
             var message = NoSqlMessage.Create(MessageType.Authentication, authPayload);
             var response = await SendAndReceiveAsync(message, cancellationToken);
 
