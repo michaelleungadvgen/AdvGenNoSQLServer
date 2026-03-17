@@ -3,6 +3,7 @@
 // See LICENSE.txt for license information.
 
 using AdvGenNoSqlServer.Core.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace AdvGenNoSqlServer.Core.Authentication;
 
@@ -14,12 +15,16 @@ public class AuthenticationService
     private readonly AuthenticationManager _authManager;
     private readonly RoleManager _roleManager;
     private readonly ServerConfiguration _configuration;
+    private readonly ILogger<AuthenticationService>? _logger;
+    private readonly IAuditLogger? _auditLogger;
 
-    public AuthenticationService(ServerConfiguration configuration)
+    public AuthenticationService(ServerConfiguration configuration, ILogger<AuthenticationService>? logger = null, IAuditLogger? auditLogger = null)
     {
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _authManager = new AuthenticationManager(configuration);
         _roleManager = new RoleManager();
+        _logger = logger;
+        _auditLogger = auditLogger;
     }
 
     #region Authentication Methods
@@ -33,17 +38,24 @@ public class AuthenticationService
             return false;
 
         // Assign initial role if provided and exists
+        var roleToAssign = RoleNames.User;
         if (!string.IsNullOrEmpty(initialRole))
         {
             if (_roleManager.RoleExists(initialRole))
             {
-                _roleManager.AssignRoleToUser(username, initialRole);
+                roleToAssign = initialRole;
+            }
+            else
+            {
+                _logger?.LogWarning("Requested role '{Role}' does not exist for user '{User}', assigning default", initialRole, username);
             }
         }
-        else
+
+        if (!_roleManager.AssignRoleToUser(username, roleToAssign))
         {
-            // Assign default User role
-            _roleManager.AssignRoleToUser(username, RoleNames.User);
+            // Rollback: remove user since role assignment failed
+            _authManager.RemoveUser(username);
+            return false;
         }
 
         return true;
@@ -225,14 +237,14 @@ public class AuthenticationService
     /// </summary>
     public void LogAuthenticationAttempt(string username, bool success, string? clientIp = null)
     {
-        // In a real implementation, this would write to an audit log
-        // For now, we just track the attempt
-        var status = success ? "SUCCESS" : "FAILED";
-        var timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
-        var ipInfo = clientIp != null ? $" from {clientIp}" : "";
-
-        // This would be replaced with proper logging
-        Console.WriteLine($"[AUTH] {timestamp} - {status}: {username}{ipInfo}");
+        if (success)
+        {
+            _auditLogger?.LogAuthentication(username, clientIp);
+        }
+        else
+        {
+            _auditLogger?.LogAuthenticationFailure(username, clientIp);
+        }
     }
 
     #endregion
