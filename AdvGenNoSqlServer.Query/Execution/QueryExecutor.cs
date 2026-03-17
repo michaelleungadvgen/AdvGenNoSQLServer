@@ -127,8 +127,38 @@ public class QueryExecutor : IQueryExecutor
     /// <inheritdoc />
     public async Task<bool> ExistsAsync(Query.Models.Query query, CancellationToken cancellationToken = default)
     {
-        var count = await CountAsync(query, cancellationToken);
-        return count > 0;
+        // Check cancellation
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // If filter is empty/null, we just need to check if the collection has any documents
+        if (query.Filter == null || query.Filter.Conditions.Count == 0)
+        {
+            // Fast path: Just check if the collection has any documents
+            return await _documentStore.CountAsync(query.CollectionName) > 0;
+        }
+
+        // Get candidate documents using index if available
+        var candidateIds = await GetCandidateDocumentIdsAsync(query);
+
+        // Fetch documents
+        IEnumerable<Document> documents;
+        if (candidateIds != null)
+        {
+            // If index returned an empty list of candidates, it definitely doesn't exist
+            if (candidateIds.Count == 0) return false;
+
+            documents = await _documentStore.GetManyAsync(query.CollectionName, candidateIds);
+        }
+        else
+        {
+            documents = await _documentStore.GetAllAsync(query.CollectionName);
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // Check for existence instead of evaluating full count
+        // Using Any() short-circuits evaluation in best case from O(N) to O(1)
+        return _filterEngine.Filter(documents, query.Filter).Any();
     }
 
     /// <inheritdoc />
