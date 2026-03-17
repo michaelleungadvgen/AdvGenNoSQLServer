@@ -337,7 +337,7 @@ Files to review:
 ### 3.7 AdvGenNoSqlServer.Host
 
 Files to review:
-- [ ] `Program.cs` - Host entry point
+- [x] `Program.cs` - Host entry point **[REVIEWED - 4 ISSUES: SEC-037 (High - no per-connection auth enforcement), ASYNC-005, BUG-011 (Medium - bulk stub), CONC-019 (Low)]**
 
 **Review Focus:**
 - Host builder configuration
@@ -781,6 +781,10 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | CODE-019 | CursorEnabledQueryExecutor.cs | 55-64 | Medium | `ExecuteAsync` silently switches to cursor mode for limit-only queries. The created cursor is never killed in `ExecuteWithCursorInternalAsync` — leaks in `_cursorManager._cursors` for up to 10 minutes per call. Call `KillCursorAsync` after returning the first batch. | Open |
 | BUG-010 | CursorEnabledQueryExecutor.cs | 139 | Medium | `TotalCount = cursorResult.TotalCount ?? cursorResult.Documents.Count` — when `IncludeTotalCount` is false (default), falls back to first-batch size, not the real total. Callers receive incorrect TotalCount values. | Open |
 | CODE-020 | CursorEnabledQueryExecutor.cs | 26-33 | Low | Primary constructor hard-codes `new CursorManager(...)` — bypasses DI and couples to concrete implementation. Use the overloaded constructor accepting `ICursorManager` from DI instead. | Open |
+| SEC-037 | Program.cs (Host) | 419-458 | High | No per-connection authentication state tracked. `HandleCommandAsync` executes document operations without verifying the connection authenticated first. Any client can skip `Authentication` message and send commands directly. Track auth state per `connectionId` and gate `HandleCommandAsync` on it. | Open |
+| ASYNC-005 | Program.cs (Host) | 277 | Medium | `async void OnMessageReceivedAsync` — if `e.SendResponseAsync(errorResponse)` inside the `catch` block throws, the exception propagates unhandled on the thread pool and crashes the process. Wrap the entire handler body in try/catch or swallow/log the secondary failure. | Open |
+| BUG-011 | Program.cs (Host) | 599-607 | Medium | `HandleBulkOperationAsync` is a stub — always returns `{ success:true, totalProcessed:0 }` regardless of payload. Bulk operations are silently no-oped. | Open |
+| CONC-019 | Program.cs (Host) | 514-522 | Low | `HandleSetCommandAsync`: `ExistsAsync` → `InsertAsync`/`UpdateAsync` is a TOCTOU race. Two concurrent requests for the same ID can both pass `ExistsAsync=false` and both invoke `InsertAsync`. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
