@@ -106,6 +106,14 @@ public class QueryExecutor : IQueryExecutor
     /// <inheritdoc />
     public async Task<long> CountAsync(Query.Models.Query query, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // Optimize empty filters by using the store's CountAsync directly
+        if (query.Filter == null || query.Filter.Conditions.Count == 0)
+        {
+            return await _documentStore.CountAsync(query.CollectionName);
+        }
+
         // Get candidate documents using index if available
         var candidateIds = await GetCandidateDocumentIdsAsync(query);
 
@@ -127,8 +135,29 @@ public class QueryExecutor : IQueryExecutor
     /// <inheritdoc />
     public async Task<bool> ExistsAsync(Query.Models.Query query, CancellationToken cancellationToken = default)
     {
-        var count = await CountAsync(query, cancellationToken);
-        return count > 0;
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (query.Filter == null || query.Filter.Conditions.Count == 0)
+        {
+            return await _documentStore.CountAsync(query.CollectionName) > 0;
+        }
+
+        // Get candidate documents using index if available
+        var candidateIds = await GetCandidateDocumentIdsAsync(query);
+
+        // Fetch documents
+        IEnumerable<Document> documents;
+        if (candidateIds != null)
+        {
+            documents = await _documentStore.GetManyAsync(query.CollectionName, candidateIds);
+        }
+        else
+        {
+            documents = await _documentStore.GetAllAsync(query.CollectionName);
+        }
+
+        // Apply filters and use Any() instead of Count() > 0 for O(1) best-case performance
+        return _filterEngine.Filter(documents, query.Filter).Any();
     }
 
     /// <inheritdoc />
