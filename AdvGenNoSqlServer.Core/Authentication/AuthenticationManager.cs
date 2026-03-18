@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 // See LICENSE.txt for license information.
 
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using AdvGenNoSqlServer.Core.Configuration;
@@ -10,8 +11,8 @@ namespace AdvGenNoSqlServer.Core.Authentication;
 
 public class AuthenticationManager
 {
-    private readonly Dictionary<string, UserCredentials> _users = new();
-    private readonly Dictionary<string, AuthToken> _activeSessions = new();
+    private readonly ConcurrentDictionary<string, UserCredentials> _users = new();
+    private readonly ConcurrentDictionary<string, AuthToken> _activeSessions = new();
     private readonly TimeSpan _tokenExpiration;
     private readonly ServerConfiguration _configuration;
 
@@ -83,7 +84,7 @@ public class AuthenticationManager
 
         if (DateTime.UtcNow > token.ExpiresAt)
         {
-            _activeSessions.Remove(tokenId);
+            _activeSessions.TryRemove(tokenId, out _);
             return false;
         }
 
@@ -92,7 +93,7 @@ public class AuthenticationManager
 
     public void RevokeToken(string tokenId)
     {
-        _activeSessions.Remove(tokenId);
+        _activeSessions.TryRemove(tokenId, out _);
     }
 
     public void RevokeAllUserTokens(string username)
@@ -104,7 +105,7 @@ public class AuthenticationManager
 
         foreach (var tokenId in tokensToRemove)
         {
-            _activeSessions.Remove(tokenId);
+            _activeSessions.TryRemove(tokenId, out _);
         }
     }
 
@@ -129,7 +130,7 @@ public class AuthenticationManager
 
     public bool RemoveUser(string username)
     {
-        if (!_users.Remove(username))
+        if (!_users.TryRemove(username, out _))
             return false;
 
         RevokeAllUserTokens(username);
