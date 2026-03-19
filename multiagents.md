@@ -12,6 +12,64 @@
 |-------|------|--------|---------|-------------------|
 | Agent-60 | Fix IDocumentStore Interface Compilation Errors | Completed | 2026-03-20 | 2026-03-20 |
 | Agent-57 | Sessions/Unit of Work Pattern Implementation | In Progress | 2026-03-19 | 2026-03-19 |
+| Agent-61 | Field-Level Encryption Implementation | Completed | 2026-03-20 | 2026-03-20 |
+
+### Agent-61: Field-Level Encryption Implementation ✓ COMPLETED
+**Scope**: Implement Field-Level Encryption for sensitive document fields using AES-256-GCM
+**Completed**: 2026-03-20
+**Summary**:
+- Created `IFieldEncryptor` interface with EncryptFieldsAsync, DecryptFieldsAsync, EncryptValueAsync, DecryptValueAsync methods
+- Created `FieldEncryptor` class implementing transparent field-level encryption using AES-256-GCM
+  - Supports dot notation for nested field paths (e.g., "profile.ssn")
+  - Automatic type serialization/deserialization (string, int, bool, DateTime, etc.)
+  - Thread-safe implementation with deep cloning to avoid modifying original documents
+- Created `IKeyVault` interface for key management (CreateKey, GetKey, RotateKey, DeleteKey)
+- Created `InMemoryKeyVault` class for in-memory key storage with key versioning support
+- Created `FieldEncryptionConfig` class for per-collection encryption configuration
+- Created `EncryptedDocumentStore` wrapper that transparently encrypts/decrypts fields on CRUD operations
+  - Automatic encryption on InsertAsync and UpdateAsync
+  - Automatic decryption on GetAsync, GetManyAsync, and GetAllAsync
+  - Supports key rotation with RotateEncryptionKeyAsync method
+- Created `EncryptedFieldAttribute` for marking properties that should be encrypted
+- Created comprehensive unit tests (57 tests, all passing)
+  - FieldEncryptor tests (encryption/decryption, nested fields, round-trip)
+  - InMemoryKeyVault tests (create, get, rotate, delete keys)
+  - EncryptedDocumentStore tests (CRUD with encryption)
+  - Configuration and exception tests
+
+**Files Created**:
+- `AdvGenNoSqlServer.Core/FieldEncryption/IFieldEncryptor.cs` (Interface and configuration)
+- `AdvGenNoSqlServer.Core/FieldEncryption/IKeyVault.cs` (Key vault interface)
+- `AdvGenNoSqlServer.Core/FieldEncryption/FieldEncryptor.cs` (Implementation)
+- `AdvGenNoSqlServer.Core/FieldEncryption/InMemoryKeyVault.cs` (Key storage)
+- `AdvGenNoSqlServer.Storage/EncryptedDocumentStore.cs` (Document store wrapper)
+- `AdvGenNoSqlServer.Tests/FieldEncryptionTests.cs` (57 comprehensive tests)
+
+**Build Status**: ✓ Compiles successfully (0 errors)
+**Test Status**: ✓ 57/57 tests pass
+
+**Usage Example**:
+```csharp
+// Setup encryption
+var config = new ServerConfiguration { EncryptionKey = "base64-encoded-key" };
+var encryptionService = new EncryptionService(config);
+var fieldEncryptor = new FieldEncryptor(encryptionService);
+
+// Configure collection encryption
+fieldEncryptor.ConfigureCollection(new FieldEncryptionConfig
+{
+    CollectionName = "users",
+    EncryptedFields = new List<string> { "ssn", "creditCard", "profile.secret" },
+    KeyId = "default"
+});
+
+// Wrap document store with encryption
+var encryptedStore = new EncryptedDocumentStore(documentStore, fieldEncryptor);
+
+// Documents are automatically encrypted/decrypted
+await encryptedStore.InsertAsync("users", document);
+var retrieved = await encryptedStore.GetAsync("users", "doc1"); // Automatically decrypted
+```
 
 ### Agent-59: Optimistic Concurrency (ETags) Implementation
 **Scope**: Implement Optimistic Concurrency Control using ETags for conflict detection in concurrent document updates
