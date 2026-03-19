@@ -10,6 +10,7 @@
 
 | Agent | Task | Status | Started | Target Completion |
 |-------|------|--------|---------|-------------------|
+| Agent-67 | P2P Static Seed Discovery | Completed | 2026-03-20 | 2026-03-20 |
 | Agent-66 | Blazor Web Admin App | Completed | 2026-03-20 | 2026-03-20 |
 | Agent-60 | Fix IDocumentStore Interface Compilation Errors | Completed | 2026-03-20 | 2026-03-20 |
 | Agent-57 | Sessions/Unit of Work Pattern Implementation | Completed | 2026-03-19 | 2026-03-20 |
@@ -18,6 +19,64 @@
 | Agent-63 | Geospatial Indexes and Queries | Completed | 2026-03-20 | 2026-03-20 |
 | Agent-64 | Write Concern Configuration | Completed | 2026-03-20 | 2026-03-20 |
 | Agent-65 | Fix ETag DocumentStore Tests | Completed | 2026-03-20 | 2026-03-20 |
+
+### Agent-67: P2P Static Seed Discovery ✓ COMPLETED
+**Scope**: Implement static seed discovery for P2P clustering Phase 2
+**Completed**: 2026-03-20
+**Summary**:
+- Created `ISeedDiscoveryService` interface for seed-based node discovery with methods:
+  - `DiscoverAsync()` - Discovers nodes from configured seeds
+  - `ConnectToClusterAsync()` - Connects to discovered seeds and joins cluster
+  - `GetConfiguredSeeds()` - Gets the list of configured seeds
+  - Events: `SeedDiscovered`, `SeedFailed`
+
+- Created `SeedEndpoint` class for parsing and validating seed addresses:
+  - Supports IPv4, IPv6 (with brackets), and hostnames
+  - `TryParse()` method for safe parsing
+  - `CheckIsLocal()` to detect local node addresses
+
+- Created `StaticSeedDiscoveryService` implementation:
+  - Parses seed configuration from `P2PConfiguration.Discovery.Seeds`
+  - Parallel discovery with configurable timeout
+  - DNS resolution support
+  - TCP connectivity checking
+  - Automatic local seed filtering (excludes self)
+  - Integration with `IClusterManager` and `P2PClient`
+
+- Created `SeedDiscoveryServiceFactory` for creating appropriate discovery service
+
+- Created comprehensive unit tests (38 tests):
+  - SeedEndpoint parsing tests (valid/invalid formats, IPv6)
+  - Local detection tests (localhost, loopback, remote)
+  - Constructor validation tests
+  - Discovery tests (no seeds, local only, reachable, unreachable, mixed)
+  - ConnectToCluster tests (no func, no seeds, success, fallback)
+  - Event tests (SeedDiscovered, SeedFailed)
+  - Factory tests (various discovery methods)
+
+**Files Created**:
+- `AdvGenNoSqlServer.Core/Clustering/SeedDiscoveryService.cs` (470+ lines)
+- `AdvGenNoSqlServer.Tests/SeedDiscoveryTests.cs` (680+ lines, 38 tests)
+
+**Build Status**: ✓ Compiles successfully (0 errors)
+**Test Status**: ✓ 38/38 Seed Discovery tests pass
+
+**Usage Example**:
+```csharp
+var config = new P2PConfiguration
+{
+    Discovery = new DiscoveryConfiguration
+    {
+        Method = "StaticSeeds",
+        Seeds = new[] { "192.168.1.10:9092", "192.168.1.11:9092" }
+    }
+};
+
+var discoveryService = new StaticSeedDiscoveryService(config, clusterManager, connectFunc);
+var result = await discoveryService.ConnectToClusterAsync();
+```
+
+---
 
 ### Agent-66: Blazor Web Admin App ✓ COMPLETED
 **Scope**: Create a Blazor WebAssembly admin application for managing the NoSQL server via web interface

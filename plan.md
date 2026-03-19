@@ -3716,7 +3716,7 @@ public class RaftConfiguration
 **Effort: ~20 hours** **Status: Complete - March 20, 2026**
 
 #### Phase 2: Discovery & Gossip
-- [ ] Implement static seed discovery
+- [x] Implement static seed discovery (Agent-67 - March 20, 2026)
 - [ ] Implement gossip protocol for state propagation
 - [ ] Implement failure detection (heartbeats)
 - [ ] Handle node join/leave events
@@ -3983,7 +3983,8 @@ Week 7-8:
 
 #### P3 - P2P Cluster (96h total)
 - [x] 31. P2P Foundation (mTLS, cluster secret, node identity) ✓ COMPLETED (Agent-58)
-- [ ] 32. Node Discovery (static seeds, gossip protocol)
+- [x] 32. Node Discovery - Static Seeds (Agent-67)
+- [ ] 32b. Node Discovery - Gossip protocol
 - [ ] 33. Leader Election (Raft consensus)
 - [ ] 34. Data Replication (WAL streaming, quorum)
 - [ ] 35. Conflict Resolution (LWW, merge strategies)
