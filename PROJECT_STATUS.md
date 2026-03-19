@@ -372,6 +372,7 @@ AdvGenNoSQLServer/
 - [x] Atomic update operations (increment, push, pull, set, unset) (52 tests - Agent-44)
 - [x] Capped Collections (CappedCollection, CappedDocumentStore) (45 tests - Agent-53)
 - [x] Partial indexes for filtered indexing (PartialBTreeIndex, 30 tests - Agent-55)
+- [x] Full-Text Search indexes (inverted index with TF-IDF, Porter stemming, 62 tests - Agent-62)
 
 **Remaining**:
 - [ ] Query optimizer integration
@@ -603,15 +604,15 @@ Projects (8 total):
 
 ### Test Status
 ```
-Total Tests: 1653
-Passed: 1619 (unit tests + stress/load smoke tests)
+Total Tests: 1715
+Passed: 1681 (unit tests + stress/load smoke tests)
 Pending: 0 (all integration tests now passing)
 Skipped: 23 (4 stress tests + 5 load tests + 6 cache TTL timing + Session tests)
 
 Test Breakdown by Component:
   - Network: 67 tests ✓
   - Security: 200 tests ✓ (59 RBAC + 46 JWT + 44 Audit + 51 Encryption)
-  - Storage: 344 tests ✓ (37 DocStore + 33 Persistent + 77 BTree + 30 IndexMgr + 40 Compound/Unique + 52 AtomicOps + 45 CappedCollections + 30 PartialIndex)
+  - Storage: 406 tests ✓ (37 DocStore + 33 Persistent + 77 BTree + 30 IndexMgr + 40 Compound/Unique + 52 AtomicOps + 45 CappedCollections + 30 PartialIndex + 62 FullTextSearch)
   - Query: 116 tests ✓ (48 Query + 49 Aggregation + 19 Distinct)
   - Transactions: 106 tests ✓ (38 Lock + 27 WAL + 41 Coordinator)
   - Caching: 105 tests ✓ (44 LRU + 61 ObjectPool)
@@ -623,6 +624,7 @@ Test Breakdown by Component:
   - Hot Reload: 17 tests ✓ (Agent-28)
   - Batch Operations: 32 tests ✓ (Agent-30)
   - HybridDocumentStore: 47 tests ✓ (Agent-39)
+  - Full-Text Search: 62 tests ✓ (Agent-62)
 ```
 
 ### Build Command
