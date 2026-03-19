@@ -933,7 +933,7 @@ Where third-party libraries have restrictive licenses, we implement custom solut
 ### Advanced Features 
 - [x] Change Streams/Subscriptions ✓ COMPLETED (Agent-50 - Real-time data change notifications with filtering)
 - [x] Full-Text Search indexes ✓ COMPLETED (Agent-62 - Inverted index with TF-IDF scoring, Porter stemming, 62 tests)
-- [ ] Geospatial indexes and queries
+- [x] Geospatial indexes and queries ✓ COMPLETED (Agent-63 - GeoPoint, GeoCircle, GeoPolygon with Haversine distance, 63 tests)
 - [x] TTL indexes for document expiration (Agent-43 - TtlIndexService with background cleanup, 33 tests)
 - [x] Unique indexes (Agent-42 - Unique constraint enforcement on single-field indexes)
 - [x] Compound/Composite indexes (Agent-42 - Multi-field B-tree indexes with unique support)
