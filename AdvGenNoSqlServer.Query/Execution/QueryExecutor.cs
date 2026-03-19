@@ -220,6 +220,20 @@ public class QueryExecutor : IQueryExecutor
             });
         }
 
+        // Projection stage
+        if (query.Projection != null && query.Projection.Count > 0)
+        {
+            stages.Add(new QueryPlanStage
+            {
+                StageName = "Project",
+                Details = new Dictionary<string, object>
+                {
+                    ["ProjectionFields"] = query.Projection.Keys.ToList(),
+                    ["ProjectionType"] = query.Projection.Values.Any(v => v) ? "Inclusion" : "Exclusion"
+                }
+            });
+        }
+
         stats.ExecutionPlan = stages;
         return Task.FromResult(stats);
     }
@@ -412,12 +426,24 @@ public class QueryExecutor : IQueryExecutor
             // OPTIMIZATION: Use HashSet for O(1) Contains lookups to drastically improve performance
             // when projecting documents with many properties across large result sets.
             var fieldsToInclude = projection.Where(p => p.Value).Select(p => p.Key).ToHashSet();
-            fieldsToInclude.Add("_id");
+            
+            // Add _id to inclusion by default, unless explicitly excluded (e.g., { _id: false })
+            var idExplicitlyExcluded = projection.TryGetValue("_id", out var idValue) && !idValue;
+            if (!idExplicitlyExcluded)
+            {
+                fieldsToInclude.Add("_id");
+            }
 
             foreach (var doc in documents)
             {
                 if (doc.Data != null)
                 {
+                    // Add _id to data dictionary if it's being included
+                    if (!idExplicitlyExcluded)
+                    {
+                        doc.Data["_id"] = doc.Id;
+                    }
+
                     var keysToRemove = doc.Data.Keys.Where(k => !fieldsToInclude.Contains(k)).ToList();
                     foreach (var key in keysToRemove)
                     {

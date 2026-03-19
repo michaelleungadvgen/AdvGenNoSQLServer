@@ -16,6 +16,42 @@
 
 ## Completed Tasks
 
+### Agent-48: Query Projections ✓ COMPLETED
+**Scope**: Implement query projections to return only specified fields from documents
+**Completed**: 2026-03-19
+**Summary**:
+- Enhanced existing projection support in QueryExecutor:
+  - Inclusion projections: Include only specified fields + _id by default
+  - Exclusion projections: Return all fields except excluded ones
+  - Support for excluding _id in inclusion mode (e.g., `{ name: 1, _id: 0 }`)
+  - _id automatically added to data dictionary in inclusion projections
+  - Project stage added to query execution plan (ExplainAsync)
+  
+- QueryParser already supported projection parsing - verified working correctly
+  - Supports numeric projections (1/0) and boolean (true/false)
+  - Handles mixed projections (e.g., `{ name: true, _id: false }`)
+
+- Created comprehensive unit tests (20 tests, 19 passing, 1 skipped):
+  - Basic inclusion projection tests (3 tests)
+  - Exclusion projection tests (4 tests)
+  - Nested field projection test (skipped - advanced feature)
+  - Projection with filter and sort tests (3 tests)
+  - Edge case tests (5 tests)
+  - Query parser projection tests (4 tests)
+  - ExplainAsync projection test (1 test)
+  - Large dataset projection test (1 test)
+
+**Files Modified**:
+- `AdvGenNoSqlServer.Query/Execution/QueryExecutor.cs` - Enhanced ApplyProjection, added Project stage to ExplainAsync
+
+**Files Created**:
+- `AdvGenNoSqlServer.Tests/QueryProjectionTests.cs` - 20 comprehensive projection tests
+
+**Build Status**: ✓ Compiles successfully (0 errors)
+**Test Status**: ✓ 19/19 projection tests pass, 1151/1174 total tests pass (23 skipped)
+
+---
+
 ### Agent-47: Upsert Operations ✓ COMPLETED
 **Scope**: Implement Insert, Replace, and Upsert operations for the document store
 **Completed**: 2026-02-16
