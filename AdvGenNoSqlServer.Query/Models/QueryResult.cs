@@ -155,3 +155,88 @@ public class QueryPlanStage
     /// </summary>
     public Dictionary<string, object>? Details { get; set; }
 }
+
+/// <summary>
+/// Represents the result of a DISTINCT operation
+/// </summary>
+public class DistinctResult
+{
+    /// <summary>
+    /// The collection name
+    /// </summary>
+    public required string CollectionName { get; set; }
+
+    /// <summary>
+    /// The field name that was queried for distinct values
+    /// </summary>
+    public required string FieldName { get; set; }
+
+    /// <summary>
+    /// The distinct values found
+    /// </summary>
+    public List<object> Values { get; set; } = new();
+
+    /// <summary>
+    /// Number of distinct values
+    /// </summary>
+    public int Count => Values.Count;
+
+    /// <summary>
+    /// Query execution time in milliseconds
+    /// </summary>
+    public long ExecutionTimeMs { get; set; }
+
+    /// <summary>
+    /// Whether the operation was successful
+    /// </summary>
+    public bool Success { get; set; } = true;
+
+    /// <summary>
+    /// Error message if the operation failed
+    /// </summary>
+    public string? ErrorMessage { get; set; }
+
+    /// <summary>
+    /// Creates a successful result with distinct values
+    /// </summary>
+    public static DistinctResult SuccessResult(string collectionName, string fieldName, List<object> values, long executionTimeMs)
+    {
+        return new DistinctResult
+        {
+            CollectionName = collectionName,
+            FieldName = fieldName,
+            Values = values,
+            ExecutionTimeMs = executionTimeMs,
+            Success = true
+        };
+    }
+
+    /// <summary>
+    /// Creates a failed result with an error message
+    /// </summary>
+    public static DistinctResult FailureResult(string collectionName, string fieldName, string errorMessage)
+    {
+        return new DistinctResult
+        {
+            CollectionName = collectionName,
+            FieldName = fieldName,
+            Success = false,
+            ErrorMessage = errorMessage,
+            Values = new List<object>()
+        };
+    }
+
+    /// <summary>
+    /// Creates an empty result
+    /// </summary>
+    public static DistinctResult EmptyResult(string collectionName, string fieldName)
+    {
+        return new DistinctResult
+        {
+            CollectionName = collectionName,
+            FieldName = fieldName,
+            Values = new List<object>(),
+            Success = true
+        };
+    }
+}

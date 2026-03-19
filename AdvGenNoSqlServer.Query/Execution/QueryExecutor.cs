@@ -548,4 +548,61 @@ public class QueryExecutor : IQueryExecutor
         var analyzer = new QueryPlanAnalyzer(_documentStore, _indexManager);
         return analyzer.AnalyzeAsync(query, verbosity, cancellationToken);
     }
+
+    /// <inheritdoc />
+    public async Task<DistinctResult> DistinctAsync(
+        string collectionName,
+        string fieldName,
+        QueryFilter? filter = null,
+        CancellationToken cancellationToken = default)
+    {
+        var stopwatch = Stopwatch.StartNew();
+
+        try
+        {
+            // Check if collection exists
+            var collections = await _documentStore.GetCollectionsAsync();
+            if (!collections.Contains(collectionName))
+            {
+                stopwatch.Stop();
+                return DistinctResult.FailureResult(collectionName, fieldName, $"Collection '{collectionName}' not found");
+            }
+
+            // Get all documents from the collection
+            var documents = await _documentStore.GetAllAsync(collectionName);
+
+            // Apply filter if provided
+            if (filter != null)
+            {
+                documents = _filterEngine.Filter(documents, filter).ToList();
+            }
+
+            // Extract distinct values
+            var distinctValues = new HashSet<object?>();
+
+            foreach (var document in documents)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var value = _filterEngine.GetFieldValue(document, fieldName);
+                distinctValues.Add(value);
+            }
+
+            stopwatch.Stop();
+
+            // Convert to list, filtering out null if desired (keeping null as a valid distinct value)
+            var valuesList = distinctValues.ToList();
+
+            return DistinctResult.SuccessResult(collectionName, fieldName, valuesList, stopwatch.ElapsedMilliseconds);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            stopwatch.Stop();
+            return DistinctResult.FailureResult(collectionName, fieldName, ex.Message);
+        }
+    }
 }

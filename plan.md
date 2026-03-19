@@ -3857,7 +3857,7 @@ Important for feature completeness.
 | # | Task | Description | Est. Effort | Dependencies |
 |---|------|-------------|-------------|--------------|
 | 15 | Array Operations | PUSH, PULL, ADD_TO_SET | 4h | PATCH |
-| 16 | DISTINCT command | Get unique field values | 3h | QueryExecutor |
+| 16 | DISTINCT command ✓ | Get unique field values | 3h | QueryExecutor |
 | 17 | Sparse Index | Index only docs with field | 3h | IndexManager |
 | 18 | Partial Index | Filter-based indexes | 4h | IndexManager |
 | 19 | Background Index Build | Non-blocking index creation | 6h | IndexManager |
@@ -3963,7 +3963,7 @@ Week 7-8:
 
 #### P2 - Medium (45h total)
 - [ ] 15. Array Operations
-- [ ] 16. DISTINCT command
+- [x] 16. DISTINCT command
 - [ ] 17. Sparse Index
 - [ ] 18. Partial Index
 - [ ] 19. Background Index Build

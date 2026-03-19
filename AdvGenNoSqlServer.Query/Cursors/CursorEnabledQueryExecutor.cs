@@ -124,6 +124,16 @@ public class CursorEnabledQueryExecutor : ICursorQueryExecutor
         return _cursorManager.KillCursorAsync(cursorId);
     }
 
+    /// <inheritdoc />
+    public Task<DistinctResult> DistinctAsync(
+        string collectionName,
+        string fieldName,
+        QueryFilter? filter = null,
+        CancellationToken cancellationToken = default)
+    {
+        return _baseExecutor.DistinctAsync(collectionName, fieldName, filter, cancellationToken);
+    }
+
     private async Task<QueryResult> ExecuteWithCursorInternalAsync(
         Models.Query query,
         CursorOptions options,

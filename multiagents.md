@@ -16,6 +16,67 @@
 
 ## Completed Tasks
 
+### Agent-54: DISTINCT Command Implementation ✓ COMPLETED
+**Scope**: Implement DISTINCT command to get unique field values from a collection
+**Completed**: 2026-03-19
+**Summary**:
+- Added `DistinctAsync` method to `IQueryExecutor` interface:
+  - Gets distinct values for a specified field in a collection
+  - Supports optional filtering to limit documents scanned
+  - Returns `DistinctResult` with values, count, and execution time
+  
+- Created `DistinctResult` model class:
+  - `CollectionName` and `FieldName` properties
+  - `Values` list containing distinct values
+  - `Count` property for number of distinct values
+  - `ExecutionTimeMs` for performance monitoring
+  - `Success` and `ErrorMessage` for error handling
+  - Factory methods: `SuccessResult`, `FailureResult`, `EmptyResult`
+
+- Implemented `DistinctAsync` in `QueryExecutor`:
+  - Validates collection existence
+  - Applies optional filter before extracting values
+  - Uses `HashSet<object?>` for efficient deduplication
+  - Supports all data types (string, int, double, bool, DateTime, null)
+  - Handles nested field paths (e.g., "profile.city")
+  - Proper cancellation token support
+
+- Updated `CursorEnabledQueryExecutor` to implement the new interface method
+
+- Created comprehensive unit tests (19 tests):
+  - Empty collection tests
+  - Non-existent collection error handling
+  - Single and multiple document scenarios
+  - Data type tests (string, int, double, bool, DateTime)
+  - Null value handling (mixed nulls, all nulls, missing fields)
+  - Filtered distinct queries
+  - Large dataset performance (100 documents)
+  - Edge cases (empty strings, all unique values)
+  - Nested field distinct values
+
+**Files Created**:
+- `AdvGenNoSqlServer.Tests/DistinctCommandTests.cs` - 19 comprehensive tests
+
+**Files Modified**:
+- `AdvGenNoSqlServer.Query/Execution/IQueryExecutor.cs` - Added DistinctAsync method
+- `AdvGenNoSqlServer.Query/Execution/QueryExecutor.cs` - Implemented DistinctAsync
+- `AdvGenNoSqlServer.Query/Cursors/CursorEnabledQueryExecutor.cs` - Added DistinctAsync forwarding
+- `AdvGenNoSqlServer.Query/Models/QueryResult.cs` - Added DistinctResult class
+
+**Build Status**: ✓ Compiles successfully (0 errors)
+**Test Status**: ✓ 19/19 DISTINCT tests pass, 1361/1361 total tests pass (23 skipped)
+
+**Features Implemented**:
+- Get distinct values for any field in a collection
+- Optional query filtering before distinct operation
+- Support for all primitive data types
+- Null value handling (null is a valid distinct value)
+- Nested field path support
+- Execution time tracking
+- Comprehensive error handling
+
+---
+
 ### Agent-53: Capped Collections ✓ COMPLETED
 **Scope**: Implement Capped Collections for fixed-size collections with automatic oldest document removal
 **Completed**: 2026-03-19

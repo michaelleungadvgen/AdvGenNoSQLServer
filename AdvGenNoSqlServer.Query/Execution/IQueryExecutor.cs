@@ -55,6 +55,20 @@ public interface IQueryExecutor
         Models.Query query,
         ExplainVerbosity verbosity = ExplainVerbosity.ExecutionStats,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets distinct values for a field in a collection
+    /// </summary>
+    /// <param name="collectionName">The collection name</param>
+    /// <param name="fieldName">The field to get distinct values for</param>
+    /// <param name="filter">Optional filter to limit documents</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of distinct values</returns>
+    Task<DistinctResult> DistinctAsync(
+        string collectionName,
+        string fieldName,
+        QueryFilter? filter = null,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>
