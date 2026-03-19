@@ -311,7 +311,7 @@ public class QueryProjectionTests
         var projectedDoc = result.Documents.First();
         Assert.Equal("John", projectedDoc.Data["name"]);
         // Nested field projection should extract just that field
-        Assert.True(projectedDoc.Data.ContainsKey("profile.bio") || 
+        Assert.True(projectedDoc.Data.ContainsKey("profile.bio") ||
                     (projectedDoc.Data.ContainsKey("profile") && projectedDoc.Data["profile"] is Dictionary<string, object?> profile && profile.ContainsKey("bio")));
     }
 

@@ -519,7 +519,7 @@ public class ImportExportTests : IDisposable
         // Arrange
         var inputPath = Path.Combine(_testDirectory, "import_metadata.jsonl");
         var originalDate = new DateTime(2023, 1, 15, 10, 30, 0, DateTimeKind.Utc);
-        
+
         // Create JSON with ISO 8601 format dates
         var json = $"{{\"_id\":\"doc1\",\"name\":\"Test\",\"_createdAt\":\"{originalDate:O}\",\"_updatedAt\":\"{originalDate:O}\",\"_version\":5}}";
         await File.WriteAllTextAsync(inputPath, json);

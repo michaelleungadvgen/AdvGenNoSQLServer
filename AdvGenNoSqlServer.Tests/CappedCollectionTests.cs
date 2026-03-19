@@ -51,7 +51,7 @@ public class CappedCollectionTests
     {
         var options = new CappedCollectionOptions { MaxDocuments = 10 };
         var collection = new CappedCollection("test", options);
-        
+
         var doc = new Document { Id = "1", Data = new Dictionary<string, object> { ["name"] = "Test" } };
         var result = collection.Insert(doc);
 
@@ -66,7 +66,7 @@ public class CappedCollectionTests
     {
         var options = new CappedCollectionOptions { MaxDocuments = 10 };
         var collection = new CappedCollection("test", options);
-        
+
         for (int i = 1; i <= 5; i++)
         {
             collection.Insert(new Document { Id = $"doc{i}", Data = new Dictionary<string, object> { ["order"] = i } });
@@ -74,7 +74,7 @@ public class CappedCollectionTests
 
         var allDocs = collection.GetAll().ToList();
         Assert.Equal(5, allDocs.Count);
-        
+
         // Verify insertion order (oldest first)
         for (int i = 0; i < 5; i++)
         {
@@ -87,7 +87,7 @@ public class CappedCollectionTests
     {
         var options = new CappedCollectionOptions { MaxDocuments = 10 };
         var collection = new CappedCollection("test", options);
-        
+
         var doc = new Document { Id = "1", Data = new Dictionary<string, object>() };
         collection.Insert(doc);
 
@@ -99,24 +99,24 @@ public class CappedCollectionTests
     {
         var options = new CappedCollectionOptions();
         var collection = new CappedCollection("test", options);
-        
+
         Assert.Throws<ArgumentNullException>(() => collection.Insert(null!));
     }
 
     [Fact]
     public void Insert_ExceedsMaxDocuments_RemovesOldest()
     {
-        var options = new CappedCollectionOptions 
-        { 
-            MaxDocuments = 5, 
+        var options = new CappedCollectionOptions
+        {
+            MaxDocuments = 5,
             EnforceMaxDocuments = true,
-            EnforceMaxSize = false 
+            EnforceMaxSize = false
         };
         var collection = new CappedCollection("test", options);
         var removedIds = new List<string>();
-        
+
         collection.CollectionTrimmed += (s, e) => removedIds.AddRange(e.RemovedDocumentIds);
-        
+
         // Insert 7 documents (2 over limit)
         for (int i = 1; i <= 7; i++)
         {
@@ -163,7 +163,7 @@ public class CappedCollectionTests
     {
         var options = new CappedCollectionOptions();
         var collection = new CappedCollection("test", options);
-        
+
         collection.Insert(new Document { Id = "1", Data = new Dictionary<string, object>() });
         collection.Insert(new Document { Id = "2", Data = new Dictionary<string, object>() });
         collection.Insert(new Document { Id = "3", Data = new Dictionary<string, object>() });
@@ -191,7 +191,7 @@ public class CappedCollectionTests
     {
         var options = new CappedCollectionOptions();
         var collection = new CappedCollection("test", options);
-        
+
         for (int i = 1; i <= 5; i++)
         {
             collection.Insert(new Document { Id = $"doc{i}", Data = new Dictionary<string, object>() });
@@ -210,7 +210,7 @@ public class CappedCollectionTests
     {
         var options = new CappedCollectionOptions();
         var collection = new CappedCollection("test", options);
-        
+
         for (int i = 1; i <= 10; i++)
         {
             collection.Insert(new Document { Id = $"doc{i}", Data = new Dictionary<string, object>() });
@@ -273,7 +273,7 @@ public class CappedCollectionTests
     {
         var options = new CappedCollectionOptions();
         var collection = new CappedCollection("test", options);
-        
+
         for (int i = 1; i <= 5; i++)
         {
             collection.Insert(new Document { Id = $"doc{i}", Data = new Dictionary<string, object>() });
@@ -288,15 +288,15 @@ public class CappedCollectionTests
     [Fact]
     public void GetStats_ReturnsCorrectStatistics()
     {
-        var options = new CappedCollectionOptions 
-        { 
-            MaxDocuments = 100, 
+        var options = new CappedCollectionOptions
+        {
+            MaxDocuments = 100,
             EnforceMaxDocuments = true,
             MaxSizeBytes = 1024 * 1024,
             EnforceMaxSize = true
         };
         var collection = new CappedCollection("test", options);
-        
+
         for (int i = 1; i <= 5; i++)
         {
             collection.Insert(new Document { Id = $"doc{i}", Data = new Dictionary<string, object> { ["data"] = "value" } });
@@ -315,16 +315,16 @@ public class CappedCollectionTests
     [Fact]
     public void CollectionTrimmed_EventRaised_WhenDocumentsRemoved()
     {
-        var options = new CappedCollectionOptions 
-        { 
-            MaxDocuments = 3, 
+        var options = new CappedCollectionOptions
+        {
+            MaxDocuments = 3,
             EnforceMaxDocuments = true,
             EnforceMaxSize = false
         };
         var collection = new CappedCollection("test", options);
         var eventRaised = false;
         CappedCollectionTrimmedEventArgs? eventArgs = null;
-        
+
         var totalRemoved = 0;
         collection.CollectionTrimmed += (s, e) =>
         {
@@ -385,10 +385,10 @@ public class CappedCollectionTests
     {
         var underlyingStore = new DocumentStore();
         var cappedStore = new CappedDocumentStore(underlyingStore);
-        var options = new CappedCollectionOptions 
-        { 
-            EnforceMaxDocuments = true, 
-            MaxDocuments = 0 
+        var options = new CappedCollectionOptions
+        {
+            EnforceMaxDocuments = true,
+            MaxDocuments = 0
         };
 
         await Assert.ThrowsAsync<ArgumentException>(() => cappedStore.CreateCappedCollectionAsync("logs", options));
@@ -413,9 +413,9 @@ public class CappedCollectionTests
     {
         var underlyingStore = new DocumentStore();
         var cappedStore = new CappedDocumentStore(underlyingStore);
-        await cappedStore.CreateCappedCollectionAsync("logs", new CappedCollectionOptions 
-        { 
-            MaxDocuments = 5, 
+        await cappedStore.CreateCappedCollectionAsync("logs", new CappedCollectionOptions
+        {
+            MaxDocuments = 5,
             EnforceMaxDocuments = true,
             EnforceMaxSize = false
         });
@@ -423,10 +423,10 @@ public class CappedCollectionTests
         // Insert 10 documents
         for (int i = 1; i <= 10; i++)
         {
-            await cappedStore.InsertAsync("logs", new Document 
-            { 
-                Id = $"log{i}", 
-                Data = new Dictionary<string, object> { ["message"] = $"Log entry {i}" } 
+            await cappedStore.InsertAsync("logs", new Document
+            {
+                Id = $"log{i}",
+                Data = new Dictionary<string, object> { ["message"] = $"Log entry {i}" }
             });
         }
 
@@ -446,7 +446,7 @@ public class CappedCollectionTests
         var underlyingStore = new DocumentStore();
         var cappedStore = new CappedDocumentStore(underlyingStore);
         await cappedStore.CreateCappedCollectionAsync("logs", new CappedCollectionOptions());
-        
+
         await cappedStore.InsertAsync("logs", new Document { Id = "1", Data = new Dictionary<string, object> { ["msg"] = "Hello" } });
 
         var result = await cappedStore.GetAsync("logs", "1");
@@ -461,10 +461,10 @@ public class CappedCollectionTests
         var underlyingStore = new DocumentStore();
         var cappedStore = new CappedDocumentStore(underlyingStore);
         await cappedStore.CreateCappedCollectionAsync("logs", new CappedCollectionOptions());
-        
+
         await cappedStore.InsertAsync("logs", new Document { Id = "1", Data = new Dictionary<string, object>() });
 
-        await Assert.ThrowsAsync<NotSupportedException>(() => 
+        await Assert.ThrowsAsync<NotSupportedException>(() =>
             cappedStore.UpdateAsync("logs", new Document { Id = "1", Data = new Dictionary<string, object>() }));
     }
 
@@ -474,7 +474,7 @@ public class CappedCollectionTests
         var underlyingStore = new DocumentStore();
         var cappedStore = new CappedDocumentStore(underlyingStore);
         await cappedStore.CreateCappedCollectionAsync("logs", new CappedCollectionOptions());
-        
+
         await cappedStore.InsertAsync("logs", new Document { Id = "1", Data = new Dictionary<string, object>() });
 
         var result = await cappedStore.DeleteAsync("logs", "1");
@@ -489,13 +489,13 @@ public class CappedCollectionTests
         var underlyingStore = new DocumentStore();
         var cappedStore = new CappedDocumentStore(underlyingStore);
         await cappedStore.CreateCappedCollectionAsync("logs", new CappedCollectionOptions());
-        
+
         for (int i = 1; i <= 10; i++)
         {
-            await cappedStore.InsertAsync("logs", new Document 
-            { 
-                Id = $"log{i}", 
-                Data = new Dictionary<string, object> { ["seq"] = i } 
+            await cappedStore.InsertAsync("logs", new Document
+            {
+                Id = $"log{i}",
+                Data = new Dictionary<string, object> { ["seq"] = i }
             });
         }
 
@@ -513,13 +513,13 @@ public class CappedCollectionTests
         var underlyingStore = new DocumentStore();
         var cappedStore = new CappedDocumentStore(underlyingStore);
         await cappedStore.CreateCappedCollectionAsync("logs", new CappedCollectionOptions());
-        
+
         for (int i = 1; i <= 5; i++)
         {
-            await cappedStore.InsertAsync("logs", new Document 
-            { 
-                Id = $"log{i}", 
-                Data = new Dictionary<string, object> { ["seq"] = i } 
+            await cappedStore.InsertAsync("logs", new Document
+            {
+                Id = $"log{i}",
+                Data = new Dictionary<string, object> { ["seq"] = i }
             });
         }
 
@@ -537,7 +537,7 @@ public class CappedCollectionTests
     {
         var underlyingStore = new DocumentStore();
         var cappedStore = new CappedDocumentStore(underlyingStore);
-        
+
         // Create regular collection
         await underlyingStore.CreateCollectionAsync("regular");
 
@@ -549,12 +549,12 @@ public class CappedCollectionTests
     {
         var underlyingStore = new DocumentStore();
         var cappedStore = new CappedDocumentStore(underlyingStore);
-        await cappedStore.CreateCappedCollectionAsync("logs", new CappedCollectionOptions 
-        { 
+        await cappedStore.CreateCappedCollectionAsync("logs", new CappedCollectionOptions
+        {
             MaxDocuments = 1000,
             EnforceMaxDocuments = true
         });
-        
+
         await cappedStore.InsertAsync("logs", new Document { Id = "1", Data = new Dictionary<string, object>() });
 
         var stats = cappedStore.GetCappedCollectionStats("logs");
@@ -611,7 +611,7 @@ public class CappedCollectionTests
         var underlyingStore = new DocumentStore();
         var cappedStore = new CappedDocumentStore(underlyingStore);
         await cappedStore.CreateCappedCollectionAsync("logs", new CappedCollectionOptions());
-        
+
         Assert.True(cappedStore.IsCappedCollection("logs"));
 
         var result = await cappedStore.DropCollectionAsync("logs");
@@ -625,7 +625,7 @@ public class CappedCollectionTests
     {
         var underlyingStore = new DocumentStore();
         var cappedStore = new CappedDocumentStore(underlyingStore);
-        
+
         await underlyingStore.CreateCollectionAsync("regular");
         await cappedStore.CreateCappedCollectionAsync("logs", new CappedCollectionOptions());
 
@@ -640,9 +640,9 @@ public class CappedCollectionTests
     {
         var underlyingStore = new DocumentStore();
         var cappedStore = new CappedDocumentStore(underlyingStore);
-        await cappedStore.CreateCappedCollectionAsync("logs", new CappedCollectionOptions 
-        { 
-            MaxDocuments = 3, 
+        await cappedStore.CreateCappedCollectionAsync("logs", new CappedCollectionOptions
+        {
+            MaxDocuments = 3,
             EnforceMaxDocuments = true,
             EnforceMaxSize = false
         });
@@ -665,7 +665,7 @@ public class CappedCollectionTests
         var underlyingStore = new DocumentStore();
         var cappedStore = new CappedDocumentStore(underlyingStore);
         await cappedStore.CreateCappedCollectionAsync("logs", new CappedCollectionOptions());
-        
+
         for (int i = 1; i <= 5; i++)
         {
             await cappedStore.InsertAsync("logs", new Document { Id = $"log{i}", Data = new Dictionary<string, object>() });
@@ -682,7 +682,7 @@ public class CappedCollectionTests
         var underlyingStore = new DocumentStore();
         var cappedStore = new CappedDocumentStore(underlyingStore);
         await cappedStore.CreateCappedCollectionAsync("logs", new CappedCollectionOptions());
-        
+
         await cappedStore.InsertAsync("logs", new Document { Id = "1", Data = new Dictionary<string, object>() });
 
         Assert.True(await cappedStore.ExistsAsync("logs", "1"));
@@ -695,7 +695,7 @@ public class CappedCollectionTests
         var underlyingStore = new DocumentStore();
         var cappedStore = new CappedDocumentStore(underlyingStore);
         await cappedStore.CreateCappedCollectionAsync("logs", new CappedCollectionOptions());
-        
+
         for (int i = 1; i <= 3; i++)
         {
             await cappedStore.InsertAsync("logs", new Document { Id = $"log{i}", Data = new Dictionary<string, object>() });

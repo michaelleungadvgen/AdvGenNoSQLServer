@@ -154,9 +154,9 @@ public class ChangeStreamEvent : IChangeStreamEvent
     /// Creates a new change stream event for an update operation
     /// </summary>
     public static ChangeStreamEvent CreateUpdate(
-        string collectionName, 
-        string documentId, 
-        Document updatedDocument, 
+        string collectionName,
+        string documentId,
+        Document updatedDocument,
         Document? documentBeforeChange = null,
         string? transactionId = null)
     {
@@ -196,8 +196,8 @@ public class ChangeStreamEvent : IChangeStreamEvent
     /// Creates a new change stream event for a delete operation
     /// </summary>
     public static ChangeStreamEvent CreateDelete(
-        string collectionName, 
-        string documentId, 
+        string collectionName,
+        string documentId,
         Document? deletedDocument = null,
         string? transactionId = null)
     {

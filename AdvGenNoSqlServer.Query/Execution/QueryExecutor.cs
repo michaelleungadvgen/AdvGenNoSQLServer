@@ -115,7 +115,7 @@ public class QueryExecutor : IQueryExecutor
             };
 
             // Record query profile
-            RecordQueryProfile(query, stopwatch.ElapsedMilliseconds, documentsExamined, 
+            RecordQueryProfile(query, stopwatch.ElapsedMilliseconds, documentsExamined,
                 filtered.Count, usedIndex, indexName);
 
             return result;
@@ -125,11 +125,11 @@ public class QueryExecutor : IQueryExecutor
             stopwatch.Stop();
             var failureResult = QueryResult.FailureResult(ex.Message);
             failureResult.ExecutionTimeMs = stopwatch.ElapsedMilliseconds;
-            
+
             // Record failed query profile
-            RecordQueryProfile(query, stopwatch.ElapsedMilliseconds, documentsExamined, 
+            RecordQueryProfile(query, stopwatch.ElapsedMilliseconds, documentsExamined,
                 0, usedIndex, indexName, ex.Message);
-            
+
             return failureResult;
         }
     }
@@ -457,7 +457,7 @@ public class QueryExecutor : IQueryExecutor
             // OPTIMIZATION: Use HashSet for O(1) Contains lookups to drastically improve performance
             // when projecting documents with many properties across large result sets.
             var fieldsToInclude = projection.Where(p => p.Value).Select(p => p.Key).ToHashSet();
-            
+
             // Add _id to inclusion by default, unless explicitly excluded (e.g., { _id: false })
             var idExplicitlyExcluded = projection.TryGetValue("_id", out var idValue) && !idValue;
             if (!idExplicitlyExcluded)
@@ -487,7 +487,7 @@ public class QueryExecutor : IQueryExecutor
         return documents;
     }
 
-    private void RecordQueryProfile(Query.Models.Query query, long durationMs, long documentsExamined, 
+    private void RecordQueryProfile(Query.Models.Query query, long durationMs, long documentsExamined,
         long documentsReturned, bool usedIndex, string? indexName, string? errorMessage = null)
     {
         if (_profiler == null)
