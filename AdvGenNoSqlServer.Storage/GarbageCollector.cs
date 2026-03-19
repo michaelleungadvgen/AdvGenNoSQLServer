@@ -255,10 +255,21 @@ public class GarbageCollector : IGarbageCollector, IDisposable
         var cleanedCount = 0;
         var bytesFreed = 0L;
         var cutoffTime = DateTime.UtcNow.Subtract(_options.RetentionPeriod);
-        var tombstonesToProcess = _tombstones.Values
-            .Where(t => t.DeletedAt < cutoffTime)
-            .Take(_options.MaxTombstonesPerRun)
-            .ToList();
+
+        // Avoid .Values allocation, instead iterate the concurrent dictionary directly
+        // to lazily evaluate and select tombstones that need processing
+        var tombstonesToProcess = new List<Tombstone>();
+        foreach (var kvp in _tombstones)
+        {
+            if (kvp.Value.DeletedAt < cutoffTime)
+            {
+                tombstonesToProcess.Add(kvp.Value);
+                if (tombstonesToProcess.Count >= _options.MaxTombstonesPerRun)
+                {
+                    break;
+                }
+            }
+        }
 
         foreach (var tombstone in tombstonesToProcess)
         {
@@ -340,18 +351,28 @@ public class GarbageCollector : IGarbageCollector, IDisposable
     /// <inheritdoc />
     public IEnumerable<Tombstone> GetTombstones()
     {
-        return _tombstones.Values.ToList();
+        // Avoid .Values.ToList() allocation, instead iterate the concurrent dictionary
+        // to provide a true zero-allocation lazy evaluation enumerable.
+        foreach (var kvp in _tombstones)
+        {
+            yield return kvp.Value;
+        }
     }
 
     /// <inheritdoc />
     public IEnumerable<Tombstone> GetTombstones(string collectionName)
     {
         if (string.IsNullOrWhiteSpace(collectionName))
-            return Enumerable.Empty<Tombstone>();
+            yield break;
 
-        return _tombstones.Values
-            .Where(t => t.CollectionName.Equals(collectionName, StringComparison.OrdinalIgnoreCase))
-            .ToList();
+        // Avoid .Values allocation and materializing lists
+        foreach (var kvp in _tombstones)
+        {
+            if (kvp.Value.CollectionName.Equals(collectionName, StringComparison.OrdinalIgnoreCase))
+            {
+                yield return kvp.Value;
+            }
+        }
     }
 
     /// <inheritdoc />

@@ -337,7 +337,7 @@ public class ChangeStreamTests
         var manager = new ChangeStreamManager();
         var receivedEvents1 = new List<IChangeStreamEvent>();
         var receivedEvents2 = new List<IChangeStreamEvent>();
-        
+
         var subscription1 = manager.Subscribe("users", onChange: (sender, args) => receivedEvents1.Add(args.Event));
         var subscription2 = manager.Subscribe("users", onChange: (sender, args) => receivedEvents2.Add(args.Event));
 

@@ -223,7 +223,7 @@ public class CappedCollection
         // Convert to list to be able to iterate in reverse
         var ids = _insertionOrder.ToArray();
         int count = 0;
-        
+
         for (int i = ids.Length - 1; i >= 0; i--)
         {
             if (limit.HasValue && count >= limit.Value)
@@ -371,7 +371,7 @@ public class CappedCollection
 
         // Rough estimation: count characters in JSON-like representation
         long size = document.Id?.Length ?? 0;
-        
+
         foreach (var kvp in document.Data)
         {
             size += (kvp.Key?.Length ?? 0) + EstimateValueSize(kvp.Value);

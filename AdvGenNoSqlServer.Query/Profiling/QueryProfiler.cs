@@ -153,15 +153,15 @@ public class QueryProfiler : IQueryProfiler, IDisposable
             {
                 TotalQueriesProfiled = Interlocked.Read(ref _totalQueries),
                 SlowQueriesCount = Interlocked.Read(ref _slowQueries),
-                AverageQueryTimeMs = Interlocked.Read(ref _totalQueries) > 0 
-                    ? (double)Interlocked.Read(ref _totalExecutionTime) / Interlocked.Read(ref _totalQueries) 
+                AverageQueryTimeMs = Interlocked.Read(ref _totalQueries) > 0
+                    ? (double)Interlocked.Read(ref _totalExecutionTime) / Interlocked.Read(ref _totalQueries)
                     : 0,
                 MaxQueryTimeMs = Interlocked.Read(ref _maxExecutionTime),
-                MinQueryTimeMs = Interlocked.Read(ref _minExecutionTime) == long.MaxValue 
-                    ? 0 
+                MinQueryTimeMs = Interlocked.Read(ref _minExecutionTime) == long.MaxValue
+                    ? 0
                     : Interlocked.Read(ref _minExecutionTime),
-                IndexUsagePercentage = Interlocked.Read(ref _totalQueries) > 0 
-                    ? (double)Interlocked.Read(ref _indexUsageCount) / Interlocked.Read(ref _totalQueries) * 100 
+                IndexUsagePercentage = Interlocked.Read(ref _totalQueries) > 0
+                    ? (double)Interlocked.Read(ref _indexUsageCount) / Interlocked.Read(ref _totalQueries) * 100
                     : 0,
                 ProfilingStartedAt = _startedAt,
                 CurrentQueryCount = _queryQueue.Count
@@ -226,7 +226,7 @@ public class QueryProfiler : IQueryProfiler, IDisposable
     public IReadOnlyList<QueryProfile> GetQueriesByTimeRange(DateTime start, DateTime end, bool slowOnly = false)
     {
         var query = _queryQueue.Where(q => q.Timestamp >= start && q.Timestamp <= end);
-        
+
         if (slowOnly)
             query = query.Where(q => q.IsSlowQuery);
 
@@ -239,7 +239,7 @@ public class QueryProfiler : IQueryProfiler, IDisposable
         try
         {
             _totalQueries++;
-            
+
             if (profile.IsSlowQuery)
                 _slowQueries++;
 

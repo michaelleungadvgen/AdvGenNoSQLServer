@@ -329,7 +329,7 @@ public class QueryExplainTests
         var filter = new QueryFilter();
         filter.Conditions["status"] = "active";
         filter.Conditions["role"] = "admin";
-        
+
         var query = new AdvGenNoSqlServer.Query.Models.Query
         {
             CollectionName = "users",
@@ -341,12 +341,12 @@ public class QueryExplainTests
 
         // Assert - should have recommendations for individual fields
         Assert.NotEmpty(recommendations);
-        
+
         // Check if we have at least one recommendation
         var statusRec = recommendations.FirstOrDefault(r => r.Fields.Contains("status"));
         var roleRec = recommendations.FirstOrDefault(r => r.Fields.Contains("role"));
-        
-        Assert.True(statusRec != null || roleRec != null, 
+
+        Assert.True(statusRec != null || roleRec != null,
             "Should have index recommendations for at least one filter field");
     }
 

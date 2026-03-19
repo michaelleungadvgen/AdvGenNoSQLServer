@@ -287,7 +287,7 @@ public class CappedDocumentStore : IDocumentStore
     public async Task<IEnumerable<string>> GetCollectionsAsync()
     {
         var collections = (await _underlyingStore.GetCollectionsAsync()).ToList();
-        
+
         // Add any capped collections that might not be in the underlying store
         foreach (var cappedCollectionName in _cappedCollections.Keys)
         {
