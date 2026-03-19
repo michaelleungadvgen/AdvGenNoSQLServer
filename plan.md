@@ -940,7 +940,7 @@ Where third-party libraries have restrictive licenses, we implement custom solut
 - [ ] Partial/Sparse indexes
 - [x] Cursor-based pagination ✓ (Agent-45 - 42 tests)
 - [x] Projections ✓ COMPLETED (Agent-48)
-- [ ] Slow query logging
+- [x] Slow query logging
 - [ ] EXPLAIN/Query plan analysis
 - [ ] Import/Export tools
 - [ ] Sessions (Unit of Work pattern)
@@ -3968,7 +3968,7 @@ Week 7-8:
 - [ ] 18. Partial Index
 - [ ] 19. Background Index Build
 - [ ] 20. INDEX_STATS command
-- [ ] 21. Slow Query Logging
+- [x] 21. Slow Query Logging
 - [ ] 22. Sessions/Unit of Work
 - [ ] 23. Write Concern
 - [ ] 24. Capped Collections
@@ -4598,7 +4598,7 @@ public async Task Run[CommandName]Example()
 - [ ] Sparse Index examples (3 scenarios)
 - [ ] Partial Index examples (3 scenarios)
 - [ ] INDEX_STATS examples (2 scenarios)
-- [ ] Slow query logging examples (2 scenarios)
+- [x] Slow query logging examples (2 scenarios)
 - [ ] Session examples (3 scenarios)
 - [ ] Write Concern examples (3 scenarios)
 - [ ] Capped Collections examples (3 scenarios)

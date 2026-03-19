@@ -2,7 +2,7 @@
 
 **Project**: AdvGenNoSQL Server  
 **Purpose**: Track parallel agent tasks to avoid conflicts  
-**Last Updated**: February 16, 2026
+**Last Updated**: March 19, 2026
 
 ---
 
@@ -15,6 +15,60 @@
 ---
 
 ## Completed Tasks
+
+### Agent-49: Slow Query Logging ✓ COMPLETED
+**Scope**: Implement slow query logging and profiling for query performance monitoring
+**Completed**: 2026-03-19
+**Summary**:
+- Created `IQueryProfiler` interface for profiling and logging slow queries
+- Created `QueryProfile` record with comprehensive query execution metadata:
+  - QueryId, Collection, DurationMs, DocumentsExamined, DocumentsReturned
+  - UsedIndex, IndexUsed, Timestamp, User, ClientIp, IsSlowQuery
+  - Query filter as JSON, Query execution plan, Metadata dictionary
+- Created `ProfilingOptions` configuration class:
+  - Enabled, SlowQueryThresholdMs (default: 100ms)
+  - LogQueryPlan, SampleRate, MaxLoggedQueries, LogOnlySlowQueries
+- Created `QueryProfiler` implementation:
+  - Thread-safe query recording with ConcurrentQueue and ConcurrentDictionary
+  - Configurable sampling rate for query profiling
+  - Slow query detection with event notification (SlowQueryDetected event)
+  - Statistics tracking (total queries, slow queries, avg/max/min times, index usage %)
+  - Query retrieval by slow status, collection, time range, or ID
+  - Automatic queue trimming when MaxLoggedQueries exceeded
+- Created `ProfilingStats` class for monitoring statistics
+- Created `SlowQueryDetectedEventArgs` for event handling
+- Modified `QueryExecutor` to integrate profiling support:
+  - Optional IQueryProfiler parameter in constructor
+  - Automatic query profiling after each execution
+  - Records document counts, index usage, and execution time
+  - Silent error handling to not affect query execution
+- Created comprehensive unit tests (40 tests):
+  - ProfilingOptions validation tests (6 tests)
+  - QueryProfile creation tests (3 tests)
+  - QueryProfiler basic functionality tests (5 tests)
+  - Slow query detection and event tests (4 tests)
+  - Statistics calculation tests (2 tests)
+  - Query retrieval tests (6 tests)
+  - Clear data tests (1 test)
+  - Sampling tests (2 tests)
+  - Log only slow queries tests (1 test)
+  - Max queries limit tests (1 test)
+  - Disposal tests (2 tests)
+  - Edge case tests (4 tests)
+  - Event args tests (2 tests)
+
+**Files Created**:
+- `AdvGenNoSqlServer.Query/Profiling/IQueryProfiler.cs` - Interface and models
+- `AdvGenNoSqlServer.Query/Profiling/QueryProfiler.cs` - Implementation
+- `AdvGenNoSqlServer.Tests/SlowQueryLoggingTests.cs` - 40 comprehensive tests
+
+**Files Modified**:
+- `AdvGenNoSqlServer.Query/Execution/QueryExecutor.cs` - Integrated profiling support
+
+**Build Status**: ✓ Compiles successfully (0 errors)
+**Test Status**: ✓ 40/40 slow query logging tests pass
+
+---
 
 ### Agent-48: Query Projections ✓ COMPLETED
 **Scope**: Implement query projections to return only specified fields from documents

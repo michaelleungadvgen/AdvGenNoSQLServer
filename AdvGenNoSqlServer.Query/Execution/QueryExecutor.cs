@@ -3,9 +3,11 @@
 // See LICENSE.txt for license information.
 
 using System.Diagnostics;
+using System.Text.Json;
 using AdvGenNoSqlServer.Core.Models;
 using AdvGenNoSqlServer.Query.Filtering;
 using AdvGenNoSqlServer.Query.Models;
+using AdvGenNoSqlServer.Query.Profiling;
 using AdvGenNoSqlServer.Storage;
 using AdvGenNoSqlServer.Storage.Indexing;
 
@@ -19,21 +21,34 @@ public class QueryExecutor : IQueryExecutor
     private readonly IDocumentStore _documentStore;
     private readonly IFilterEngine _filterEngine;
     private readonly IndexManager? _indexManager;
+    private readonly IQueryProfiler? _profiler;
 
     /// <summary>
     /// Creates a new QueryExecutor
     /// </summary>
     public QueryExecutor(IDocumentStore documentStore, IFilterEngine filterEngine, IndexManager? indexManager = null)
+        : this(documentStore, filterEngine, indexManager, null)
+    {
+    }
+
+    /// <summary>
+    /// Creates a new QueryExecutor with profiling support
+    /// </summary>
+    public QueryExecutor(IDocumentStore documentStore, IFilterEngine filterEngine, IndexManager? indexManager, IQueryProfiler? profiler)
     {
         _documentStore = documentStore ?? throw new ArgumentNullException(nameof(documentStore));
         _filterEngine = filterEngine ?? throw new ArgumentNullException(nameof(filterEngine));
         _indexManager = indexManager;
+        _profiler = profiler;
     }
 
     /// <inheritdoc />
     public async Task<QueryResult> ExecuteAsync(Query.Models.Query query, CancellationToken cancellationToken = default)
     {
         var stopwatch = Stopwatch.StartNew();
+        long documentsExamined = 0;
+        bool usedIndex = false;
+        string? indexName = null;
 
         try
         {
@@ -46,6 +61,9 @@ public class QueryExecutor : IQueryExecutor
             {
                 // Use index results
                 documents = await _documentStore.GetManyAsync(query.CollectionName, candidateIds);
+                usedIndex = true;
+                var indexInfo = GetIndexUsageInfo(query);
+                indexName = indexInfo.IndexName;
             }
             else
             {
@@ -55,6 +73,7 @@ public class QueryExecutor : IQueryExecutor
 
             // Apply filters
             var filtered = _filterEngine.Filter(documents, query.Filter).ToList();
+            documentsExamined = filtered.Count;
             var totalCount = filtered.Count;
 
             // Apply sorting
@@ -85,7 +104,7 @@ public class QueryExecutor : IQueryExecutor
 
             stopwatch.Stop();
 
-            return new QueryResult
+            var result = new QueryResult
             {
                 Documents = filtered,
                 TotalCount = query.Options?.IncludeTotalCount == true ? totalCount : filtered.Count,
@@ -93,12 +112,23 @@ public class QueryExecutor : IQueryExecutor
                 ExecutionTimeMs = stopwatch.ElapsedMilliseconds,
                 Success = true
             };
+
+            // Record query profile
+            RecordQueryProfile(query, stopwatch.ElapsedMilliseconds, documentsExamined, 
+                filtered.Count, usedIndex, indexName);
+
+            return result;
         }
         catch (Exception ex)
         {
             stopwatch.Stop();
             var failureResult = QueryResult.FailureResult(ex.Message);
             failureResult.ExecutionTimeMs = stopwatch.ElapsedMilliseconds;
+            
+            // Record failed query profile
+            RecordQueryProfile(query, stopwatch.ElapsedMilliseconds, documentsExamined, 
+                0, usedIndex, indexName, ex.Message);
+            
             return failureResult;
         }
     }
@@ -454,5 +484,57 @@ public class QueryExecutor : IQueryExecutor
         }
 
         return documents;
+    }
+
+    private void RecordQueryProfile(Query.Models.Query query, long durationMs, long documentsExamined, 
+        long documentsReturned, bool usedIndex, string? indexName, string? errorMessage = null)
+    {
+        if (_profiler == null)
+            return;
+
+        try
+        {
+            // Check if this is a slow query
+            var isSlowQuery = durationMs > _profiler.Options.SlowQueryThresholdMs;
+
+            // Only record if it's a slow query or we're logging all queries
+            if (!isSlowQuery && _profiler.Options.LogOnlySlowQueries)
+                return;
+
+            // Build query filter JSON
+            JsonElement? queryJson = null;
+            if (query.Filter?.Conditions != null)
+            {
+                var json = JsonSerializer.Serialize(query.Filter.Conditions);
+                queryJson = JsonSerializer.Deserialize<JsonElement>(json);
+            }
+
+            // Get query plan if enabled
+            Models.QueryStats? plan = null;
+            if (_profiler.Options.LogQueryPlan)
+            {
+                plan = ExplainAsync(query).GetAwaiter().GetResult();
+            }
+
+            var profile = new QueryProfile
+            {
+                Collection = query.CollectionName,
+                Query = queryJson,
+                Plan = plan,
+                DurationMs = durationMs,
+                DocumentsExamined = documentsExamined,
+                DocumentsReturned = documentsReturned,
+                UsedIndex = usedIndex,
+                IndexUsed = indexName,
+                IsSlowQuery = isSlowQuery,
+                Metadata = errorMessage != null ? new Dictionary<string, object> { ["Error"] = errorMessage } : null
+            };
+
+            _profiler.RecordQuery(profile);
+        }
+        catch
+        {
+            // Silently ignore profiling errors to not affect query execution
+        }
     }
 }
