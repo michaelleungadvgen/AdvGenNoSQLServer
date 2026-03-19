@@ -7,6 +7,7 @@ using AdvGenNoSqlServer.Core.Models;
 using AdvGenNoSqlServer.Query.Execution;
 using AdvGenNoSqlServer.Query.Filtering;
 using AdvGenNoSqlServer.Query.Models;
+using AdvGenNoSqlServer.Query.QueryAnalysis;
 using AdvGenNoSqlServer.Storage;
 using AdvGenNoSqlServer.Storage.Indexing;
 
@@ -83,6 +84,15 @@ public class CursorEnabledQueryExecutor : ICursorQueryExecutor
     public Task<QueryStats> ExplainAsync(Models.Query query)
     {
         return _baseExecutor.ExplainAsync(query);
+    }
+
+    /// <inheritdoc />
+    public Task<QueryAnalysisResult> ExplainDetailedAsync(
+        Models.Query query,
+        ExplainVerbosity verbosity = ExplainVerbosity.ExecutionStats,
+        CancellationToken cancellationToken = default)
+    {
+        return _baseExecutor.ExplainDetailedAsync(query, verbosity, cancellationToken);
     }
 
     /// <inheritdoc />

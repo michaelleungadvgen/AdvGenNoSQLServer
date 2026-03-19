@@ -8,6 +8,7 @@ using AdvGenNoSqlServer.Core.Models;
 using AdvGenNoSqlServer.Query.Filtering;
 using AdvGenNoSqlServer.Query.Models;
 using AdvGenNoSqlServer.Query.Profiling;
+using AdvGenNoSqlServer.Query.QueryAnalysis;
 using AdvGenNoSqlServer.Storage;
 using AdvGenNoSqlServer.Storage.Indexing;
 
@@ -536,5 +537,15 @@ public class QueryExecutor : IQueryExecutor
         {
             // Silently ignore profiling errors to not affect query execution
         }
+    }
+
+    /// <inheritdoc />
+    public Task<QueryAnalysisResult> ExplainDetailedAsync(
+        Models.Query query,
+        ExplainVerbosity verbosity = ExplainVerbosity.ExecutionStats,
+        CancellationToken cancellationToken = default)
+    {
+        var analyzer = new QueryPlanAnalyzer(_documentStore, _indexManager);
+        return analyzer.AnalyzeAsync(query, verbosity, cancellationToken);
     }
 }

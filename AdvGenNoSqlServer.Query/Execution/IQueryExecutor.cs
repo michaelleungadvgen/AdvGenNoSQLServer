@@ -4,6 +4,7 @@
 
 using AdvGenNoSqlServer.Core.Models;
 using AdvGenNoSqlServer.Query.Models;
+using AdvGenNoSqlServer.Query.QueryAnalysis;
 
 namespace AdvGenNoSqlServer.Query.Execution;
 
@@ -42,6 +43,18 @@ public interface IQueryExecutor
     /// <param name="query">The query to analyze</param>
     /// <returns>Query statistics including execution plan</returns>
     Task<QueryStats> ExplainAsync(Models.Query query);
+
+    /// <summary>
+    /// Performs detailed query analysis with optimization recommendations
+    /// </summary>
+    /// <param name="query">The query to analyze</param>
+    /// <param name="verbosity">Level of detail to include</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Detailed query analysis result</returns>
+    Task<QueryAnalysisResult> ExplainDetailedAsync(
+        Models.Query query,
+        ExplainVerbosity verbosity = ExplainVerbosity.ExecutionStats,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>
