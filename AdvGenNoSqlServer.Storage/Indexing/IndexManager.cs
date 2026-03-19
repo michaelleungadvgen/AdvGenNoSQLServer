@@ -240,6 +240,49 @@ public class IndexManager
     }
 
     /// <summary>
+    /// Creates a partial index that only includes documents matching a filter expression
+    /// </summary>
+    /// <typeparam name="TKey">The type of the index key</typeparam>
+    /// <param name="collectionName">The collection name</param>
+    /// <param name="fieldName">The field to index</param>
+    /// <param name="isUnique">Whether the index enforces uniqueness</param>
+    /// <param name="keySelector">Function to extract the key from a document</param>
+    /// <param name="filterExpression">Filter expression to determine which documents to include</param>
+    /// <param name="minDegree">The B-tree minimum degree</param>
+    /// <returns>The created partial index</returns>
+    public IBTreeIndex<TKey, string> CreatePartialIndex<TKey>(
+        string collectionName,
+        string fieldName,
+        bool isUnique,
+        Func<Document, TKey> keySelector,
+        Func<Document, bool> filterExpression,
+        int minDegree = 4) where TKey : IComparable<TKey>
+    {
+        ArgumentException.ThrowIfNullOrEmpty(collectionName, nameof(collectionName));
+        ArgumentException.ThrowIfNullOrEmpty(fieldName, nameof(fieldName));
+        ArgumentNullException.ThrowIfNull(keySelector, nameof(keySelector));
+        ArgumentNullException.ThrowIfNull(filterExpression, nameof(filterExpression));
+
+        lock (_lock)
+        {
+            var collectionIndex = _collectionIndexes.GetOrAdd(collectionName, _ => new CollectionIndexes(collectionName));
+
+            string indexName = $"{collectionName}_{fieldName}_partial_idx";
+
+            if (collectionIndex.HasIndex(fieldName))
+            {
+                throw new InvalidOperationException($"Index already exists for field '{fieldName}' in collection '{collectionName}'");
+            }
+
+            var index = new PartialBTreeIndex<TKey>(indexName, collectionName, fieldName, isUnique, filterExpression, minDegree);
+
+            collectionIndex.AddPartialIndex(fieldName, index, keySelector);
+
+            return index;
+        }
+    }
+
+    /// <summary>
     /// Drops an index from a collection
     /// </summary>
     /// <param name="collectionName">The collection name</param>
@@ -276,6 +319,26 @@ public class IndexManager
         if (_collectionIndexes.TryGetValue(collectionName, out var collectionIndex))
         {
             return collectionIndex.GetIndex<TKey>(fieldName);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Gets a partial index for a collection field
+    /// </summary>
+    /// <typeparam name="TKey">The key type</typeparam>
+    /// <param name="collectionName">The collection name</param>
+    /// <param name="fieldName">The field name</param>
+    /// <returns>The partial index if found, null otherwise</returns>
+    public IBTreeIndex<TKey, string>? GetPartialIndex<TKey>(string collectionName, string fieldName) where TKey : IComparable<TKey>
+    {
+        ArgumentException.ThrowIfNullOrEmpty(collectionName, nameof(collectionName));
+        ArgumentException.ThrowIfNullOrEmpty(fieldName, nameof(fieldName));
+
+        if (_collectionIndexes.TryGetValue(collectionName, out var collectionIndex))
+        {
+            return collectionIndex.GetPartialIndex<TKey>(fieldName);
         }
 
         return null;
@@ -420,6 +483,11 @@ public class IndexManager
             _indexes[fieldName] = new SparseIndexWrapper<TKey>(index, keySelector);
         }
 
+        public void AddPartialIndex<TKey>(string fieldName, PartialBTreeIndex<TKey> index, Func<Document, TKey> keySelector) where TKey : IComparable<TKey>
+        {
+            _indexes[fieldName] = new PartialIndexWrapper<TKey>(index, keySelector);
+        }
+
         public bool RemoveIndex(string fieldName)
         {
             return _indexes.TryRemove(fieldName, out _);
@@ -444,6 +512,15 @@ public class IndexManager
             if (_indexes.TryGetValue(indexKey, out var wrapper) && wrapper is CompoundIndexWrapper compoundWrapper)
             {
                 return compoundWrapper.Index;
+            }
+            return null;
+        }
+
+        public IBTreeIndex<TKey, string>? GetPartialIndex<TKey>(string fieldName) where TKey : IComparable<TKey>
+        {
+            if (_indexes.TryGetValue(fieldName, out var wrapper) && wrapper is PartialIndexWrapper<TKey> partialWrapper)
+            {
+                return partialWrapper.Index;
             }
             return null;
         }
@@ -487,6 +564,7 @@ public class IndexManager
                 {
                     CompoundIndexWrapper => baseType + "Compound B-Tree",
                     _ when kvp.Value.GetType().Name.StartsWith("SparseIndexWrapper") => baseType + "Sparse B-Tree",
+                    _ when kvp.Value.GetType().Name.StartsWith("PartialIndexWrapper") => baseType + "Partial B-Tree",
                     _ => baseType + "B-Tree"
                 };
 
@@ -684,6 +762,75 @@ public class IndexManager
             {
                 // Only try to remove if document has the field
                 if (!document.Data.ContainsKey(Index.FieldName))
+                    return;
+
+                var key = _keySelector(document);
+                if (key != null)
+                {
+                    Index.Delete(key, document.Id);
+                }
+            }
+            catch
+            {
+                // Ignore errors during removal
+            }
+        }
+
+        public void UpdateDocument(Document oldDocument, Document newDocument)
+        {
+            RemoveDocument(oldDocument);
+            IndexDocument(newDocument);
+        }
+    }
+
+    /// <summary>
+    /// Wrapper for partial indexes - only indexes documents matching a filter expression
+    /// </summary>
+    private class PartialIndexWrapper<TKey> : IIndexWrapper where TKey : IComparable<TKey>
+    {
+        private readonly Func<Document, TKey> _keySelector;
+
+        public PartialBTreeIndex<TKey> Index { get; }
+        public int Count => Index.Count;
+        public int Height => Index.Height;
+        public bool IsUnique => Index.IsUnique;
+
+        public PartialIndexWrapper(PartialBTreeIndex<TKey> index, Func<Document, TKey> keySelector)
+        {
+            Index = index;
+            _keySelector = keySelector;
+        }
+
+        public void IndexDocument(Document document)
+        {
+            try
+            {
+                // For partial indexes, only index if document matches the filter expression
+                if (!Index.ShouldIncludeDocument(document))
+                    return;
+
+                var key = _keySelector(document);
+                if (key != null)
+                {
+                    Index.Insert(key, document.Id);
+                }
+            }
+            catch (DuplicateKeyException)
+            {
+                throw; // Re-throw duplicate key exceptions
+            }
+            catch
+            {
+                // Ignore other errors
+            }
+        }
+
+        public void RemoveDocument(Document document)
+        {
+            try
+            {
+                // Only try to remove if document would have been indexed
+                if (!Index.ShouldIncludeDocument(document))
                     return;
 
                 var key = _keySelector(document);

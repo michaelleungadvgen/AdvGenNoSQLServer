@@ -937,7 +937,7 @@ Where third-party libraries have restrictive licenses, we implement custom solut
 - [x] TTL indexes for document expiration (Agent-43 - TtlIndexService with background cleanup, 33 tests)
 - [x] Unique indexes (Agent-42 - Unique constraint enforcement on single-field indexes)
 - [x] Compound/Composite indexes (Agent-42 - Multi-field B-tree indexes with unique support)
-- [ ] Partial/Sparse indexes
+- [x] Partial/Sparse indexes
 - [x] Cursor-based pagination ✓ (Agent-45 - 42 tests)
 - [x] Projections ✓ COMPLETED (Agent-48)
 - [x] Slow query logging
@@ -3965,7 +3965,7 @@ Week 7-8:
 - [ ] 15. Array Operations
 - [x] 16. DISTINCT command
 - [ ] 17. Sparse Index
-- [ ] 18. Partial Index
+- [x] 18. Partial Index
 - [ ] 19. Background Index Build
 - [ ] 20. INDEX_STATS command
 - [x] 21. Slow Query Logging

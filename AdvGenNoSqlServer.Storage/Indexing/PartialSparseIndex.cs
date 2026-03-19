@@ -82,3 +82,50 @@ public class SparseBTreeIndex<TKey> : BTreeIndex<TKey, string>, IPartialIndex wh
         return document.Data.ContainsKey(FieldName);
     }
 }
+
+/// <summary>
+/// A partial B-tree index that only includes documents matching a filter expression
+/// </summary>
+/// <typeparam name="TKey">The type of the index key</typeparam>
+public class PartialBTreeIndex<TKey> : BTreeIndex<TKey, string>, IPartialIndex where TKey : IComparable<TKey>
+{
+    private readonly Func<Document, bool> _filterExpression;
+
+    /// <summary>
+    /// Creates a new partial B-tree index
+    /// </summary>
+    /// <param name="name">The index name</param>
+    /// <param name="collectionName">The collection name</param>
+    /// <param name="fieldName">The field being indexed</param>
+    /// <param name="isUnique">Whether the index enforces uniqueness</param>
+    /// <param name="filterExpression">The filter expression to determine which documents to include</param>
+    /// <param name="minDegree">The B-tree minimum degree</param>
+    public PartialBTreeIndex(
+        string name,
+        string collectionName,
+        string fieldName,
+        bool isUnique,
+        Func<Document, bool> filterExpression,
+        int minDegree = 4) : base(name, collectionName, fieldName, isUnique, minDegree)
+    {
+        _filterExpression = filterExpression ?? throw new ArgumentNullException(nameof(filterExpression));
+    }
+
+    /// <inheritdoc />
+    public PartialIndexType PartialType => PartialIndexType.Partial;
+
+    /// <summary>
+    /// Gets the filter expression used by this partial index
+    /// </summary>
+    public Func<Document, bool> FilterExpression => _filterExpression;
+
+    /// <inheritdoc />
+    public bool ShouldIncludeDocument(Document document)
+    {
+        // Must have the field AND match the filter expression
+        if (!document.Data.ContainsKey(FieldName))
+            return false;
+
+        return _filterExpression(document);
+    }
+}

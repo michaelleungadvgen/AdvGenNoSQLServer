@@ -10,11 +10,59 @@
 
 | Agent | Task | Status | Started | Target Completion |
 |-------|------|--------|---------|-------------------|
-| Agent-46 | Partial/Sparse Index Support | In Progress | 2026-02-13 | 2026-02-13 |
+| None | - | - | - | - |
 
 ---
 
 ## Completed Tasks
+
+### Agent-55: Partial Index Support ✓ COMPLETED
+**Scope**: Implement Partial Index support for indexing only documents matching a filter expression
+**Completed**: 2026-03-19
+**Summary**:
+- Created `PartialBTreeIndex<TKey>` class:
+  - Extends `BTreeIndex<TKey, string>` with filter expression support
+  - Only indexes documents that match the filter criteria
+  - Supports unique partial indexes
+  - Implements `IPartialIndex` interface with `PartialType.Partial`
+
+- Added `CreatePartialIndex` method to `IndexManager`:
+  - Creates partial indexes with custom filter expressions
+  - Supports type-safe key selectors
+  - Enforces uniqueness constraints when specified
+
+- Added `PartialIndexWrapper` class for internal index management:
+  - Handles document insertion/removal based on filter criteria
+  - Integrates with existing IndexManager infrastructure
+  - Properly handles document updates
+
+- Added `GetPartialIndex` method:
+  - Retrieves partial indexes by collection and field name
+  - Type-safe generic method
+
+- Updated index statistics:
+  - Partial indexes show "Partial B-Tree" or "Unique Partial B-Tree" type
+
+- Created comprehensive unit tests (30 tests):
+  - Constructor validation tests
+  - Filter expression matching tests
+  - Document indexing tests (matching vs non-matching)
+  - Document removal and update tests
+  - Numeric, boolean, complex, and exists filter tests
+  - Index statistics tests
+  - Unique constraint tests for partial indexes
+
+**Files Created**:
+- `AdvGenNoSqlServer.Tests/PartialIndexTests.cs` - 30 comprehensive tests
+
+**Files Modified**:
+- `AdvGenNoSqlServer.Storage/Indexing/PartialSparseIndex.cs` - Added `PartialBTreeIndex` class
+- `AdvGenNoSqlServer.Storage/Indexing/IndexManager.cs` - Added `CreatePartialIndex`, `GetPartialIndex`, `PartialIndexWrapper`
+
+**Build Status**: ✓ Compiles successfully (0 errors)
+**Test Status**: ✓ 30/30 Partial Index tests pass, 1391/1414 total tests pass (23 skipped)
+
+---
 
 ### Agent-54: DISTINCT Command Implementation ✓ COMPLETED
 **Scope**: Implement DISTINCT command to get unique field values from a collection
