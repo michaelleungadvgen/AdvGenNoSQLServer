@@ -16,6 +16,64 @@
 
 ## Completed Tasks
 
+### Agent-56: Document Validation ✓ COMPLETED
+**Scope**: Implement Document Validation using JSON Schema-like validation for enforcing document structure
+**Completed**: 2026-03-19
+**Summary**:
+- Created `IDocumentValidator` interface with comprehensive validation methods:
+  - `ValidateAsync(Document, collectionName)` - Validate against collection's schema
+  - `ValidateAsync(Document, JsonElement schema)` - Validate against specific schema
+  - `SetValidationConfigAsync` - Configure validation for collections
+  - `GetValidationConfigAsync` - Retrieve collection validation config
+  - `RemoveValidationConfigAsync` - Remove validation from collection
+  - `GetCollectionsWithValidationAsync` - List collections with validation
+
+- Created `DocumentValidator` implementation with support for:
+  - Type validation (object, array, string, number, integer, boolean, null)
+  - Required field validation
+  - String constraints (minLength, maxLength, pattern, format)
+  - Number constraints (minimum, maximum, exclusiveMinimum, exclusiveMaximum, multipleOf)
+  - Array constraints (minItems, maxItems, uniqueItems, items schema)
+  - Object constraints (minProperties, maxProperties, additionalProperties)
+  - Enum and const validation
+  - Nested object validation
+  - Formats: email, date, date-time, uri, uuid, hostname, ipv4
+
+- Created validation model classes:
+  - `ValidationError` - Detailed error information with path, code, message, context
+  - `ValidationResult` - Validation outcome with error collection
+  - `CollectionValidationConfig` - Per-collection validation configuration
+  - `DocumentValidationException` - Exception for validation failures
+  - `ValidationLevel` enum (None, Moderate, Strict)
+  - `ValidationAction` enum (Warn, Error)
+
+- Created comprehensive unit tests (70 tests):
+  - Constructor tests
+  - Validation config management tests
+  - Required field validation tests
+  - String validation tests (minLength, maxLength, pattern, format)
+  - Number validation tests (minimum, maximum, exclusive, multipleOf)
+  - Integer type validation tests
+  - Array validation tests (minItems, maxItems, uniqueItems, items schema)
+  - Object validation tests (minProperties, maxProperties, additionalProperties)
+  - Enum and const validation tests
+  - Nested object validation tests
+  - Collection validation integration tests
+  - ValidationError factory tests
+  - ValidationResult tests
+  - DocumentValidationException tests
+  - Complex schema tests
+
+**Files Created**:
+- `AdvGenNoSqlServer.Core/Validation/IDocumentValidator.cs` - Interface and models (450+ lines)
+- `AdvGenNoSqlServer.Core/Validation/DocumentValidator.cs` - Implementation (550+ lines)
+- `AdvGenNoSqlServer.Tests/DocumentValidationTests.cs` - 70 comprehensive tests
+
+**Build Status**: ✓ Compiles successfully (0 errors)
+**Test Status**: ✓ 70/70 Document Validation tests pass
+
+---
+
 ### Agent-55: Partial Index Support ✓ COMPLETED
 **Scope**: Implement Partial Index support for indexing only documents matching a filter expression
 **Completed**: 2026-03-19
