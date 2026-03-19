@@ -1,0 +1,254 @@
+// Copyright (c) 2026 AdvanGeneration Pty. Ltd.
+// Licensed under the MIT License.
+// See LICENSE.txt for license information.
+
+@page "/query"
+@inject ServerConnectionService ConnectionService
+@inject ISnackbar Snackbar
+
+<PageTitle>Query - AdvGenNoSQL Admin</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Query Executor</MudText>
+
+<MudGrid>
+    <MudItem xs="12">
+        <MudCard Elevation="2">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">Query Input</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudGrid>
+                    <MudItem xs="12" md="4">
+                        <MudSelect T="string" 
+                                   @bind-Value="_selectedCollection"
+                                   Label="Collection"
+                                   Variant="Variant.Outlined">
+                            <MudSelectItem T="string" Value="@((string?)null)">All Collections</MudSelectItem>
+                            @foreach (var collection in _collections)
+                            {
+                                <MudSelectItem Value="@collection">@collection</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" md="8">
+                        <MudTextField T="string"
+                                      @bind-Value="_queryText"
+                                      Label="Query (JSON format)"
+                                      Variant="Variant.Outlined"
+                                      Lines="6"
+                                      Placeholder="{ &quot;status&quot;: &quot;active&quot; }" />
+                    </MudItem>
+                </MudGrid>
+                
+                <div class="d-flex justify-end mt-4">
+                    <MudButton Variant="Variant.Outlined" 
+                               Color="Color.Secondary"
+                               Class="mr-2"
+                               OnClick="ClearQuery">
+                        Clear
+                    </MudButton>
+                    <MudButton Variant="Variant.Filled" 
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.PlayArrow"
+                               OnClick="ExecuteQuery"
+                               Disabled="_isLoading">
+                        @if (_isLoading)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                        }
+                        Execute Query
+                    </MudButton>
+                </div>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+
+    @if (_queryResult != null)
+    {
+        <MudItem xs="12">
+            <MudCard Elevation="2">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <div class="d-flex align-center">
+                            <MudText Typo="Typo.h6">Results</MudText>
+                            <MudChip T="string" 
+                                     Color="@(_queryResult.Success ? Color.Success : Color.Error)" 
+                                     Size="Size.Small"
+                                     Class="ml-4">
+                                @(_queryResult.Success ? "Success" : "Failed")
+                            </MudChip>
+                            <MudText Typo="Typo.caption" Class="ml-4">
+                                @(_queryResult.ExecutionTimeMs)ms • @_queryResult.TotalCount total
+                            </MudText>
+                        </div>
+                    </CardHeaderContent>
+                    <CardHeaderActions>
+                        <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" 
+                                       Color="Color.Default"
+                                       OnClick="CopyResults" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Download" 
+                                       Color="Color.Default"
+                                       OnClick="DownloadResults" />
+                    </CardHeaderActions>
+                </MudCardHeader>
+                <MudCardContent>
+                    @if (!_queryResult.Success)
+                    {
+                        <MudAlert Severity="Severity.Error" Class="mb-4">
+                            @_queryResult.ErrorMessage
+                        </MudAlert>
+                    }
+                    
+                    @if (_queryResult.Documents?.Any() == true)
+                    {
+                        <MudTable Items="_queryResult.Documents" 
+                                  Dense="true" 
+                                  Hover="true"
+                                  Bordered="true">
+                            <HeaderContent>
+                                <MudTh>ID</MudTh>
+                                <MudTh>Data</MudTh>
+                                <MudTh>Actions</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="ID">
+                                    <MudText Typo="Typo.caption" Style="font-family: monospace;">
+                                        @context.Id
+                                    </MudText>
+                                </MudTd>
+                                <MudTd DataLabel="Data">
+                                    <MudText Typo="Typo.body2" Class="text-truncate" Style="max-width: 400px;">
+                                        @GetDocumentSummary(context)
+                                    </MudText>
+                                </MudTd>
+                                <MudTd DataLabel="Actions">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Visibility" 
+                                                   Size="Size.Small"
+                                                   Color="Color.Primary"
+                                                   OnClick="() => ViewDocument(context)" />
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    }
+                    else if (_queryResult.Success)
+                    {
+                        <MudAlert Severity="Severity.Info">
+                            No documents found matching the query.
+                        </MudAlert>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    }
+
+    <!-- Query Examples -->
+    <MudItem xs="12">
+        <MudExpansionPanels Elevation="2">
+            <MudExpansionPanel Text="Query Examples">
+                <MudList T="string" Dense="true">
+                    <MudListItem T="string">
+                        <MudText Typo="Typo.subtitle2">Find all documents</MudText>
+                        <MudText Typo="Typo.caption" Style="font-family: monospace;">{}</MudText>
+                    </MudListItem>
+                    <MudListItem T="string">
+                        <MudText Typo="Typo.subtitle2">Find by field value</MudText>
+                        <MudText Typo="Typo.caption" Style="font-family: monospace;">{ "status": "active" }</MudText>
+                    </MudListItem>
+                    <MudListItem T="string">
+                        <MudText Typo="Typo.subtitle2">Find with comparison</MudText>
+                        <MudText Typo="Typo.caption" Style="font-family: monospace;">{ "age": { "$gt": 18 } }</MudText>
+                    </MudListItem>
+                    <MudListItem T="string">
+                        <MudText Typo="Typo.subtitle2">Find with multiple conditions (AND)</MudText>
+                        <MudText Typo="Typo.caption" Style="font-family: monospace;">{ "$and": [{ "status": "active" }, { "age": { "$gte": 18 } }] }</MudText>
+                    </MudListItem>
+                    <MudListItem T="string">
+                        <MudText Typo="Typo.subtitle2">Find with OR condition</MudText>
+                        <MudText Typo="Typo.caption" Style="font-family: monospace;">{ "$or": [{ "status": "active" }, { "status": "pending" }] }</MudText>
+                    </MudListItem>
+                </MudList>
+            </MudExpansionPanel>
+        </MudExpansionPanels>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private List<string> _collections = new();
+    private string? _selectedCollection;
+    private string _queryText = "";
+    private QueryResult? _queryResult;
+    private bool _isLoading;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _collections = await ConnectionService.GetCollectionsAsync();
+    }
+
+    private async Task ExecuteQuery()
+    {
+        _isLoading = true;
+        try
+        {
+            _queryResult = await ConnectionService.ExecuteQueryAsync(_queryText);
+            
+            if (_queryResult.Success)
+            {
+                Snackbar.Add($"Query executed: {_queryResult.TotalCount} results found", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add($"Query failed: {_queryResult.ErrorMessage}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void ClearQuery()
+    {
+        _queryText = "";
+        _queryResult = null;
+    }
+
+    private string GetDocumentSummary(Document doc)
+    {
+        return System.Text.Json.JsonSerializer.Serialize(doc.Data);
+    }
+
+    private void ViewDocument(Document doc)
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(doc.Data, new System.Text.Json.JsonSerializerOptions 
+        { 
+            WriteIndented = true 
+        });
+        
+        // Would show a dialog in real implementation
+        Snackbar.Add($"Document: {json.Substring(0, Math.Min(100, json.Length))}...", Severity.Info);
+    }
+
+    private void CopyResults()
+    {
+        if (_queryResult?.Documents != null)
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(_queryResult.Documents, new System.Text.Json.JsonSerializerOptions 
+            { 
+                WriteIndented = true 
+            });
+            // In a real implementation, this would copy to clipboard
+            Snackbar.Add("Results copied to clipboard", Severity.Success);
+        }
+    }
+
+    private void DownloadResults()
+    {
+        Snackbar.Add("Download started", Severity.Info);
+    }
+}

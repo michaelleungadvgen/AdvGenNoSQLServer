@@ -1,0 +1,239 @@
+// Copyright (c) 2026 AdvanGeneration Pty. Ltd.
+// Licensed under the MIT License.
+// See LICENSE.txt for license information.
+
+@page "/"
+@inject ServerConnectionService ConnectionService
+@inject ISnackbar Snackbar
+
+<PageTitle>Dashboard - AdvGenNoSQL Admin</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Dashboard</MudText>
+
+@if (_isLoading)
+{
+    <MudProgressLinear Indeterminate="true" Class="my-4" />
+}
+
+<MudGrid>
+    <!-- Server Status Cards -->
+    <MudItem xs="12" sm="6" md="3">
+        <MudCard Elevation="2">
+            <MudCardContent>
+                <div class="d-flex align-center">
+                    <MudIcon Icon="@Icons.Material.Filled.Storage" Color="Color.Primary" Size="Size.Large" Class="mr-4" />
+                    <div>
+                        <MudText Typo="Typo.caption">Total Documents</MudText>
+                        <MudText Typo="Typo.h4">@_stats?.TotalDocuments.ToString("N0")</MudText>
+                    </div>
+                </div>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+    
+    <MudItem xs="12" sm="6" md="3">
+        <MudCard Elevation="2">
+            <MudCardContent>
+                <div class="d-flex align-center">
+                    <MudIcon Icon="@Icons.Material.Filled.Folder" Color="Color.Secondary" Size="Size.Large" Class="mr-4" />
+                    <div>
+                        <MudText Typo="Typo.caption">Collections</MudText>
+                        <MudText Typo="Typo.h4">@_stats?.TotalCollections</MudText>
+                    </div>
+                </div>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+    
+    <MudItem xs="12" sm="6" md="3">
+        <MudCard Elevation="2">
+            <MudCardContent>
+                <div class="d-flex align-center">
+                    <MudIcon Icon="@Icons.Material.Filled.People" Color="Color.Success" Size="Size.Large" Class="mr-4" />
+                    <div>
+                        <MudText Typo="Typo.caption">Active Connections</MudText>
+                        <MudText Typo="Typo.h4">@_stats?.ActiveConnections</MudText>
+                    </div>
+                </div>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+    
+    <MudItem xs="12" sm="6" md="3">
+        <MudCard Elevation="2">
+            <MudCardContent>
+                <div class="d-flex align-center">
+                    <MudIcon Icon="@Icons.Material.Filled.Speed" Color="Color.Warning" Size="Size.Large" Class="mr-4" />
+                    <div>
+                        <MudText Typo="Typo.caption">Queries/sec</MudText>
+                        <MudText Typo="Typo.h4">@_stats?.QueriesPerSecond</MudText>
+                    </div>
+                </div>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+
+    <!-- Server Info & Memory -->
+    <MudItem xs="12" md="6">
+        <MudCard Elevation="2" Class="h-100">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">Server Information</MudText>
+                </CardHeaderContent>
+                <CardHeaderActions>
+                    <MudIconButton Icon="@Icons.Material.Filled.Refresh" Color="Color.Default" OnClick="RefreshStats" />
+                </CardHeaderActions>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudList T="string" Dense="true">
+                    <MudListItem T="string">
+                        <div class="d-flex justify-space-between">
+                            <MudText>Server Version</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Primary">@_stats?.ServerVersion</MudText>
+                        </div>
+                    </MudListItem>
+                    <MudListItem T="string">
+                        <div class="d-flex justify-space-between">
+                            <MudText>Uptime</MudText>
+                            <MudText Typo="Typo.body2">@FormatUptime(_stats?.Uptime)</MudText>
+                        </div>
+                    </MudListItem>
+                    <MudListItem T="string">
+                        <div class="d-flex justify-space-between">
+                            <MudText>Connected Server</MudText>
+                            <MudText Typo="Typo.body2">@ConnectionService.ServerUrl</MudText>
+                        </div>
+                    </MudListItem>
+                    <MudListItem T="string">
+                        <div class="d-flex justify-space-between">
+                            <MudText>Memory Usage</MudText>
+                            <MudText Typo="Typo.body2">@_stats?.MemoryUsageMB MB</MudText>
+                        </div>
+                    </MudListItem>
+                </MudList>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+
+    <!-- Quick Actions -->
+    <MudItem xs="12" md="6">
+        <MudCard Elevation="2" Class="h-100">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">Quick Actions</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudGrid>
+                    <MudItem xs="6">
+                        <MudButton Variant="Variant.Outlined" 
+                                   Color="Color.Primary" 
+                                   FullWidth="true"
+                                   Href="collections"
+                                   StartIcon="@Icons.Material.Filled.Storage">
+                            Collections
+                        </MudButton>
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudButton Variant="Variant.Outlined" 
+                                   Color="Color.Secondary" 
+                                   FullWidth="true"
+                                   Href="query"
+                                   StartIcon="@Icons.Material.Filled.Search">
+                            Query
+                        </MudButton>
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudButton Variant="Variant.Outlined" 
+                                   Color="Color.Success" 
+                                   FullWidth="true"
+                                   Href="documents"
+                                   StartIcon="@Icons.Material.Filled.Description">
+                            Documents
+                        </MudButton>
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudButton Variant="Variant.Outlined" 
+                                   Color="Color.Info" 
+                                   FullWidth="true"
+                                   Href="users"
+                                   StartIcon="@Icons.Material.Filled.People">
+                            Users
+                        </MudButton>
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+
+    <!-- Recent Activity Chart (Placeholder) -->
+    <MudItem xs="12">
+        <MudCard Elevation="2">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">Server Activity</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudText Typo="Typo.body2" Class="mb-4">
+                    Server activity monitoring would display here with real-time metrics and charts.
+                </MudText>
+                <MudProgressLinear Value="@GetMemoryUsagePercent()" Color="Color.Info" Class="mb-2" />
+                <div class="d-flex justify-space-between">
+                    <MudText Typo="Typo.caption">Memory Usage</MudText>
+                    <MudText Typo="Typo.caption">@_stats?.MemoryUsageMB MB / 500 MB</MudText>
+                </div>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private ServerStats? _stats;
+    private bool _isLoading;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStatsAsync();
+    }
+
+    private async Task LoadStatsAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _stats = await ConnectionService.GetServerStatsAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to load stats: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task RefreshStats()
+    {
+        await LoadStatsAsync();
+        Snackbar.Add("Statistics refreshed", Severity.Success);
+    }
+
+    private string FormatUptime(TimeSpan? uptime)
+    {
+        if (!uptime.HasValue) return "Unknown";
+        
+        if (uptime.Value.Days > 0)
+            return $"{uptime.Value.Days}d {uptime.Value.Hours}h {uptime.Value.Minutes}m";
+        if (uptime.Value.Hours > 0)
+            return $"{uptime.Value.Hours}h {uptime.Value.Minutes}m";
+        return $"{uptime.Value.Minutes}m {uptime.Value.Seconds}s";
+    }
+
+    private int GetMemoryUsagePercent()
+    {
+        if (_stats?.MemoryUsageMB == null) return 0;
+        return Math.Min(100, (_stats.MemoryUsageMB * 100) / 500);
+    }
+}

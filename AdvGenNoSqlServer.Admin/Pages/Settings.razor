@@ -1,0 +1,160 @@
+// Copyright (c) 2026 AdvanGeneration Pty. Ltd.
+// Licensed under the MIT License.
+// See LICENSE.txt for license information.
+
+@page "/settings"
+@inject ISnackbar Snackbar
+
+<PageTitle>Settings - AdvGenNoSQL Admin</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Settings</MudText>
+
+<MudGrid>
+    <MudItem xs="12" md="6">
+        <MudCard Elevation="2">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">Connection Settings</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudTextField T="string" 
+                              @bind-Value="_settings.ServerUrl"
+                              Label="Default Server URL"
+                              Variant="Variant.Outlined"
+                              Class="mb-4" />
+                
+                <MudTextField T="int"
+                              @bind-Value="_settings.ConnectionTimeout"
+                              Label="Connection Timeout (seconds)"
+                              Variant="Variant.Outlined"
+                              Class="mb-4" />
+                
+                <MudSwitch T="bool"
+                           @bind-Value="_settings.AutoReconnect"
+                           Color="Color.Primary"
+                           Label="Auto-reconnect on disconnect" />
+            </MudCardContent>
+            <MudCardActions>
+                <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="SaveConnectionSettings">Save</MudButton>
+            </MudCardActions>
+        </MudCard>
+    </MudItem>
+
+    <MudItem xs="12" md="6">
+        <MudCard Elevation="2">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">Display Settings</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudSelect T="string" 
+                           @bind-Value="_settings.Theme"
+                           Label="Theme"
+                           Variant="Variant.Outlined"
+                           Class="mb-4">
+                    <MudSelectItem Value="@("Light")">Light</MudSelectItem>
+                    <MudSelectItem Value="@("Dark")">Dark</MudSelectItem>
+                    <MudSelectItem Value="@("System")">System Default</MudSelectItem>
+                </MudSelect>
+                
+                <MudTextField T="int"
+                              @bind-Value="_settings.PageSize"
+                              Label="Default Page Size"
+                              Variant="Variant.Outlined"
+                              Class="mb-4" />
+                
+                <MudSwitch T="bool"
+                           @bind-Value="_settings.ShowNotifications"
+                           Color="Color.Primary"
+                           Label="Show desktop notifications" />
+            </MudCardContent>
+            <MudCardActions>
+                <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="SaveDisplaySettings">Save</MudButton>
+            </MudCardActions>
+        </MudCard>
+    </MudItem>
+
+    <MudItem xs="12">
+        <MudCard Elevation="2">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">About</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudGrid>
+                    <MudItem xs="12" md="6">
+                        <MudList T="string" Dense="true">
+                            <MudListItem T="string">
+                                <div class="d-flex justify-space-between">
+                                    <MudText>Application</MudText>
+                                    <MudText Typo="Typo.body2">AdvGenNoSQL Admin</MudText>
+                                </div>
+                            </MudListItem>
+                            <MudListItem T="string">
+                                <div class="d-flex justify-space-between">
+                                    <MudText>Version</MudText>
+                                    <MudText Typo="Typo.body2">1.0.0</MudText>
+                                </div>
+                            </MudListItem>
+                            <MudListItem T="string">
+                                <div class="d-flex justify-space-between">
+                                    <MudText>License</MudText>
+                                    <MudText Typo="Typo.body2">MIT License</MudText>
+                                </div>
+                            </MudListItem>
+                        </MudList>
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudText Typo="Typo.body2" Class="mb-4">
+                            AdvGenNoSQL Admin is a web-based administration console for managing AdvGenNoSQL Server instances.
+                        </MudText>
+                        <MudText Typo="Typo.caption">
+                            Built with Blazor WebAssembly and MudBlazor.
+                        </MudText>
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private AppSettings _settings = new();
+
+    protected override void OnInitialized()
+    {
+        // Load settings from local storage in a real implementation
+        _settings = new AppSettings
+        {
+            ServerUrl = "localhost:9090",
+            ConnectionTimeout = 10,
+            AutoReconnect = true,
+            Theme = "System",
+            PageSize = 50,
+            ShowNotifications = true
+        };
+    }
+
+    private void SaveConnectionSettings()
+    {
+        Snackbar.Add("Connection settings saved", Severity.Success);
+    }
+
+    private void SaveDisplaySettings()
+    {
+        Snackbar.Add("Display settings saved", Severity.Success);
+    }
+
+    public class AppSettings
+    {
+        public string ServerUrl { get; set; } = "localhost:9090";
+        public int ConnectionTimeout { get; set; } = 10;
+        public bool AutoReconnect { get; set; } = true;
+        public string Theme { get; set; } = "System";
+        public int PageSize { get; set; } = 50;
+        public bool ShowNotifications { get; set; } = true;
+    }
+}

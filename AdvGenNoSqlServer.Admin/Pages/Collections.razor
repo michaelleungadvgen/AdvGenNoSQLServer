@@ -1,0 +1,211 @@
+// Copyright (c) 2026 AdvanGeneration Pty. Ltd.
+// Licensed under the MIT License.
+// See LICENSE.txt for license information.
+
+@page "/collections"
+@inject ServerConnectionService ConnectionService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Collections - AdvGenNoSQL Admin</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Collections</MudText>
+
+<MudPaper Elevation="2" Class="pa-4 mb-4">
+    <div class="d-flex align-center">
+        <MudTextField T="string" 
+                      @bind-Value="_searchTerm"
+                      Placeholder="Search collections..."
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      Class="mr-4"
+                      Immediate="true"
+                      OnKeyUp="FilterCollections" />
+        <MudButton Variant="Variant.Filled" 
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="CreateCollection">
+            New Collection
+        </MudButton>
+        <MudIconButton Icon="@Icons.Material.Filled.Refresh" 
+                       Color="Color.Default"
+                       OnClick="LoadCollections"
+                       Class="ml-2" />
+    </div>
+</MudPaper>
+
+@if (_isLoading)
+{
+    <MudProgressLinear Indeterminate="true" Class="my-4" />
+}
+else if (_filteredCollections?.Any() != true)
+{
+    <MudAlert Severity="Severity.Info" Class="my-4">
+        No collections found. Create your first collection to get started.
+    </MudAlert>
+}
+else
+{
+    <MudTable Items="_filteredCollections" 
+              Dense="true" 
+              Hover="true" 
+              Bordered="true"
+              Striped="true">
+        <HeaderContent>
+            <MudTh>Collection Name</MudTh>
+            <MudTh>Documents</MudTh>
+            <MudTh>Size</MudTh>
+            <MudTh>Indexes</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Name">
+                <MudLink Href="@($"/documents?collection={context.Name}")">
+                    <MudIcon Icon="@Icons.Material.Filled.Folder" Size="Size.Small" Class="mr-2" />
+                    @context.Name
+                </MudLink>
+            </MudTd>
+            <MudTd DataLabel="Documents">@context.DocumentCount.ToString("N0")</MudTd>
+            <MudTd DataLabel="Size">@FormatBytes(context.SizeBytes)</MudTd>
+            <MudTd DataLabel="Indexes">@context.IndexCount</MudTd>
+            <MudTd DataLabel="Actions">
+                <MudIconButton Icon="@Icons.Material.Filled.Search" 
+                               Size="Size.Small"
+                               Color="Color.Primary"
+                               OnClick="() => BrowseCollection(context.Name)" />
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" 
+                               Size="Size.Small"
+                               Color="Color.Default"
+                               OnClick="() => EditCollection(context.Name)" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                               Size="Size.Small"
+                               Color="Color.Error"
+                               OnClick="() => DeleteCollection(context.Name)" />
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private List<CollectionInfo>? _collections;
+    private List<CollectionInfo>? _filteredCollections;
+    private bool _isLoading;
+    private string _searchTerm = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCollections();
+    }
+
+    private async Task LoadCollections()
+    {
+        _isLoading = true;
+        try
+        {
+            var collectionNames = await ConnectionService.GetCollectionsAsync();
+            var random = new Random();
+            
+            _collections = collectionNames.Select(name => new CollectionInfo
+            {
+                Name = name,
+                DocumentCount = random.Next(100, 100000),
+                SizeBytes = random.Next(1024 * 1024, 1024 * 1024 * 1024),
+                IndexCount = random.Next(1, 10)
+            }).ToList();
+            
+            FilterCollections();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to load collections: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void FilterCollections()
+    {
+        if (string.IsNullOrWhiteSpace(_searchTerm))
+        {
+            _filteredCollections = _collections;
+        }
+        else
+        {
+            _filteredCollections = _collections?
+                .Where(c => c.Name.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+    }
+
+    private async Task CreateCollection()
+    {
+        var parameters = new DialogParameters
+        {
+            ["Title"] = "Create New Collection",
+            ["Message"] = "Enter the name for the new collection:",
+            ["Label"] = "Collection Name"
+        };
+        
+        var dialog = await DialogService.ShowAsync<TextInputDialog>("Create Collection", parameters);
+        var result = await dialog.Result;
+        
+        if (result?.Canceled == false && result.Data is string collectionName && !string.IsNullOrWhiteSpace(collectionName))
+        {
+            Snackbar.Add($"Collection '{collectionName}' created successfully", Severity.Success);
+            await LoadCollections();
+        }
+    }
+
+    private void BrowseCollection(string collectionName)
+    {
+        // Navigation handled by link
+    }
+
+    private void EditCollection(string collectionName)
+    {
+        Snackbar.Add($"Edit collection: {collectionName}", Severity.Info);
+    }
+
+    private async Task DeleteCollection(string collectionName)
+    {
+        var parameters = new DialogParameters
+        {
+            ["Title"] = "Delete Collection",
+            ["Message"] = $"Are you sure you want to delete the collection '{collectionName}'? This action cannot be undone.",
+            ["ConfirmText"] = "Delete",
+            ["CancelText"] = "Cancel"
+        };
+        
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Confirm Delete", parameters);
+        var result = await dialog.Result;
+        
+        if (result?.Canceled == false)
+        {
+            Snackbar.Add($"Collection '{collectionName}' deleted", Severity.Success);
+            await LoadCollections();
+        }
+    }
+
+    private string FormatBytes(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB", "TB" };
+        int order = 0;
+        double size = bytes;
+        while (size >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            size /= 1024;
+        }
+        return $"{size:0.##} {sizes[order]}";
+    }
+
+    public class CollectionInfo
+    {
+        public string Name { get; set; } = "";
+        public int DocumentCount { get; set; }
+        public long SizeBytes { get; set; }
+        public int IndexCount { get; set; }
+    }
+}

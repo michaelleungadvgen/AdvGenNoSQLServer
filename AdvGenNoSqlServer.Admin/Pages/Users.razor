@@ -1,0 +1,218 @@
+// Copyright (c) 2026 AdvanGeneration Pty. Ltd.
+// Licensed under the MIT License.
+// See LICENSE.txt for license information.
+
+@page "/users"
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Users & Roles - AdvGenNoSQL Admin</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Users & Roles</MudText>
+
+<MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true">
+    <MudTabPanel Text="Users" Icon="@Icons.Material.Filled.People">
+        <MudPaper Class="pa-4">
+            <div class="d-flex align-center mb-4">
+                <MudTextField T="string" 
+                              @bind-Value="_userSearchTerm"
+                              Placeholder="Search users..."
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              Class="mr-4"
+                              Immediate="true" />
+                <MudButton Variant="Variant.Filled" 
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.PersonAdd"
+                           OnClick="CreateUser">
+                    Add User
+                </MudButton>
+            </div>
+
+            <MudTable Items="_filteredUsers" Dense="true" Hover="true" Bordered="true">
+                <HeaderContent>
+                    <MudTh>Username</MudTh>
+                    <MudTh>Roles</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh>Last Login</MudTh>
+                    <MudTh>Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Username">@context.Username</MudTd>
+                    <MudTd DataLabel="Roles">
+                        @foreach (var role in context.Roles)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Primary" Class="mr-1">@role</MudChip>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Status">
+                        <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Error)">
+                            @(context.IsActive ? "Active" : "Inactive")
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Last Login">@context.LastLogin?.ToString("yyyy-MM-dd HH:mm")</MudTd>
+                    <MudTd DataLabel="Actions">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Default" OnClick="() => EditUser(context)" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="() => DeleteUser(context)" />
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+
+    <MudTabPanel Text="Roles" Icon="@Icons.Material.Filled.AdminPanelSettings">
+        <MudPaper Class="pa-4">
+            <div class="d-flex align-center mb-4">
+                <MudTextField T="string" 
+                              @bind-Value="_roleSearchTerm"
+                              Placeholder="Search roles..."
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              Class="mr-4"
+                              Immediate="true" />
+                <MudButton Variant="Variant.Filled" 
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="CreateRole">
+                    Add Role
+                </MudButton>
+            </div>
+
+            <MudTable Items="_filteredRoles" Dense="true" Hover="true" Bordered="true">
+                <HeaderContent>
+                    <MudTh>Role Name</MudTh>
+                    <MudTh>Description</MudTh>
+                    <MudTh>Permissions</MudTh>
+                    <MudTh>Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Name">
+                        <MudText Typo="Typo.subtitle2">@context.Name</MudText>
+                    </MudTd>
+                    <MudTd DataLabel="Description">@context.Description</MudTd>
+                    <MudTd DataLabel="Permissions">
+                        <MudText Typo="Typo.caption">@context.Permissions.Count permissions</MudText>
+                    </MudTd>
+                    <MudTd DataLabel="Actions">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Default" OnClick="() => EditRole(context)" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="() => DeleteRole(context)" />
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private List<UserViewModel> _users = new();
+    private List<RoleViewModel> _roles = new();
+    private string _userSearchTerm = "";
+    private string _roleSearchTerm = "";
+
+    private IEnumerable<UserViewModel> _filteredUsers => 
+        string.IsNullOrWhiteSpace(_userSearchTerm) 
+            ? _users 
+            : _users.Where(u => u.Username.Contains(_userSearchTerm, StringComparison.OrdinalIgnoreCase));
+
+    private IEnumerable<RoleViewModel> _filteredRoles => 
+        string.IsNullOrWhiteSpace(_roleSearchTerm) 
+            ? _roles 
+            : _roles.Where(r => r.Name.Contains(_roleSearchTerm, StringComparison.OrdinalIgnoreCase));
+
+    protected override void OnInitialized()
+    {
+        LoadSampleData();
+    }
+
+    private void LoadSampleData()
+    {
+        _roles = new List<RoleViewModel>
+        {
+            new() { Name = "Admin", Description = "Full system access", Permissions = new List<string> { "*" } },
+            new() { Name = "PowerUser", Description = "Extended permissions", Permissions = new List<string> { "read", "write", "query" } },
+            new() { Name = "User", Description = "Standard user", Permissions = new List<string> { "read", "query" } },
+            new() { Name = "ReadOnly", Description = "View only access", Permissions = new List<string> { "read" } },
+            new() { Name = "Guest", Description = "Limited access", Permissions = new List<string> { "read" } }
+        };
+
+        _users = new List<UserViewModel>
+        {
+            new() { Username = "admin", Roles = new List<string> { "Admin" }, IsActive = true, LastLogin = DateTime.Now.AddHours(-1) },
+            new() { Username = "john.doe", Roles = new List<string> { "User" }, IsActive = true, LastLogin = DateTime.Now.AddDays(-1) },
+            new() { Username = "jane.smith", Roles = new List<string> { "PowerUser" }, IsActive = true, LastLogin = DateTime.Now.AddHours(-5) },
+            new() { Username = "guest", Roles = new List<string> { "Guest" }, IsActive = false, LastLogin = null },
+            new() { Username = "readonly", Roles = new List<string> { "ReadOnly" }, IsActive = true, LastLogin = DateTime.Now.AddDays(-7) }
+        };
+    }
+
+    private void CreateUser()
+    {
+        Snackbar.Add("Create user dialog would open", Severity.Info);
+    }
+
+    private void EditUser(UserViewModel user)
+    {
+        Snackbar.Add($"Edit user: {user.Username}", Severity.Info);
+    }
+
+    private async Task DeleteUser(UserViewModel user)
+    {
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.Title, "Delete User" },
+            { x => x.Message, $"Are you sure you want to delete user '{user.Username}'?" },
+            { x => x.ConfirmText, "Delete" }
+        };
+        
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Confirm", parameters);
+        var result = await dialog.Result;
+        
+        if (result?.Canceled == true) return;
+        
+        _users.Remove(user);
+        Snackbar.Add($"User '{user.Username}' deleted", Severity.Success);
+    }
+
+    private void CreateRole()
+    {
+        Snackbar.Add("Create role dialog would open", Severity.Info);
+    }
+
+    private void EditRole(RoleViewModel role)
+    {
+        Snackbar.Add($"Edit role: {role.Name}", Severity.Info);
+    }
+
+    private async Task DeleteRole(RoleViewModel role)
+    {
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.Title, "Delete Role" },
+            { x => x.Message, $"Are you sure you want to delete role '{role.Name}'?" },
+            { x => x.ConfirmText, "Delete" }
+        };
+        
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Confirm", parameters);
+        var result = await dialog.Result;
+        
+        if (result?.Canceled == true) return;
+        
+        _roles.Remove(role);
+        Snackbar.Add($"Role '{role.Name}' deleted", Severity.Success);
+    }
+
+    public class UserViewModel
+    {
+        public string Username { get; set; } = "";
+        public List<string> Roles { get; set; } = new();
+        public bool IsActive { get; set; }
+        public DateTime? LastLogin { get; set; }
+    }
+
+    public class RoleViewModel
+    {
+        public string Name { get; set; } = "";
+        public string Description { get; set; } = "";
+        public List<string> Permissions { get; set; } = new();
+    }
+}

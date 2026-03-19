@@ -1,0 +1,139 @@
+// Copyright (c) 2026 AdvanGeneration Pty. Ltd.
+// Licensed under the MIT License.
+// See LICENSE.txt for license information.
+
+@page "/login"
+@inject AdminAuthService AuthService
+@inject ServerConnectionService ConnectionService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>Login - AdvGenNoSQL Admin</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="d-flex align-center" Style="height: 100vh;">
+    <MudPaper Elevation="4" Class="pa-8" Style="width: 100%;">
+        <div class="d-flex justify-center mb-6">
+            <MudIcon Icon="@Icons.Material.Filled.Storage" Size="Size.Large" Color="Color.Primary" Style="font-size: 64px;" />
+        </div>
+        
+        <MudText Typo="Typo.h4" Align="Align.Center" Class="mb-2">AdvGenNoSQL Admin</MudText>
+        <MudText Typo="Typo.body2" Align="Align.Center" Class="mb-6">Web Administration Console</MudText>
+        
+        <MudForm @ref="_form" @bind-IsValid="_isValid">
+            <MudTextField T="string" 
+                          @bind-Value="_serverUrl"
+                          Label="Server URL" 
+                          Variant="Variant.Outlined"
+                          Placeholder="localhost:9090"
+                          Required="true"
+                          RequiredError="Server URL is required"
+                          Class="mb-4" />
+            
+            <MudTextField T="string" 
+                          @bind-Value="_username"
+                          Label="Username" 
+                          Variant="Variant.Outlined"
+                          Required="true"
+                          RequiredError="Username is required"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Person"
+                          Class="mb-4" />
+            
+            <MudTextField T="string" 
+                          @bind-Value="_password"
+                          Label="Password" 
+                          Variant="Variant.Outlined"
+                          InputType="InputType.Password"
+                          Required="true"
+                          RequiredError="Password is required"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Lock"
+                          Class="mb-6" />
+            
+            <MudButton Variant="Variant.Filled" 
+                       Color="Color.Primary" 
+                       FullWidth="true"
+                       Size="Size.Large"
+                       OnClick="HandleLogin"
+                       Disabled="_isLoading">
+                @if (_isLoading)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    <span>Connecting...</span>
+                }
+                else
+                {
+                    <span>Login</span>
+                }
+            </MudButton>
+        </MudForm>
+        
+        <MudDivider Class="my-4" />
+        
+        <MudText Typo="Typo.caption" Align="Align.Center" Class="d-block">
+            AdvGenNoSQL Server v1.0.0 - MIT License
+        </MudText>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private MudForm? _form;
+    private bool _isValid;
+    private bool _isLoading;
+    
+    private string _serverUrl = "localhost:9090";
+    private string _username = "";
+    private string _password = "";
+
+    protected override void OnInitialized()
+    {
+        // Redirect if already authenticated
+        if (AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/");
+        }
+    }
+
+    private async Task HandleLogin()
+    {
+        if (_form != null)
+        {
+            await _form.Validate();
+        }
+        
+        if (!_isValid) return;
+        
+        _isLoading = true;
+        
+        try
+        {
+            // First connect to server
+            var connected = await ConnectionService.ConnectAsync(_serverUrl);
+            if (!connected)
+            {
+                Snackbar.Add("Failed to connect to server", Severity.Error);
+                return;
+            }
+            
+            // Then authenticate
+            var success = await AuthService.LoginAsync(_username, _password, _serverUrl);
+            if (success)
+            {
+                Snackbar.Add("Login successful!", Severity.Success);
+                Navigation.NavigateTo("/");
+            }
+            else
+            {
+                Snackbar.Add("Invalid credentials", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

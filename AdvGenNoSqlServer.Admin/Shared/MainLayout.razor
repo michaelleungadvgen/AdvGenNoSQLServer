@@ -1,0 +1,71 @@
+// Copyright (c) 2026 AdvanGeneration Pty. Ltd.
+// Licensed under the MIT License.
+// See LICENSE.txt for license information.
+
+@inherits LayoutComponentBase
+@inject AdminAuthService AuthService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<MudThemeProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
+        <MudText Typo="Typo.h6" Class="ml-3">AdvGenNoSQL Admin</MudText>
+        <MudSpacer />
+        @if (AuthService.IsAuthenticated)
+        {
+            <MudChip T="string" Color="Color.Success" Size="Size.Small" Class="mr-2">
+                <MudIcon Icon="@Icons.Material.Filled.Circle" Size="Size.Small" Class="mr-1" />
+                Connected
+            </MudChip>
+            <MudText Typo="Typo.body2" Class="mr-4">@AuthService.CurrentUser</MudText>
+            <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit" OnClick="Logout" />
+        }
+        else
+        {
+            <MudChip T="string" Color="Color.Error" Size="Size.Small" Class="mr-2">
+                <MudIcon Icon="@Icons.Material.Filled.Circle" Size="Size.Small" Class="mr-1" />
+                Disconnected
+            </MudChip>
+            <MudButton Variant="Variant.Text" Color="Color.Inherit" OnClick="Login">Login</MudButton>
+        }
+    </MudAppBar>
+    
+    <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
+        <MudDrawerHeader>
+            <MudText Typo="Typo.h6">Navigation</MudText>
+        </MudDrawerHeader>
+        <NavMenu />
+    </MudDrawer>
+    
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-4 pb-4">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private bool _drawerOpen = true;
+
+    private void DrawerToggle()
+    {
+        _drawerOpen = !_drawerOpen;
+    }
+
+    private void Login()
+    {
+        Navigation.NavigateTo("/login");
+    }
+
+    private void Logout()
+    {
+        AuthService.Logout();
+        Snackbar.Add("Logged out successfully", Severity.Success);
+        Navigation.NavigateTo("/login");
+    }
+}

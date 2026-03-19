@@ -1,0 +1,72 @@
+// Copyright (c) 2026 AdvanGeneration Pty. Ltd.
+// Licensed under the MIT License.
+// See LICENSE.txt for license information.
+
+@page "/about"
+
+<PageTitle>About - AdvGenNoSQL Admin</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Medium">
+    <div class="d-flex flex-column align-center mt-8">
+        <MudIcon Icon="@Icons.Material.Filled.Storage" Size="Size.Large" Color="Color.Primary" Style="font-size: 96px;" Class="mb-4" />
+        
+        <MudText Typo="Typo.h3" Align="Align.Center" Class="mb-2">AdvGenNoSQL Admin</MudText>
+        <MudText Typo="Typo.subtitle1" Align="Align.Center" Color="Color.Secondary" Class="mb-6">
+            Web Administration Console
+        </MudText>
+        
+        <MudChip T="string" Color="Color.Primary" Size="Size.Small" Class="mb-6">Version 1.0.0</MudChip>
+        
+        <MudText Typo="Typo.body1" Align="Align.Center" Class="mb-8" Style="max-width: 600px;">
+            A modern web-based administration interface for AdvGenNoSQL Server. 
+            Manage your collections, documents, users, and server configuration from any browser.
+        </MudText>
+        
+        <MudPaper Elevation="2" Class="pa-6 mb-6" Style="width: 100%; max-width: 600px;">
+            <MudText Typo="Typo.h6" Class="mb-4">Features</MudText>
+            <MudList T="string" Dense="true">
+                <MudListItem T="string" Icon="@Icons.Material.Filled.Dashboard">
+                    Real-time server dashboard with statistics
+                </MudListItem>
+                <MudListItem T="string" Icon="@Icons.Material.Filled.Storage">
+                    Collection and document management
+                </MudListItem>
+                <MudListItem T="string" Icon="@Icons.Material.Filled.Search">
+                    Query execution with JSON syntax
+                </MudListItem>
+                <MudListItem T="string" Icon="@Icons.Material.Filled.People">
+                    User and role administration
+                </MudListItem>
+                <MudListItem T="string" Icon="@Icons.Material.Filled.Security">
+                    Secure authentication with JWT
+                </MudListItem>
+            </MudList>
+        </MudPaper>
+        
+        <MudPaper Elevation="2" Class="pa-6 mb-6" Style="width: 100%; max-width: 600px;">
+            <MudText Typo="Typo.h6" Class="mb-4">Technology Stack</MudText>
+            <MudGrid>
+                <MudItem xs="6">
+                    <MudText Typo="Typo.body2"><strong>Frontend:</strong></MudText>
+                    <MudList T="string" Dense="true">
+                        <MudListItem T="string">Blazor WebAssembly</MudListItem>
+                        <MudListItem T="string">.NET 9.0</MudListItem>
+                        <MudListItem T="string">MudBlazor UI</MudListItem>
+                    </MudList>
+                </MudItem>
+                <MudItem xs="6">
+                    <MudText Typo="Typo.body2"><strong>Backend:</strong></MudText>
+                    <MudList T="string" Dense="true">
+                        <MudListItem T="string">AdvGenNoSQL Server</MudListItem>
+                        <MudListItem T="string">TCP Protocol</MudListItem>
+                        <MudListItem T="string">JWT Authentication</MudListItem>
+                    </MudList>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+        
+        <MudText Typo="Typo.caption" Align="Align.Center" Color="Color.Secondary">
+            © 2026 AdvanGeneration Pty. Ltd. Licensed under the MIT License.
+        </MudText>
+    </div>
+</MudContainer>

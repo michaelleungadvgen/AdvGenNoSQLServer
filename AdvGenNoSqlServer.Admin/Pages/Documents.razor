@@ -1,0 +1,222 @@
+// Copyright (c) 2026 AdvanGeneration Pty. Ltd.
+// Licensed under the MIT License.
+// See LICENSE.txt for license information.
+
+@page "/documents"
+@inject ServerConnectionService ConnectionService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject NavigationManager Navigation
+
+<PageTitle>Documents - AdvGenNoSQL Admin</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Documents</MudText>
+
+<MudPaper Elevation="2" Class="pa-4 mb-4">
+    <MudGrid>
+        <MudItem xs="12" md="4">
+            <MudSelect T="string" 
+                       @bind-Value="_selectedCollection"
+                       Label="Collection"
+                       Variant="Variant.Outlined"
+                       Dense="true">
+                @foreach (var collection in _collections)
+                {
+                    <MudSelectItem Value="@collection">@collection</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" md="6">
+            <MudTextField T="string" 
+                          @bind-Value="_searchTerm"
+                          Placeholder="Search documents..."
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate="true"
+                          OnKeyUp="SearchDocuments" />
+        </MudItem>
+        <MudItem xs="12" md="2">
+            <MudButton Variant="Variant.Filled" 
+                       Color="Color.Primary"
+                       FullWidth="true"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="CreateDocument">
+                New
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@if (_isLoading)
+{
+    <MudProgressLinear Indeterminate="true" Class="my-4" />
+}
+else if (_documents?.Any() != true)
+{
+    <MudAlert Severity="Severity.Info" Class="my-4">
+        No documents found. Select a collection or create a new document.
+    </MudAlert>
+}
+else
+{
+    <MudTable Items="_documents" 
+              Dense="true" 
+              Hover="true" 
+              Bordered="true"
+              Striped="true">
+        <HeaderContent>
+            <MudTh>ID</MudTh>
+            <MudTh>Preview</MudTh>
+            <MudTh>Created</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="ID">
+                <MudText Typo="Typo.caption" Style="font-family: monospace;">
+                    @context.Id
+                </MudText>
+            </MudTd>
+            <MudTd DataLabel="Preview">
+                <MudText Typo="Typo.body2" Class="text-truncate" Style="max-width: 300px;">
+                    @GetDocumentPreview(context)
+                </MudText>
+            </MudTd>
+            <MudTd DataLabel="Created">@GetCreatedDate(context)</MudTd>
+            <MudTd DataLabel="Actions">
+                <MudIconButton Icon="@Icons.Material.Filled.Visibility" 
+                               Size="Size.Small"
+                               Color="Color.Primary"
+                               OnClick="() => ViewDocument(context)" />
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" 
+                               Size="Size.Small"
+                               Color="Color.Default"
+                               OnClick="() => EditDocument(context)" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                               Size="Size.Small"
+                               Color="Color.Error"
+                               OnClick="() => DeleteDocument(context)" />
+            </MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager PageSizeOptions="new[] { 10, 25, 50, 100 }" />
+        </PagerContent>
+    </MudTable>
+}
+
+@code {
+    private List<string> _collections = new();
+    private string _selectedCollection = "";
+    private List<Document>? _documents;
+    private bool _isLoading;
+    private string _searchTerm = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _collections = await ConnectionService.GetCollectionsAsync();
+        if (_collections.Any())
+        {
+            _selectedCollection = _collections.First();
+            await LoadDocuments();
+        }
+    }
+
+    private async Task LoadDocuments()
+    {
+        if (string.IsNullOrEmpty(_selectedCollection)) return;
+        
+        _isLoading = true;
+        try
+        {
+            _documents = await ConnectionService.GetDocumentsAsync(_selectedCollection);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to load documents: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task SearchDocuments()
+    {
+        await LoadDocuments();
+        // In a real implementation, this would filter on the server
+        if (!string.IsNullOrWhiteSpace(_searchTerm) && _documents != null)
+        {
+            _documents = _documents.Where(d => 
+                d.Id.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                GetDocumentPreview(d).Contains(_searchTerm, StringComparison.OrdinalIgnoreCase)
+            ).ToList();
+        }
+    }
+
+    private string GetDocumentPreview(Document doc)
+    {
+        if (doc.Data.TryGetValue("name", out var name))
+            return name?.ToString() ?? "(no name)";
+        if (doc.Data.TryGetValue("title", out var title))
+            return title?.ToString() ?? "(no title)";
+        return "(no preview)";
+    }
+
+    private string GetCreatedDate(Document doc)
+    {
+        if (doc.Data.TryGetValue("createdAt", out var createdAt) && createdAt is DateTime dt)
+            return dt.ToString("yyyy-MM-dd HH:mm");
+        return "Unknown";
+    }
+
+    private void ViewDocument(Document doc)
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(doc.Data, new System.Text.Json.JsonSerializerOptions 
+        { 
+            WriteIndented = true 
+        });
+        
+        var parameters = new DialogParameters
+        {
+            ["Title"] = $"Document: {doc.Id}",
+            ["Content"] = json
+        };
+        
+        DialogService.Show<DocumentViewDialog>("View Document", parameters);
+    }
+
+    private void EditDocument(Document doc)
+    {
+        Snackbar.Add($"Edit document: {doc.Id}", Severity.Info);
+    }
+
+    private async Task DeleteDocument(Document doc)
+    {
+        var parameters = new DialogParameters
+        {
+            ["Title"] = "Delete Document",
+            ["Message"] = $"Are you sure you want to delete document '{doc.Id}'?",
+            ["ConfirmText"] = "Delete",
+            ["CancelText"] = "Cancel"
+        };
+        
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Confirm Delete", parameters);
+        var result = await dialog.Result;
+        
+        if (result?.Canceled == false)
+        {
+            Snackbar.Add($"Document '{doc.Id}' deleted", Severity.Success);
+            await LoadDocuments();
+        }
+    }
+
+    private void CreateDocument()
+    {
+        if (string.IsNullOrEmpty(_selectedCollection))
+        {
+            Snackbar.Add("Please select a collection first", Severity.Warning);
+            return;
+        }
+        
+        Snackbar.Add("Create new document", Severity.Info);
+    }
+}
