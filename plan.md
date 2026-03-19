@@ -3971,7 +3971,7 @@ Week 7-8:
 - [x] 21. Slow Query Logging
 - [ ] 22. Sessions/Unit of Work
 - [ ] 23. Write Concern
-- [ ] 24. Capped Collections
+- [x] 24. Capped Collections
 
 #### P3 - Lower (74h total)
 - [ ] 25. Change Streams

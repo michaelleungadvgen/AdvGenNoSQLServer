@@ -16,6 +16,63 @@
 
 ## Completed Tasks
 
+### Agent-53: Capped Collections ✓ COMPLETED
+**Scope**: Implement Capped Collections for fixed-size collections with automatic oldest document removal
+**Completed**: 2026-03-19
+**Summary**:
+- Created `CappedCollectionOptions` configuration class:
+  - `MaxDocuments` - Maximum number of documents
+  - `MaxSizeBytes` - Maximum size in bytes
+  - `EnforceMaxDocuments` - Enable document count limit
+  - `EnforceMaxSize` - Enable size limit
+
+- Created `CappedCollection` class implementing fixed-size collection:
+  - Insertion-order document storage using ConcurrentQueue
+  - Automatic trimming when limits exceeded
+  - Thread-safe operations with ConcurrentDictionary
+  - Natural order retrieval (oldest first)
+  - Recent order retrieval (newest first)
+  - Size estimation for documents
+
+- Created `CappedDocumentStore` wrapping IDocumentStore:
+  - `CreateCappedCollectionAsync()` - Create capped collections
+  - `IsCappedCollection()` - Check if collection is capped
+  - `GetCappedCollectionOptions()` - Get options
+  - `GetCappedCollectionStats()` - Get statistics
+  - `GetRecentAsync()` - Get most recent documents
+  - `GetAllInNaturalOrderAsync()` - Get in insertion order
+  - Full IDocumentStore implementation routing to capped collections
+
+- Created comprehensive unit tests (45 tests):
+  - Constructor validation tests
+  - Insert and retrieval tests
+  - Document count limit enforcement tests
+  - Size limit enforcement tests
+  - Natural order retrieval tests
+  - Recent order retrieval tests
+  - Event handling tests (CollectionTrimmed)
+  - Statistics tests
+  - CappedDocumentStore integration tests
+
+**Files Created**:
+- `AdvGenNoSqlServer.Storage/CappedCollection.cs` - Capped collection implementation
+- `AdvGenNoSqlServer.Storage/CappedDocumentStore.cs` - Document store with capped support
+- `AdvGenNoSqlServer.Tests/CappedCollectionTests.cs` - 45 comprehensive tests
+
+**Build Status**: ✓ Compiles successfully (0 errors)
+**Test Status**: ✓ 45/45 Capped Collection tests pass, 1342/1365 total tests pass (23 skipped)
+
+**Features Implemented**:
+- Fixed-size collections with automatic document removal
+- Configurable limits by document count and/or size
+- Insertion-order preservation (natural order)
+- Thread-safe concurrent operations
+- Event notifications when documents are trimmed
+- Statistics tracking (count, size, limits)
+- Integration with existing IDocumentStore interface
+
+---
+
 ### Agent-52: Import/Export Tools ✓ COMPLETED
 **Scope**: Implement Import/Export tools for data migration and backup/restore functionality
 **Completed**: 2026-03-19
