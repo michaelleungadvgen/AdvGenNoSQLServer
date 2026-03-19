@@ -57,6 +57,7 @@ AdvGenNoSQLServer/
 ├── AdvGenNoSqlServer.Query/         # Query engine
 ├── AdvGenNoSqlServer.Server/        # Server implementation
 ├── AdvGenNoSqlServer.Storage/       # Storage engine
+│   └── FullText/                    # Full-text search indexes
 ├── AdvGenNoSqlServer.Tests/         # Unit tests
 └── Example.ConsoleApp/              # Example application
 ```
@@ -94,6 +95,53 @@ Total Header: 12 bytes
 - **ConnectionHandler**: Per-connection message handling
 - **MessageProtocol**: Binary serialization/deserialization
 - **ConnectionPool**: Semaphore-based connection limiting
+
+---
+
+## Full-Text Search (Agent-62)
+
+### Overview
+Full-text search is implemented in `AdvGenNoSqlServer.Storage/FullText/` with inverted index and TF-IDF scoring.
+
+### Key Components
+- **ITextAnalyzer**: Text analysis interface
+  - `StandardAnalyzer`: Tokenization + stemming + stop words
+  - `SimpleAnalyzer`: Tokenization only
+  - `KeywordAnalyzer`: Treats text as single token
+  - `WhitespaceAnalyzer`: Splits on whitespace only
+- **IStemmer**: Word stemming interface
+  - `PorterStemmer`: Full Porter stemming algorithm
+  - `IdentityStemmer`: Returns words unchanged
+- **IFullTextIndex**: Full-text index interface
+  - `FullTextIndex`: Inverted index with BM25-inspired TF-IDF scoring
+- **FullTextIndexManager**: Manages multiple indexes per collection
+- **FullTextDocumentStore**: Document store wrapper with automatic indexing
+
+### Usage Example
+```csharp
+// Create full-text index
+var store = new DocumentStore();
+var ftStore = store.WithFullTextSearch();
+ftStore.CreateFullTextIndex("posts", "content", AnalyzerType.Standard);
+
+// Documents are automatically indexed on insert
+await ftStore.InsertAsync("posts", new Document { 
+    Id = "doc1", 
+    Data = new() { ["content"] = "The quick brown fox" } 
+});
+
+// Search
+var results = ftStore.Search("posts", "quick brown");
+foreach (var result in results.Results)
+{
+    Console.WriteLine($"{result.DocumentId}: {result.Score}");
+}
+```
+
+### Run Full-Text Search Tests
+```powershell
+dotnet test AdvGenNoSqlServer.Tests/AdvGenNoSqlServer.Tests.csproj --filter "FullyQualifiedName~FullTextSearchTests"
+```
 
 ---
 
