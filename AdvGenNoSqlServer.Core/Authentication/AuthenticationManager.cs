@@ -55,7 +55,9 @@ public class AuthenticationManager
             return null;
 
         var hashedPassword = HashPassword(password, credentials.Salt);
-        if (hashedPassword != credentials.PasswordHash)
+        if (!CryptographicOperations.FixedTimeEquals(
+            Convert.FromBase64String(hashedPassword),
+            Convert.FromBase64String(credentials.PasswordHash)))
             return null;
 
         var token = new AuthToken
@@ -114,7 +116,9 @@ public class AuthenticationManager
             return false;
 
         var hashedOldPassword = HashPassword(oldPassword, credentials.Salt);
-        if (hashedOldPassword != credentials.PasswordHash)
+        if (!CryptographicOperations.FixedTimeEquals(
+            Convert.FromBase64String(hashedOldPassword),
+            Convert.FromBase64String(credentials.PasswordHash)))
             return false;
 
         var newSalt = GenerateSalt();
