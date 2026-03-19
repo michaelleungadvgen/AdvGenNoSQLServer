@@ -942,7 +942,7 @@ Where third-party libraries have restrictive licenses, we implement custom solut
 - [x] Projections ✓ COMPLETED (Agent-48)
 - [x] Slow query logging
 - [x] EXPLAIN/Query plan analysis (Agent-51)
-- [ ] Import/Export tools
+- [x] Import/Export tools ✓ COMPLETED (Agent-52)
 - [ ] Sessions (Unit of Work pattern)
 - [ ] Optimistic concurrency (ETags)
 - [ ] Field-level encryption
