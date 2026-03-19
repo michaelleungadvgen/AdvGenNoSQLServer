@@ -2,6 +2,8 @@
 // Licensed under the MIT License.
 // See LICENSE.txt for license information.
 
+using AdvGenNoSqlServer.Core.Abstractions;
+
 namespace AdvGenNoSqlServer.Storage.ImportExport;
 
 /// <summary>

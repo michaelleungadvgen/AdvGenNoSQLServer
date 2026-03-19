@@ -1,0 +1,1 @@
+/ralph-loop:ralph-loop  READ all of reviews.md, pick one task per times, to review that and add the recommendation and required actions in reviews. If all tasks done, sleep 5s and exit. NEVER GIT PUSH. ONLY COMMIT

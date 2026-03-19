@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 // See LICENSE.txt for license information.
 
+using AdvGenNoSqlServer.Core.Abstractions;
 using AdvGenNoSqlServer.Core.Models;
 using System.Collections.Concurrent;
 using System.Text.Json;
@@ -111,7 +112,7 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
     }
 
     /// <inheritdoc />
-    public async Task<Document> InsertAsync(string collectionName, Document document)
+    public async Task<Document> InsertAsync(string collectionName, Document document, CancellationToken cancellationToken = default)
     {
         EnsureInitialized();
         ValidateCollectionName(collectionName);
@@ -142,7 +143,7 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
     }
 
     /// <inheritdoc />
-    public async Task<Document?> GetAsync(string collectionName, string documentId)
+    public async Task<Document?> GetAsync(string collectionName, string documentId, CancellationToken cancellationToken = default)
     {
         EnsureInitialized();
         ValidateCollectionName(collectionName);
@@ -161,7 +162,7 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<Document>> GetManyAsync(string collectionName, IEnumerable<string> documentIds)
+    public async Task<IEnumerable<Document>> GetManyAsync(string collectionName, IEnumerable<string> documentIds, CancellationToken cancellationToken = default)
     {
         EnsureInitialized();
         ValidateCollectionName(collectionName);
@@ -209,7 +210,7 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
     }
 
     /// <inheritdoc />
-    public Task<IEnumerable<Document>> GetAllAsync(string collectionName)
+    public Task<IEnumerable<Document>> GetAllAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         EnsureInitialized();
         ValidateCollectionName(collectionName);
@@ -233,7 +234,7 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
     }
 
     /// <inheritdoc />
-    public async Task<Document> UpdateAsync(string collectionName, Document document)
+    public async Task<Document> UpdateAsync(string collectionName, Document document, CancellationToken cancellationToken = default)
     {
         EnsureInitialized();
         ValidateCollectionName(collectionName);
@@ -263,7 +264,7 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
     }
 
     /// <inheritdoc />
-    public async Task<bool> DeleteAsync(string collectionName, string documentId)
+    public async Task<bool> DeleteAsync(string collectionName, string documentId, CancellationToken cancellationToken = default)
     {
         EnsureInitialized();
         ValidateCollectionName(collectionName);
@@ -285,7 +286,7 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
     }
 
     /// <inheritdoc />
-    public Task<bool> ExistsAsync(string collectionName, string documentId)
+    public Task<bool> ExistsAsync(string collectionName, string documentId, CancellationToken cancellationToken = default)
     {
         EnsureInitialized();
         ValidateCollectionName(collectionName);
@@ -299,7 +300,7 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
     }
 
     /// <inheritdoc />
-    public Task<long> CountAsync(string collectionName)
+    public Task<long> CountAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         EnsureInitialized();
         ValidateCollectionName(collectionName);
@@ -313,7 +314,7 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
     }
 
     /// <inheritdoc />
-    public Task CreateCollectionAsync(string collectionName)
+    public Task CreateCollectionAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         EnsureInitialized();
         ValidateCollectionName(collectionName);
@@ -331,7 +332,7 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
     }
 
     /// <inheritdoc />
-    public Task<bool> DropCollectionAsync(string collectionName)
+    public Task<bool> DropCollectionAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         EnsureInitialized();
         ValidateCollectionName(collectionName);
@@ -350,14 +351,14 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
     }
 
     /// <inheritdoc />
-    public Task<IEnumerable<string>> GetCollectionsAsync()
+    public Task<IEnumerable<string>> GetCollectionsAsync(CancellationToken cancellationToken = default)
     {
         EnsureInitialized();
         return Task.FromResult<IEnumerable<string>>(_cache.Keys.ToList());
     }
 
     /// <inheritdoc />
-    public Task ClearCollectionAsync(string collectionName)
+    public Task ClearCollectionAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         EnsureInitialized();
         ValidateCollectionName(collectionName);

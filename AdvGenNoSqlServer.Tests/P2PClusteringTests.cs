@@ -619,7 +619,7 @@ namespace AdvGenNoSqlServer.Tests
         [Fact]
         public void HandshakeResult_Success_CreatesValidResult()
         {
-            var result = HandshakeResult.Success("node-123");
+            var result = HandshakeResult.SuccessResult("node-123");
 
             Assert.True(result.Success);
             Assert.Equal("node-123", result.NodeId);
@@ -629,7 +629,7 @@ namespace AdvGenNoSqlServer.Tests
         [Fact]
         public void HandshakeResult_Failed_CreatesValidResult()
         {
-            var result = HandshakeResult.Failed("Connection refused");
+            var result = HandshakeResult.FailedResult("Connection refused");
 
             Assert.False(result.Success);
             Assert.Equal("Connection refused", result.ErrorMessage);

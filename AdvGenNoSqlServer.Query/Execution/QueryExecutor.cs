@@ -4,6 +4,7 @@
 
 using System.Diagnostics;
 using System.Text.Json;
+using AdvGenNoSqlServer.Core.Abstractions;
 using AdvGenNoSqlServer.Core.Models;
 using AdvGenNoSqlServer.Query.Filtering;
 using AdvGenNoSqlServer.Query.Models;

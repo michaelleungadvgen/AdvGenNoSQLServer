@@ -4,6 +4,7 @@
 
 using System.Collections.Concurrent;
 using System.Text.Json;
+using AdvGenNoSqlServer.Core.Abstractions;
 using AdvGenNoSqlServer.Core.Models;
 using AdvGenNoSqlServer.Core.Security;
 
@@ -75,7 +76,7 @@ public class PersistentDocumentStore : IPersistentDocumentStore
     }
 
     /// <inheritdoc />
-    public async Task<Document> InsertAsync(string collectionName, Document document)
+    public async Task<Document> InsertAsync(string collectionName, Document document, CancellationToken cancellationToken = default)
     {
         await EnsureInitializedAsync();
 
@@ -98,7 +99,7 @@ public class PersistentDocumentStore : IPersistentDocumentStore
     }
 
     /// <inheritdoc />
-    public Task<Document?> GetAsync(string collectionName, string documentId)
+    public Task<Document?> GetAsync(string collectionName, string documentId, CancellationToken cancellationToken = default)
     {
         EnsureInitialized();
 
@@ -118,7 +119,7 @@ public class PersistentDocumentStore : IPersistentDocumentStore
     }
 
     /// <inheritdoc />
-    public Task<IEnumerable<Document>> GetManyAsync(string collectionName, IEnumerable<string> documentIds)
+    public Task<IEnumerable<Document>> GetManyAsync(string collectionName, IEnumerable<string> documentIds, CancellationToken cancellationToken = default)
     {
         EnsureInitialized();
 
@@ -148,7 +149,7 @@ public class PersistentDocumentStore : IPersistentDocumentStore
     }
 
     /// <inheritdoc />
-    public Task<IEnumerable<Document>> GetAllAsync(string collectionName)
+    public Task<IEnumerable<Document>> GetAllAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         EnsureInitialized();
 
@@ -165,7 +166,7 @@ public class PersistentDocumentStore : IPersistentDocumentStore
     }
 
     /// <inheritdoc />
-    public async Task<Document> UpdateAsync(string collectionName, Document document)
+    public async Task<Document> UpdateAsync(string collectionName, Document document, CancellationToken cancellationToken = default)
     {
         await EnsureInitializedAsync();
 
@@ -189,7 +190,7 @@ public class PersistentDocumentStore : IPersistentDocumentStore
     }
 
     /// <inheritdoc />
-    public virtual async Task<bool> DeleteAsync(string collectionName, string documentId)
+    public virtual async Task<bool> DeleteAsync(string collectionName, string documentId, CancellationToken cancellationToken = default)
     {
         await EnsureInitializedAsync();
 
@@ -216,7 +217,7 @@ public class PersistentDocumentStore : IPersistentDocumentStore
     }
 
     /// <inheritdoc />
-    public Task<bool> ExistsAsync(string collectionName, string documentId)
+    public Task<bool> ExistsAsync(string collectionName, string documentId, CancellationToken cancellationToken = default)
     {
         EnsureInitialized();
 
@@ -236,7 +237,7 @@ public class PersistentDocumentStore : IPersistentDocumentStore
     }
 
     /// <inheritdoc />
-    public Task<long> CountAsync(string collectionName)
+    public Task<long> CountAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         EnsureInitialized();
 
@@ -252,7 +253,7 @@ public class PersistentDocumentStore : IPersistentDocumentStore
     }
 
     /// <inheritdoc />
-    public async Task CreateCollectionAsync(string collectionName)
+    public async Task CreateCollectionAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         await EnsureInitializedAsync();
 
@@ -270,7 +271,7 @@ public class PersistentDocumentStore : IPersistentDocumentStore
     }
 
     /// <inheritdoc />
-    public virtual async Task<bool> DropCollectionAsync(string collectionName)
+    public virtual async Task<bool> DropCollectionAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         await EnsureInitializedAsync();
 
@@ -293,7 +294,7 @@ public class PersistentDocumentStore : IPersistentDocumentStore
     }
 
     /// <inheritdoc />
-    public Task<IEnumerable<string>> GetCollectionsAsync()
+    public Task<IEnumerable<string>> GetCollectionsAsync(CancellationToken cancellationToken = default)
     {
         EnsureInitialized();
 
@@ -302,7 +303,7 @@ public class PersistentDocumentStore : IPersistentDocumentStore
     }
 
     /// <inheritdoc />
-    public async Task ClearCollectionAsync(string collectionName)
+    public async Task ClearCollectionAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         await EnsureInitializedAsync();
 

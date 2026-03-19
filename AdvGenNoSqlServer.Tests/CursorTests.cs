@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 // See LICENSE.txt for license information.
 
+using AdvGenNoSqlServer.Core.Abstractions;
 using AdvGenNoSqlServer.Core.Models;
 using AdvGenNoSqlServer.Query.Cursors;
 using AdvGenNoSqlServer.Query.Execution;
@@ -185,7 +186,7 @@ public class CursorTests : IDisposable
         var mockDocumentStore = new Mock<IDocumentStore>();
         var mockFilterEngine = new Mock<IFilterEngine>();
 
-        mockDocumentStore.Setup(ds => ds.GetAllAsync(It.IsAny<string>()))
+        mockDocumentStore.Setup(ds => ds.GetAllAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
                          .ThrowsAsync(new Exception("Mocked DocumentStore exception"));
 
         using var cursorManager = new CursorManager(mockDocumentStore.Object, mockFilterEngine.Object);

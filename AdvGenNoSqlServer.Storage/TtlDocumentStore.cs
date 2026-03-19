@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 // See LICENSE.txt for license information.
 
+using AdvGenNoSqlServer.Core.Abstractions;
 using AdvGenNoSqlServer.Core.Models;
 using AdvGenNoSqlServer.Storage.Indexing;
 
@@ -64,100 +65,100 @@ public class TtlDocumentStore : IDocumentStore, IDisposable
     }
 
     /// <inheritdoc />
-    public Task<IEnumerable<Document>> GetManyAsync(string collectionName, IEnumerable<string> documentIds)
+    public Task<IEnumerable<Document>> GetManyAsync(string collectionName, IEnumerable<string> documentIds, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        return _innerStore.GetManyAsync(collectionName, documentIds);
+        return _innerStore.GetManyAsync(collectionName, documentIds, cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task<Document> InsertAsync(string collectionName, Document document)
+    public Task<Document> InsertAsync(string collectionName, Document document, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
 
         // Register for TTL tracking before inserting
         _ttlService.RegisterDocument(collectionName, document);
 
-        return _innerStore.InsertAsync(collectionName, document);
+        return _innerStore.InsertAsync(collectionName, document, cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task<Document?> GetAsync(string collectionName, string documentId)
+    public Task<Document?> GetAsync(string collectionName, string documentId, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        return _innerStore.GetAsync(collectionName, documentId);
+        return _innerStore.GetAsync(collectionName, documentId, cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task<IEnumerable<Document>> GetAllAsync(string collectionName)
+    public Task<IEnumerable<Document>> GetAllAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        return _innerStore.GetAllAsync(collectionName);
+        return _innerStore.GetAllAsync(collectionName, cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task<Document> UpdateAsync(string collectionName, Document document)
+    public Task<Document> UpdateAsync(string collectionName, Document document, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
 
         // Re-register for TTL tracking with potentially new expiration time
         _ttlService.RegisterDocument(collectionName, document);
 
-        return _innerStore.UpdateAsync(collectionName, document);
+        return _innerStore.UpdateAsync(collectionName, document, cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task<bool> DeleteAsync(string collectionName, string documentId)
+    public Task<bool> DeleteAsync(string collectionName, string documentId, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
 
         // Unregister from TTL tracking
         _ttlService.UnregisterDocument(collectionName, documentId);
 
-        return _innerStore.DeleteAsync(collectionName, documentId);
+        return _innerStore.DeleteAsync(collectionName, documentId, cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task<bool> ExistsAsync(string collectionName, string documentId)
+    public Task<bool> ExistsAsync(string collectionName, string documentId, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        return _innerStore.ExistsAsync(collectionName, documentId);
+        return _innerStore.ExistsAsync(collectionName, documentId, cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task<long> CountAsync(string collectionName)
+    public Task<long> CountAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        return _innerStore.CountAsync(collectionName);
+        return _innerStore.CountAsync(collectionName, cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task CreateCollectionAsync(string collectionName)
+    public Task CreateCollectionAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        return _innerStore.CreateCollectionAsync(collectionName);
+        return _innerStore.CreateCollectionAsync(collectionName, cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task<bool> DropCollectionAsync(string collectionName)
+    public Task<bool> DropCollectionAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
 
         // Drop any TTL index for this collection
         _ttlService.DropTtlIndex(collectionName);
 
-        return _innerStore.DropCollectionAsync(collectionName);
+        return _innerStore.DropCollectionAsync(collectionName, cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task<IEnumerable<string>> GetCollectionsAsync()
+    public Task<IEnumerable<string>> GetCollectionsAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        return _innerStore.GetCollectionsAsync();
+        return _innerStore.GetCollectionsAsync(cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task ClearCollectionAsync(string collectionName)
+    public Task ClearCollectionAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
 
@@ -172,7 +173,7 @@ public class TtlDocumentStore : IDocumentStore, IDisposable
             });
         }
 
-        return _innerStore.ClearCollectionAsync(collectionName);
+        return _innerStore.ClearCollectionAsync(collectionName, cancellationToken);
     }
 
     /// <summary>

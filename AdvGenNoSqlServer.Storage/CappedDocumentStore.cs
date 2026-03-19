@@ -3,6 +3,7 @@
 // See LICENSE.txt for license information.
 
 using System.Collections.Concurrent;
+using AdvGenNoSqlServer.Core.Abstractions;
 using AdvGenNoSqlServer.Core.Models;
 
 namespace AdvGenNoSqlServer.Storage;
@@ -150,7 +151,7 @@ public class CappedDocumentStore : IDocumentStore
     #region IDocumentStore Implementation
 
     /// <inheritdoc />
-    public Task<Document> InsertAsync(string collectionName, Document document)
+    public Task<Document> InsertAsync(string collectionName, Document document, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(collectionName))
             throw new ArgumentException("Collection name cannot be empty", nameof(collectionName));
@@ -164,11 +165,11 @@ public class CappedDocumentStore : IDocumentStore
             return Task.FromResult(cappedCollection.Insert(document));
         }
 
-        return _underlyingStore.InsertAsync(collectionName, document);
+        return _underlyingStore.InsertAsync(collectionName, document, cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task<Document?> GetAsync(string collectionName, string documentId)
+    public Task<Document?> GetAsync(string collectionName, string documentId, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(collectionName))
             throw new ArgumentException("Collection name cannot be empty", nameof(collectionName));
@@ -178,11 +179,11 @@ public class CappedDocumentStore : IDocumentStore
             return Task.FromResult(cappedCollection.Get(documentId));
         }
 
-        return _underlyingStore.GetAsync(collectionName, documentId);
+        return _underlyingStore.GetAsync(collectionName, documentId, cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task<IEnumerable<Document>> GetManyAsync(string collectionName, IEnumerable<string> documentIds)
+    public Task<IEnumerable<Document>> GetManyAsync(string collectionName, IEnumerable<string> documentIds, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(collectionName))
             throw new ArgumentException("Collection name cannot be empty", nameof(collectionName));
@@ -192,11 +193,11 @@ public class CappedDocumentStore : IDocumentStore
             return Task.FromResult(cappedCollection.GetMany(documentIds));
         }
 
-        return _underlyingStore.GetManyAsync(collectionName, documentIds);
+        return _underlyingStore.GetManyAsync(collectionName, documentIds, cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task<IEnumerable<Document>> GetAllAsync(string collectionName)
+    public Task<IEnumerable<Document>> GetAllAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(collectionName))
             throw new ArgumentException("Collection name cannot be empty", nameof(collectionName));
@@ -206,11 +207,11 @@ public class CappedDocumentStore : IDocumentStore
             return Task.FromResult(cappedCollection.GetAll());
         }
 
-        return _underlyingStore.GetAllAsync(collectionName);
+        return _underlyingStore.GetAllAsync(collectionName, cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task<Document> UpdateAsync(string collectionName, Document document)
+    public Task<Document> UpdateAsync(string collectionName, Document document, CancellationToken cancellationToken = default)
     {
         // Capped collections typically don't support updates
         // but we'll delegate to underlying store for non-capped collections
@@ -219,11 +220,11 @@ public class CappedDocumentStore : IDocumentStore
             throw new NotSupportedException("Capped collections do not support document updates. Insert new documents instead.");
         }
 
-        return _underlyingStore.UpdateAsync(collectionName, document);
+        return _underlyingStore.UpdateAsync(collectionName, document, cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task<bool> DeleteAsync(string collectionName, string documentId)
+    public Task<bool> DeleteAsync(string collectionName, string documentId, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(collectionName))
             throw new ArgumentException("Collection name cannot be empty", nameof(collectionName));
@@ -233,11 +234,11 @@ public class CappedDocumentStore : IDocumentStore
             return Task.FromResult(cappedCollection.Delete(documentId));
         }
 
-        return _underlyingStore.DeleteAsync(collectionName, documentId);
+        return _underlyingStore.DeleteAsync(collectionName, documentId, cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task<bool> ExistsAsync(string collectionName, string documentId)
+    public Task<bool> ExistsAsync(string collectionName, string documentId, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(collectionName))
             throw new ArgumentException("Collection name cannot be empty", nameof(collectionName));
@@ -247,11 +248,11 @@ public class CappedDocumentStore : IDocumentStore
             return Task.FromResult(cappedCollection.Exists(documentId));
         }
 
-        return _underlyingStore.ExistsAsync(collectionName, documentId);
+        return _underlyingStore.ExistsAsync(collectionName, documentId, cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task<long> CountAsync(string collectionName)
+    public Task<long> CountAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(collectionName))
             throw new ArgumentException("Collection name cannot be empty", nameof(collectionName));
@@ -261,17 +262,17 @@ public class CappedDocumentStore : IDocumentStore
             return Task.FromResult(cappedCollection.Count);
         }
 
-        return _underlyingStore.CountAsync(collectionName);
+        return _underlyingStore.CountAsync(collectionName, cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task CreateCollectionAsync(string collectionName)
+    public Task CreateCollectionAsync(string collectionName, CancellationToken cancellationToken = default)
     {
-        return _underlyingStore.CreateCollectionAsync(collectionName);
+        return _underlyingStore.CreateCollectionAsync(collectionName, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<bool> DropCollectionAsync(string collectionName)
+    public async Task<bool> DropCollectionAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(collectionName))
             throw new ArgumentException("Collection name cannot be empty", nameof(collectionName));
@@ -280,13 +281,13 @@ public class CappedDocumentStore : IDocumentStore
         _cappedCollections.TryRemove(collectionName, out _);
         _cappedCollectionOptions.TryRemove(collectionName, out _);
 
-        return await _underlyingStore.DropCollectionAsync(collectionName);
+        return await _underlyingStore.DropCollectionAsync(collectionName, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<IEnumerable<string>> GetCollectionsAsync()
+    public async Task<IEnumerable<string>> GetCollectionsAsync(CancellationToken cancellationToken = default)
     {
-        var collections = (await _underlyingStore.GetCollectionsAsync()).ToList();
+        var collections = (await _underlyingStore.GetCollectionsAsync(cancellationToken)).ToList();
         
         // Add any capped collections that might not be in the underlying store
         foreach (var cappedCollectionName in _cappedCollections.Keys)
@@ -301,7 +302,7 @@ public class CappedDocumentStore : IDocumentStore
     }
 
     /// <inheritdoc />
-    public async Task ClearCollectionAsync(string collectionName)
+    public async Task ClearCollectionAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(collectionName))
             throw new ArgumentException("Collection name cannot be empty", nameof(collectionName));
@@ -311,7 +312,7 @@ public class CappedDocumentStore : IDocumentStore
             cappedCollection.Clear();
         }
 
-        await _underlyingStore.ClearCollectionAsync(collectionName);
+        await _underlyingStore.ClearCollectionAsync(collectionName, cancellationToken);
     }
 
     #endregion

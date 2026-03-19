@@ -3,6 +3,7 @@
 // See LICENSE.txt for license information.
 
 using System.Diagnostics;
+using AdvGenNoSqlServer.Core.Abstractions;
 using AdvGenNoSqlServer.Core.Models;
 using AdvGenNoSqlServer.Query.Execution;
 using AdvGenNoSqlServer.Query.Filtering;

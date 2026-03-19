@@ -418,7 +418,7 @@ Review against `plan.md` Section 2.1:
 - [ ] A10:2021 - Server-Side Request Forgery
 
 ### 5.5 Security Test Files
-- [ ] `SecurityPenetrationTests.cs` - Penetration test coverage
+- [x] `SecurityPenetrationTests.cs` - Penetration test coverage **[REVIEWED - GOOD: JWT attacks, brute force, RBAC, encryption, input validation. 2 LOW: TEST-001 (double-invoke in assertion), TEST-002 (vacuous audit assertion)]**
 
 ---
 
@@ -426,11 +426,11 @@ Review against `plan.md` Section 2.1:
 
 ### 6.1 Benchmark Analysis
 Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
-- [ ] `DocumentStoreBenchmarks.cs` - Document operation performance
-- [ ] `BTreeIndexBenchmarks.cs` - Index performance
-- [ ] `CacheBenchmarks.cs` - Cache performance
-- [ ] `SerializationBenchmarks.cs` - Serialization overhead
-- [ ] `QueryEngineBenchmarks.cs` - Query execution performance
+- [x] `DocumentStoreBenchmarks.cs` - Document operation performance **[REVIEWED - BENCH-001 (Low - Guid.NewGuid() inside DeleteDocument benchmark contaminates measurement)]**
+- [x] `BTreeIndexBenchmarks.cs` - Index performance **[REVIEWED - BENCH-002 (Low - DeleteIntKey creates BTreeIndex inside benchmark body)]**
+- [x] `CacheBenchmarks.cs` - Cache performance **[REVIEWED - BENCH-003 (Low - Remove/Eviction create LruCache inside measurement)]**
+- [x] `SerializationBenchmarks.cs` - Serialization overhead **[REVIEWED - BENCH-004 (Low - deserialization to object/JsonElement; DeserializeMessage includes serialization cost)]**
+- [x] `QueryEngineBenchmarks.cs` - Query execution performance **[REVIEWED - BENCH-005 (Low - FilterEngineComplexMatch constructs filter inside benchmark body)]**
 
 ### 6.2 Performance Patterns
 - [ ] Async/await usage (no sync-over-async)
@@ -785,6 +785,15 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | ASYNC-005 | Program.cs (Host) | 277 | Medium | `async void OnMessageReceivedAsync` — if `e.SendResponseAsync(errorResponse)` inside the `catch` block throws, the exception propagates unhandled on the thread pool and crashes the process. Wrap the entire handler body in try/catch or swallow/log the secondary failure. | Open |
 | BUG-011 | Program.cs (Host) | 599-607 | Medium | `HandleBulkOperationAsync` is a stub — always returns `{ success:true, totalProcessed:0 }` regardless of payload. Bulk operations are silently no-oped. | Open |
 | CONC-019 | Program.cs (Host) | 514-522 | Low | `HandleSetCommandAsync`: `ExistsAsync` → `InsertAsync`/`UpdateAsync` is a TOCTOU race. Two concurrent requests for the same ID can both pass `ExistsAsync=false` and both invoke `InsertAsync`. | Open |
+| BENCH-001 | DocumentStoreBenchmarks.cs | 87 | Low | `Guid.NewGuid()` called inside `DeleteDocument` benchmark body — allocation overhead included in measurement. Move unique key generation to `[IterationSetup]`. | Open |
+| BENCH-002 | BTreeIndexBenchmarks.cs | 95-99 | Low | `DeleteIntKey` creates a new `BTreeIndex` inside the benchmark — index construction cost is measured instead of pure delete performance. | Open |
+| BENCH-003 | CacheBenchmarks.cs | 74-79,85-91 | Low | `CacheRemove`/`CacheEvictionUnderPressure` create and dispose `LruCache` inside the benchmark body — object allocation is part of measured time. | Open |
+| BENCH-004 | SerializationBenchmarks.cs | 103-117 | Low | Deserialization benchmarks deserialize to `object` (boxed `JsonElement`), not a typed model. `DeserializeMessage` re-serializes inside a deserialization benchmark — both measurements are contaminated. | Open |
+| BENCH-005 | QueryEngineBenchmarks.cs | 157 | Low | `FilterEngineComplexMatch` constructs a multi-part filter chain inside the benchmark body — filter construction overhead is included in match measurement. | Open |
+| TEST-001 | SecurityPenetrationTests.cs | 388-390 | Low | `Encryption_EmptyCiphertext_ShouldFail` double-invokes `service.Decrypt("")` — `Assert.Throws` re-executes the delegate as a separate call after the left-side expression. Use try/catch instead. | Open |
+| TEST-002 | SecurityPenetrationTests.cs | 606 | Low | `Assert.True(failedAuthEvents.Count >= 0, ...)` is vacuously true (any int ≥ 0). Provides zero coverage guarantee for audit logging of failed auth attempts. | Open |
+| TEST-003 | LoadTests.cs | 443-459 | Low | `LoadTest_MixedWorkload` simulates Read/Write/Query with `Task.Delay` instead of real store operations. Throughput metrics for these operations are not meaningful for capacity planning. | Open |
+| TEST-004 | LoadTests.cs | 53 | Low | `Dispose()` calls `_server?.StopAsync().Wait(TimeSpan.FromSeconds(5))` — sync-over-async in `IDisposable.Dispose`. Should be `DisposeAsync`. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash

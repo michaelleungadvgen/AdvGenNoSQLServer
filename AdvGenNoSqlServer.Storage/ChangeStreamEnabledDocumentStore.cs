@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 // See LICENSE.txt for license information.
 
+using AdvGenNoSqlServer.Core.Abstractions;
 using AdvGenNoSqlServer.Core.ChangeStreams;
 using AdvGenNoSqlServer.Core.Models;
 
@@ -34,27 +35,27 @@ public class ChangeStreamEnabledDocumentStore : IDocumentStore, IDisposable
     }
 
     /// <inheritdoc />
-    public Task<Document?> GetAsync(string collectionName, string documentId)
+    public Task<Document?> GetAsync(string collectionName, string documentId, CancellationToken cancellationToken = default)
     {
-        return _innerStore.GetAsync(collectionName, documentId);
+        return _innerStore.GetAsync(collectionName, documentId, cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task<IEnumerable<Document>> GetManyAsync(string collectionName, IEnumerable<string> documentIds)
+    public Task<IEnumerable<Document>> GetManyAsync(string collectionName, IEnumerable<string> documentIds, CancellationToken cancellationToken = default)
     {
-        return _innerStore.GetManyAsync(collectionName, documentIds);
+        return _innerStore.GetManyAsync(collectionName, documentIds, cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task<IEnumerable<Document>> GetAllAsync(string collectionName)
+    public Task<IEnumerable<Document>> GetAllAsync(string collectionName, CancellationToken cancellationToken = default)
     {
-        return _innerStore.GetAllAsync(collectionName);
+        return _innerStore.GetAllAsync(collectionName, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<Document> InsertAsync(string collectionName, Document document)
+    public async Task<Document> InsertAsync(string collectionName, Document document, CancellationToken cancellationToken = default)
     {
-        var result = await _innerStore.InsertAsync(collectionName, document);
+        var result = await _innerStore.InsertAsync(collectionName, document, cancellationToken);
 
         // Publish insert event
         var changeEvent = ChangeStreamEvent.CreateInsert(collectionName, result);
@@ -64,16 +65,16 @@ public class ChangeStreamEnabledDocumentStore : IDocumentStore, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<Document> UpdateAsync(string collectionName, Document document)
+    public async Task<Document> UpdateAsync(string collectionName, Document document, CancellationToken cancellationToken = default)
     {
         // Capture document before change if needed
         Document? documentBeforeChange = null;
         if (_captureDocumentBeforeChange)
         {
-            documentBeforeChange = await _innerStore.GetAsync(collectionName, document.Id);
+            documentBeforeChange = await _innerStore.GetAsync(collectionName, document.Id, cancellationToken);
         }
 
-        var result = await _innerStore.UpdateAsync(collectionName, document);
+        var result = await _innerStore.UpdateAsync(collectionName, document, cancellationToken);
 
         // Publish update event
         var changeEvent = ChangeStreamEvent.CreateUpdate(
@@ -87,16 +88,16 @@ public class ChangeStreamEnabledDocumentStore : IDocumentStore, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<bool> DeleteAsync(string collectionName, string documentId)
+    public async Task<bool> DeleteAsync(string collectionName, string documentId, CancellationToken cancellationToken = default)
     {
         // Capture document before deletion if needed
         Document? documentBeforeChange = null;
         if (_captureDocumentBeforeChange)
         {
-            documentBeforeChange = await _innerStore.GetAsync(collectionName, documentId);
+            documentBeforeChange = await _innerStore.GetAsync(collectionName, documentId, cancellationToken);
         }
 
-        var result = await _innerStore.DeleteAsync(collectionName, documentId);
+        var result = await _innerStore.DeleteAsync(collectionName, documentId, cancellationToken);
 
         if (result)
         {
@@ -112,28 +113,28 @@ public class ChangeStreamEnabledDocumentStore : IDocumentStore, IDisposable
     }
 
     /// <inheritdoc />
-    public Task<bool> ExistsAsync(string collectionName, string documentId)
+    public Task<bool> ExistsAsync(string collectionName, string documentId, CancellationToken cancellationToken = default)
     {
-        return _innerStore.ExistsAsync(collectionName, documentId);
+        return _innerStore.ExistsAsync(collectionName, documentId, cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task<long> CountAsync(string collectionName)
+    public Task<long> CountAsync(string collectionName, CancellationToken cancellationToken = default)
     {
-        return _innerStore.CountAsync(collectionName);
+        return _innerStore.CountAsync(collectionName, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task CreateCollectionAsync(string collectionName)
+    public async Task CreateCollectionAsync(string collectionName, CancellationToken cancellationToken = default)
     {
-        await _innerStore.CreateCollectionAsync(collectionName);
+        await _innerStore.CreateCollectionAsync(collectionName, cancellationToken);
         // Note: We don't publish events for collection creation currently
     }
 
     /// <inheritdoc />
-    public async Task<bool> DropCollectionAsync(string collectionName)
+    public async Task<bool> DropCollectionAsync(string collectionName, CancellationToken cancellationToken = default)
     {
-        var result = await _innerStore.DropCollectionAsync(collectionName);
+        var result = await _innerStore.DropCollectionAsync(collectionName, cancellationToken);
 
         if (result)
         {
@@ -146,15 +147,15 @@ public class ChangeStreamEnabledDocumentStore : IDocumentStore, IDisposable
     }
 
     /// <inheritdoc />
-    public Task<IEnumerable<string>> GetCollectionsAsync()
+    public Task<IEnumerable<string>> GetCollectionsAsync(CancellationToken cancellationToken = default)
     {
-        return _innerStore.GetCollectionsAsync();
+        return _innerStore.GetCollectionsAsync(cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task ClearCollectionAsync(string collectionName)
+    public async Task ClearCollectionAsync(string collectionName, CancellationToken cancellationToken = default)
     {
-        await _innerStore.ClearCollectionAsync(collectionName);
+        await _innerStore.ClearCollectionAsync(collectionName, cancellationToken);
         // Note: We could publish individual delete events, but for now we don't
     }
 

@@ -3,6 +3,7 @@
 // See LICENSE.txt for license information.
 
 using System.Collections.Concurrent;
+using AdvGenNoSqlServer.Core.Abstractions;
 using AdvGenNoSqlServer.Core.Models;
 
 namespace AdvGenNoSqlServer.Storage;
@@ -26,7 +27,7 @@ public class DocumentStore : IDocumentStore
     }
 
     /// <inheritdoc />
-    public Task<IEnumerable<Document>> GetManyAsync(string collectionName, IEnumerable<string> documentIds)
+    public Task<IEnumerable<Document>> GetManyAsync(string collectionName, IEnumerable<string> documentIds, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(collectionName))
             throw new ArgumentException("Collection name cannot be empty", nameof(collectionName));
@@ -44,7 +45,7 @@ public class DocumentStore : IDocumentStore
     }
 
     /// <inheritdoc />
-    public Task<Document> InsertAsync(string collectionName, Document document)
+    public Task<Document> InsertAsync(string collectionName, Document document, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(collectionName))
             throw new ArgumentException("Collection name cannot be empty", nameof(collectionName));
@@ -61,7 +62,7 @@ public class DocumentStore : IDocumentStore
     }
 
     /// <inheritdoc />
-    public Task<Document?> GetAsync(string collectionName, string documentId)
+    public Task<Document?> GetAsync(string collectionName, string documentId, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(collectionName))
             throw new ArgumentException("Collection name cannot be empty", nameof(collectionName));
@@ -79,7 +80,7 @@ public class DocumentStore : IDocumentStore
     }
 
     /// <inheritdoc />
-    public Task<IEnumerable<Document>> GetAllAsync(string collectionName)
+    public Task<IEnumerable<Document>> GetAllAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(collectionName))
             throw new ArgumentException("Collection name cannot be empty", nameof(collectionName));
@@ -94,7 +95,7 @@ public class DocumentStore : IDocumentStore
     }
 
     /// <inheritdoc />
-    public Task<Document> UpdateAsync(string collectionName, Document document)
+    public Task<Document> UpdateAsync(string collectionName, Document document, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(collectionName))
             throw new ArgumentException("Collection name cannot be empty", nameof(collectionName));
@@ -112,7 +113,7 @@ public class DocumentStore : IDocumentStore
     }
 
     /// <inheritdoc />
-    public Task<bool> DeleteAsync(string collectionName, string documentId)
+    public Task<bool> DeleteAsync(string collectionName, string documentId, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(collectionName))
             throw new ArgumentException("Collection name cannot be empty", nameof(collectionName));
@@ -130,7 +131,7 @@ public class DocumentStore : IDocumentStore
     }
 
     /// <inheritdoc />
-    public Task<bool> ExistsAsync(string collectionName, string documentId)
+    public Task<bool> ExistsAsync(string collectionName, string documentId, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(collectionName))
             throw new ArgumentException("Collection name cannot be empty", nameof(collectionName));
@@ -148,7 +149,7 @@ public class DocumentStore : IDocumentStore
     }
 
     /// <inheritdoc />
-    public Task<long> CountAsync(string collectionName)
+    public Task<long> CountAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(collectionName))
             throw new ArgumentException("Collection name cannot be empty", nameof(collectionName));
@@ -162,7 +163,7 @@ public class DocumentStore : IDocumentStore
     }
 
     /// <inheritdoc />
-    public Task CreateCollectionAsync(string collectionName)
+    public Task CreateCollectionAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(collectionName))
             throw new ArgumentException("Collection name cannot be empty", nameof(collectionName));
@@ -172,7 +173,7 @@ public class DocumentStore : IDocumentStore
     }
 
     /// <inheritdoc />
-    public Task<bool> DropCollectionAsync(string collectionName)
+    public Task<bool> DropCollectionAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(collectionName))
             throw new ArgumentException("Collection name cannot be empty", nameof(collectionName));
@@ -182,14 +183,14 @@ public class DocumentStore : IDocumentStore
     }
 
     /// <inheritdoc />
-    public Task<IEnumerable<string>> GetCollectionsAsync()
+    public Task<IEnumerable<string>> GetCollectionsAsync(CancellationToken cancellationToken = default)
     {
         var collectionNames = _collections.Keys.ToList();
         return Task.FromResult<IEnumerable<string>>(collectionNames);
     }
 
     /// <inheritdoc />
-    public Task ClearCollectionAsync(string collectionName)
+    public Task ClearCollectionAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(collectionName))
             throw new ArgumentException("Collection name cannot be empty", nameof(collectionName));

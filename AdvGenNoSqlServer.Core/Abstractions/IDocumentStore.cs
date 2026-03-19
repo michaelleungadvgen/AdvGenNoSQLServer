@@ -4,7 +4,7 @@
 
 using AdvGenNoSqlServer.Core.Models;
 
-namespace AdvGenNoSqlServer.Storage;
+namespace AdvGenNoSqlServer.Core.Abstractions;
 
 /// <summary>
 /// Interface for document-based storage operations
@@ -19,87 +19,98 @@ public interface IDocumentStore
     /// <param name="document">The document to insert</param>
     /// <returns>The inserted document with generated ID and timestamps</returns>
     /// <exception cref="ArgumentException">Thrown when document ID already exists</exception>
-    Task<Document> InsertAsync(string collectionName, Document document);
+    Task<Document> InsertAsync(string collectionName, Document document, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Retrieves a document by ID from the specified collection
     /// </summary>
     /// <param name="collectionName">The name of the collection</param>
     /// <param name="documentId">The ID of the document to retrieve</param>
+    /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>The document if found, null otherwise</returns>
-    Task<Document?> GetAsync(string collectionName, string documentId);
+    Task<Document?> GetAsync(string collectionName, string documentId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Retrieves multiple documents by their IDs from the specified collection
     /// </summary>
     /// <param name="collectionName">The name of the collection</param>
     /// <param name="documentIds">The IDs of the documents to retrieve</param>
+    /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Enumerable of found documents</returns>
-    Task<IEnumerable<Document>> GetManyAsync(string collectionName, IEnumerable<string> documentIds);
+    Task<IEnumerable<Document>> GetManyAsync(string collectionName, IEnumerable<string> documentIds, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Retrieves all documents from the specified collection
     /// </summary>
     /// <param name="collectionName">The name of the collection</param>
+    /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Enumerable of all documents in the collection</returns>
-    Task<IEnumerable<Document>> GetAllAsync(string collectionName);
+    Task<IEnumerable<Document>> GetAllAsync(string collectionName, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Updates an existing document in the specified collection
     /// </summary>
     /// <param name="collectionName">The name of the collection</param>
     /// <param name="document">The document to update</param>
+    /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>The updated document with new version and timestamp</returns>
     /// <exception cref="ArgumentException">Thrown when document ID does not exist</exception>
-    Task<Document> UpdateAsync(string collectionName, Document document);
+    Task<Document> UpdateAsync(string collectionName, Document document, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Deletes a document by ID from the specified collection
     /// </summary>
     /// <param name="collectionName">The name of the collection</param>
     /// <param name="documentId">The ID of the document to delete</param>
+    /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>True if document was deleted, false if not found</returns>
-    Task<bool> DeleteAsync(string collectionName, string documentId);
+    Task<bool> DeleteAsync(string collectionName, string documentId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Checks if a document exists in the specified collection
     /// </summary>
     /// <param name="collectionName">The name of the collection</param>
     /// <param name="documentId">The ID of the document to check</param>
+    /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>True if document exists, false otherwise</returns>
-    Task<bool> ExistsAsync(string collectionName, string documentId);
+    Task<bool> ExistsAsync(string collectionName, string documentId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets the count of documents in the specified collection
     /// </summary>
     /// <param name="collectionName">The name of the collection</param>
+    /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Number of documents in the collection</returns>
-    Task<long> CountAsync(string collectionName);
+    Task<long> CountAsync(string collectionName, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Creates a new collection if it doesn't exist
     /// </summary>
     /// <param name="collectionName">The name of the collection to create</param>
-    Task CreateCollectionAsync(string collectionName);
+    /// <param name="cancellationToken">Cancellation token</param>
+    Task CreateCollectionAsync(string collectionName, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Drops a collection and all its documents
     /// </summary>
     /// <param name="collectionName">The name of the collection to drop</param>
+    /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>True if collection was dropped, false if not found</returns>
-    Task<bool> DropCollectionAsync(string collectionName);
+    Task<bool> DropCollectionAsync(string collectionName, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets a list of all collection names
     /// </summary>
+    /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>List of collection names</returns>
-    Task<IEnumerable<string>> GetCollectionsAsync();
+    Task<IEnumerable<string>> GetCollectionsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Clears all documents from a collection without removing the collection
     /// </summary>
     /// <param name="collectionName">The name of the collection to clear</param>
-    Task ClearCollectionAsync(string collectionName);
+    /// <param name="cancellationToken">Cancellation token</param>
+    Task ClearCollectionAsync(string collectionName, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

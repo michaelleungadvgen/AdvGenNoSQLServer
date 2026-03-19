@@ -5,6 +5,7 @@
 using AdvGenNoSqlServer.Core.Abstractions;
 using AdvGenNoSqlServer.Core.ETags;
 using AdvGenNoSqlServer.Core.Models;
+using AdvGenNoSqlServer.Storage;
 
 namespace AdvGenNoSqlServer.Tests;
 
@@ -79,7 +80,7 @@ public class ETagTests
         // Modify document
         document.Data["name"] = "Modified";
         document.Version++;
-        document.UpdatedAt = DateTimeOffset.UtcNow.AddSeconds(1);
+        document.UpdatedAt = DateTime.UtcNow.AddSeconds(1);
         
         var eTag2 = generator.GenerateETag(document);
 
@@ -936,7 +937,7 @@ public class ETagTests
 
     private static Document CreateTestDocument(string id, Dictionary<string, object> data)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = DateTime.UtcNow;
         return new Document
         {
             Id = id,

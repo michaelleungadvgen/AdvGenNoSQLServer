@@ -10,6 +10,7 @@
 
 | Agent | Task | Status | Started | Target Completion |
 |-------|------|--------|---------|-------------------|
+| Agent-60 | Fix IDocumentStore Interface Compilation Errors | Completed | 2026-03-20 | 2026-03-20 |
 | Agent-57 | Sessions/Unit of Work Pattern Implementation | In Progress | 2026-03-19 | 2026-03-19 |
 
 ### Agent-59: Optimistic Concurrency (ETags) Implementation
@@ -32,6 +33,43 @@
 - Integrate seamlessly with existing DocumentStore implementations
 - Ensure thread-safe ETag generation
 - Support conditional GET (If-None-Match) and conditional PUT (If-Match) semantics
+---
+
+### Agent-60: Fix IDocumentStore Interface Compilation Errors ✓ COMPLETED
+**Scope**: Fix compilation errors caused by IDocumentStore interface update with CancellationToken parameters
+**Completed**: 2026-03-20
+**Summary**:
+- Fixed `IDocumentStore` interface signature changes - added `CancellationToken cancellationToken = default` parameter to all 12 methods:
+  - `InsertAsync`, `GetAsync`, `GetManyAsync`, `GetAllAsync`, `UpdateAsync`, `DeleteAsync`
+  - `ExistsAsync`, `CountAsync`, `CreateCollectionAsync`, `DropCollectionAsync`, `GetCollectionsAsync`, `ClearCollectionAsync`
+
+- Updated all implementations in Storage project:
+  - `DocumentStore.cs` - Added CancellationToken parameters
+  - `PersistentDocumentStore.cs` - Added CancellationToken parameters
+  - `CappedDocumentStore.cs` - Added CancellationToken parameters
+  - `ChangeStreamEnabledDocumentStore.cs` - Added CancellationToken parameters
+  - `TtlDocumentStore.cs` - Added CancellationToken parameters
+  - `HybridDocumentStore.cs` - Added CancellationToken parameters
+  - `GarbageCollectedDocumentStore.cs` - Added CancellationToken parameters
+
+- Added missing `using AdvGenNoSqlServer.Core.Abstractions;` directive to fix namespace issues:
+  - Query project: QueryExecutor.cs, CursorImpl.cs, CursorEnabledQueryExecutor.cs, CursorManager.cs, QueryPlanAnalyzer.cs
+  - Storage project: DataExporter.cs, IDataExporter.cs, DataImporter.cs, IDataImporter.cs, CappedCollection.cs, InMemoryDocumentCollection.cs
+  - Server project: NoSqlServer.cs
+  - Test project: SessionTests.cs, ETagTests.cs, DocumentStoreTests.cs, CursorTests.cs, AtomicUpdateOperationsTests.cs, PersistentDocumentStoreTests.cs, HybridDocumentStoreTests.cs, CappedCollectionTests.cs
+
+- Fixed related test issues:
+  - ETagTests.cs: Fixed DateTimeOffset to DateTime conversion
+  - SessionTests.cs: Fixed BeginTransactionAsync mock setup
+  - P2PClusteringTests.cs: Fixed HandshakeResult method names (SuccessResult/FailedResult)
+
+**Files Modified**: 20+ files across Core, Storage, Query, Server, and Test projects
+
+**Build Status**: ✓ Solution builds successfully with 0 errors, 0 warnings
+**Test Status**: ✓ 1619/1630 tests passing (11 pre-existing Session test failures unrelated to this fix)
+
+---
+
 ### Agent-57: Sessions/Unit of Work Pattern Implementation
 **Scope**: Implement Session/Unit of Work pattern for database transaction management
 **Planned Components**:

@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 // See LICENSE.txt for license information.
 
+using AdvGenNoSqlServer.Core.Abstractions;
 using AdvGenNoSqlServer.Core.Models;
 
 namespace AdvGenNoSqlServer.Storage;
@@ -47,14 +48,14 @@ public class GarbageCollectedDocumentStore : PersistentDocumentStore, IDisposabl
     }
 
     /// <inheritdoc />
-    public override async Task<bool> DeleteAsync(string collectionName, string documentId)
+    public override async Task<bool> DeleteAsync(string collectionName, string documentId, CancellationToken cancellationToken = default)
     {
         // Get document info before deletion for the tombstone
-        var document = await GetAsync(collectionName, documentId);
+        var document = await GetAsync(collectionName, documentId, cancellationToken);
         var documentVersion = document?.Version ?? 0;
 
         // Perform the actual deletion
-        var result = await base.DeleteAsync(collectionName, documentId);
+        var result = await base.DeleteAsync(collectionName, documentId, cancellationToken);
 
         // Record the deletion in the garbage collector
         if (result)
@@ -67,14 +68,14 @@ public class GarbageCollectedDocumentStore : PersistentDocumentStore, IDisposabl
     }
 
     /// <inheritdoc />
-    public override async Task<bool> DropCollectionAsync(string collectionName)
+    public override async Task<bool> DropCollectionAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         // Get all document IDs in the collection before dropping
-        var documents = await GetAllAsync(collectionName);
+        var documents = await GetAllAsync(collectionName, cancellationToken);
         var documentIds = documents.Select(d => d.Id).ToList();
 
         // Perform the actual drop
-        var result = await base.DropCollectionAsync(collectionName);
+        var result = await base.DropCollectionAsync(collectionName, cancellationToken);
 
         // Record deletions for all documents in the collection
         if (result)

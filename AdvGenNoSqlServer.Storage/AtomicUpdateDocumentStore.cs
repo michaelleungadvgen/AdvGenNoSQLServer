@@ -3,6 +3,7 @@
 // See LICENSE.txt for license information.
 
 using System.Collections.Concurrent;
+using AdvGenNoSqlServer.Core.Abstractions;
 using AdvGenNoSqlServer.Core.Models;
 
 namespace AdvGenNoSqlServer.Storage;
