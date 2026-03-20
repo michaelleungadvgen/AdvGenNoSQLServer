@@ -372,4 +372,72 @@ namespace AdvGenNoSqlServer.Core.Clustering
         /// </summary>
         public string? ErrorMessage { get; set; }
     }
+
+    /// <summary>
+    /// Raft AppendEntries RPC request for log replication.
+    /// </summary>
+    public class AppendEntriesRequestMessage : P2PMessage
+    {
+        /// <inheritdoc/>
+        public override P2PMessageType MessageType => P2PMessageType.AppendEntriesRequest;
+
+        /// <summary>
+        /// Leader's node ID.
+        /// </summary>
+        public required string LeaderId { get; set; }
+
+        /// <summary>
+        /// Index of log entry immediately preceding new ones.
+        /// </summary>
+        public long PrevLogIndex { get; set; }
+
+        /// <summary>
+        /// Term of prevLogIndex entry.
+        /// </summary>
+        public long PrevLogTerm { get; set; }
+
+        /// <summary>
+        /// Log entries to store (empty for heartbeat).
+        /// </summary>
+        public List<RaftLogEntry> Entries { get; set; } = new();
+
+        /// <summary>
+        /// Leader's commit index.
+        /// </summary>
+        public long LeaderCommit { get; set; }
+
+        /// <summary>
+        /// Whether this is a heartbeat (no entries).
+        /// </summary>
+        public bool IsHeartbeat => Entries.Count == 0;
+    }
+
+    /// <summary>
+    /// Raft AppendEntries RPC response.
+    /// </summary>
+    public class AppendEntriesResponseMessage : P2PMessage
+    {
+        /// <inheritdoc/>
+        public override P2PMessageType MessageType => P2PMessageType.AppendEntriesResponse;
+
+        /// <summary>
+        /// Current term of the follower.
+        /// </summary>
+        public long CurrentTerm { get; set; }
+
+        /// <summary>
+        /// Whether the append was successful.
+        /// </summary>
+        public bool Success { get; set; }
+
+        /// <summary>
+        /// Conflicting index hint for optimization.
+        /// </summary>
+        public long ConflictIndex { get; set; }
+
+        /// <summary>
+        /// Follower's node ID.
+        /// </summary>
+        public required string FollowerId { get; set; }
+    }
 }
