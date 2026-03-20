@@ -138,6 +138,12 @@ public class QueryExecutor : IQueryExecutor
     /// <inheritdoc />
     public async Task<long> CountAsync(Query.Models.Query query, CancellationToken cancellationToken = default)
     {
+        // Optimize empty filters by delegating directly to the storage engine
+        if (query.Filter == null || query.Filter.Conditions.Count == 0)
+        {
+            return await _documentStore.CountAsync(query.CollectionName, cancellationToken);
+        }
+
         // Get candidate documents using index if available
         var candidateIds = await GetCandidateDocumentIdsAsync(query);
 
@@ -159,8 +165,36 @@ public class QueryExecutor : IQueryExecutor
     /// <inheritdoc />
     public async Task<bool> ExistsAsync(Query.Models.Query query, CancellationToken cancellationToken = default)
     {
-        var count = await CountAsync(query, cancellationToken);
-        return count > 0;
+        // Optimize empty filters by delegating directly to the storage engine
+        if (query.Filter == null || query.Filter.Conditions.Count == 0)
+        {
+            var count = await _documentStore.CountAsync(query.CollectionName, cancellationToken);
+            return count > 0;
+        }
+
+        // Get candidate documents using index if available
+        var candidateIds = await GetCandidateDocumentIdsAsync(query);
+
+        // Fetch documents
+        IEnumerable<Document> documents;
+        if (candidateIds != null)
+        {
+            documents = await _documentStore.GetManyAsync(query.CollectionName, candidateIds);
+        }
+        else
+        {
+            documents = await _documentStore.GetAllAsync(query.CollectionName);
+        }
+
+        // Apply filters and short-circuit on first match using lazy evaluation
+        cancellationToken.ThrowIfCancellationRequested();
+        foreach (var document in _filterEngine.Filter(documents, query.Filter))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return true;
+        }
+
+        return false;
     }
 
     /// <inheritdoc />
