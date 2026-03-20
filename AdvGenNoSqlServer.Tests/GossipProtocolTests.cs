@@ -457,6 +457,11 @@ namespace AdvGenNoSqlServer.Tests
         [Fact]
         public async Task GossipProtocol_TriggerGossipRoundAsync_IncrementsRoundCounter()
         {
+            // Setup mock to return empty list (no other nodes)
+            _mockClusterManager
+                .Setup(m => m.GetNodesAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new List<NodeInfo>());
+
             var protocol = new GossipProtocol(
                 _mockClusterManager.Object,
                 _configuration,
