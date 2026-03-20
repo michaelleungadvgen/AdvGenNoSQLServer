@@ -715,8 +715,8 @@ dotnet run --configuration Release -- Cache        # Run cache benchmarks only
 - [ ] Cost-based query optimizer
 - [ ] Clustering support
   - [x] Data Replication ✓ (Agent-70, March 20, 2026)
-  - [ ] Raft Consensus
-  - [ ] Gossip Protocol
+  - [x] Gossip Protocol ✓ (Agent-68/Agent-72, March 20, 2026)
+  - [x] Raft Consensus ✓ (Agent-69, March 20, 2026)
 
 ---
 
