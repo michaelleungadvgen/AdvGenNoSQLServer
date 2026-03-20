@@ -162,20 +162,14 @@ namespace AdvGenNoSqlServer.Network
         /// </summary>
         public static NoSqlMessage CreateCommand(string command, string collection, object? document = null)
         {
-            var sb = new StringBuilder();
-            sb.Append("{");
-            sb.Append($"\"command\":\"{command}\",");
-            sb.Append($"\"collection\":\"{collection}\"");
-
-            if (document != null)
+            var payload = new
             {
-                sb.Append(",");
-                sb.Append($"\"document\":{System.Text.Json.JsonSerializer.Serialize(document)}");
-            }
-
-            sb.Append("}");
-
-            return Create(MessageType.Command, sb.ToString());
+                command = command,
+                collection = collection,
+                document = document
+            };
+            var json = System.Text.Json.JsonSerializer.Serialize(payload);
+            return Create(MessageType.Command, json);
         }
 
         /// <summary>
@@ -183,8 +177,8 @@ namespace AdvGenNoSqlServer.Network
         /// </summary>
         public static NoSqlMessage CreateError(string errorCode, string errorMessage)
         {
-            var json = $"{{\"success\":false,\"error\":{{\"code\":\"{errorCode}\",\"message\":\"{errorMessage}\"}}}}";
-            return Create(MessageType.Error, json);
+            var payload = new { success = false, error = new { code = errorCode, message = errorMessage } };
+            return Create(MessageType.Error, System.Text.Json.JsonSerializer.Serialize(payload));
         }
 
         /// <summary>
