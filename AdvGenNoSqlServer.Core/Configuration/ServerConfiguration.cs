@@ -227,5 +227,25 @@ public class ServerConfiguration
     /// </summary>
     public string? SslTargetHost { get; set; }
 
+    /// <summary>
+    /// Whether to enable automatic certificate hot-reload when certificate file changes (default: true)
+    /// </summary>
+    public bool EnableCertificateHotReload { get; set; } = true;
+
+    /// <summary>
+    /// Debounce interval in milliseconds for certificate file change detection (default: 1000ms)
+    /// </summary>
+    public int CertificateReloadDebounceMs { get; set; } = 1000;
+
+    /// <summary>
+    /// Whether to validate new certificates before switching (default: true)
+    /// </summary>
+    public bool ValidateCertificateBeforeReload { get; set; } = true;
+
+    /// <summary>
+    /// Whether to fall back to previous certificate if new certificate validation fails (default: true)
+    /// </summary>
+    public bool FallbackCertificateOnReloadFailure { get; set; } = true;
+
     #endregion
 }

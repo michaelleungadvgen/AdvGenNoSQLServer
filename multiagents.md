@@ -10,12 +10,41 @@
 
 | Agent | Task | Status | Started | Target Completion |
 |-------|------|--------|---------|-------------------|
+| Agent-73 | Certificate Hot-Reload | In Progress | 2026-03-20 | 2026-03-20 |
 | Agent-72 | GossipProtocol Test Fix | Completed | 2026-03-20 | 2026-03-20 |
 | Agent-71 | Read Preference Implementation | Completed | 2026-03-20 | 2026-03-20 |
 | Agent-70 | Data Replication (IReplicationManager) | Completed | 2026-03-20 | 2026-03-20 |
 | Agent-69 | Raft Consensus Implementation | Completed | 2026-03-20 | 2026-03-20 |
 | Agent-68 | P2P Gossip Protocol Implementation | In Progress | 2026-03-20 | 2026-03-20 |
 | Agent-67 | P2P Static Seed Discovery | Completed | 2026-03-20 | 2026-03-20 |
+
+### Agent-73: Certificate Hot-Reload 🔄 IN PROGRESS
+**Scope**: Implement certificate hot-reload for SSL/TLS to allow certificate rotation without server restart
+**Planned Components**:
+- `ICertificateReloader` interface - Certificate monitoring and reload abstraction
+- `CertificateReloader` class - FileSystemWatcher-based certificate monitoring
+- `CertificateReloadOptions` class - Configuration for hot-reload behavior
+- `CertificateReloadedEventArgs` class - Event args for certificate change notifications
+- `CertificateReloadStatistics` class - Statistics for monitoring reload operations
+- Unit tests (25+ tests) - Certificate loading, change detection, error handling
+**Features**:
+- FileSystemWatcher-based certificate file monitoring
+- Debouncing to handle rapid successive file changes
+- Automatic certificate reload on file change
+- Event notification when certificate is reloaded
+- Support for both file-based and store-based certificates
+- Validation of new certificates before switching
+- Fallback to previous certificate on validation failure
+- Statistics tracking for monitoring
+**Dependencies**:
+- TlsStreamHelper (exists)
+- ServerConfiguration (exists - needs new properties)
+**Notes**:
+- Follow existing code patterns with license headers
+- Thread-safe implementation required
+- Use FileSystemWatcher with debouncing
+- Validate new certificate before switching
+- Support IDisposable for cleanup
 
 ### Agent-72: GossipProtocol Test Fix ✓ COMPLETED
 **Scope**: Fix failing test in GossipProtocol implementation
