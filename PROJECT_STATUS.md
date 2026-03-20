@@ -714,7 +714,9 @@ dotnet run --configuration Release -- Cache        # Run cache benchmarks only
 - [ ] Full MVCC implementation for Serializable isolation
 - [ ] Cost-based query optimizer
 - [ ] Clustering support
-- [ ] Replication
+  - [x] Data Replication ✓ (Agent-70, March 20, 2026)
+  - [ ] Raft Consensus
+  - [ ] Gossip Protocol
 
 ---
 
