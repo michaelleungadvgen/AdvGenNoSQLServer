@@ -7,3 +7,8 @@
 **Vulnerability:** Authorization Bypass in `AuthenticationService.Authorize`. The method returned `AuthorizationResult.Success()` without actually checking user permissions.
 **Learning:** The method was marked as a "simplified version" and missed crucial logic to retrieve the user's username from the token and validate their permissions against the required ones. This left protected actions exposed to any authenticated user.
 **Prevention:** Ensure all authorization methods perform concrete permission validation instead of relying on placeholder or simplified logic, mapping the token to the user and verifying their specific roles/permissions.
+
+## 2026-03-05 - [JSON Injection in Client Authentication]
+**Vulnerability:** JSON Injection via string interpolation in `AdvGenNoSqlServer.Client/Client.cs`. The `AuthenticateAsync` method manually constructed the authentication JSON payload using string interpolation (`$"{{\"username\":\"{username}\",\"password\":\"{password}\"}}"`), allowing malicious users to inject arbitrary JSON properties if the credentials contained quotes or special characters.
+**Learning:** Using string interpolation to construct JSON payloads is fundamentally insecure as it completely bypasses JSON escaping, leading to injection vulnerabilities.
+**Prevention:** Always construct a typed object or anonymous object and use `System.Text.Json.JsonSerializer.Serialize()` to ensure all inputs are correctly escaped.
