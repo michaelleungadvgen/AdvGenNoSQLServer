@@ -19,6 +19,7 @@ internal class Cursor : ICursor
     private readonly IFilterEngine _filterEngine;
     private readonly SemaphoreSlim _lock = new(1, 1);
     private List<Document>? _bufferedDocuments;
+    private List<Document>? _cachedResults;
     private bool _hasMore = true;
     private long _documentsReturned;
     private int _currentPosition; // Tracks position in the filtered/sorted result set
@@ -173,6 +174,7 @@ internal class Cursor : ICursor
     {
         IsClosed = true;
         _bufferedDocuments = null;
+        _cachedResults = null;
         return Task.CompletedTask;
     }
 
@@ -180,22 +182,28 @@ internal class Cursor : ICursor
     {
         IsClosed = true;
         _bufferedDocuments = null;
+        _cachedResults = null;
         _lock.Dispose();
         return ValueTask.CompletedTask;
     }
 
     private async Task<List<Document>> FetchDocumentsAsync(int batchSize, CancellationToken cancellationToken)
     {
-        // Get all documents from the collection
-        var allDocs = await _documentStore.GetAllAsync(CollectionName);
-
-        // Apply filter
-        var filtered = _filterEngine.Filter(allDocs, Filter).ToList();
-
-        // Apply sorting
-        if (Sort != null && Sort.Count > 0)
+        if (_cachedResults == null)
         {
-            filtered = ApplySorting(filtered, Sort);
+            // Get all documents from the collection
+            var allDocs = await _documentStore.GetAllAsync(CollectionName);
+
+            // Apply filter
+            var filtered = _filterEngine.Filter(allDocs, Filter).ToList();
+
+            // Apply sorting
+            if (Sort != null && Sort.Count > 0)
+            {
+                filtered = ApplySorting(filtered, Sort);
+            }
+
+            _cachedResults = filtered;
         }
 
         // Calculate start position based on resume token or current position
@@ -207,13 +215,13 @@ internal class Cursor : ICursor
         }
 
         // Take the next batch
-        var results = filtered.Skip(startIndex).Take(batchSize).ToList();
+        var results = _cachedResults.Skip(startIndex).Take(batchSize).ToList();
 
         // Update position
         _currentPosition = startIndex + results.Count;
 
         // Check if there are more documents
-        _hasMore = _currentPosition < filtered.Count;
+        _hasMore = _currentPosition < _cachedResults.Count;
 
         return results;
     }

@@ -19,6 +19,7 @@ public class Program
         Console.WriteLine("  3. BTreeIndexBenchmarks - Index operation performance");
         Console.WriteLine("  4. CacheBenchmarks - Cache hit/miss and eviction performance");
         Console.WriteLine("  5. SerializationBenchmarks - JSON and message serialization performance");
+        Console.WriteLine("  7. CursorBenchmarks - Cursor query performance");
         Console.WriteLine("  6. All - Run all benchmarks");
         Console.WriteLine();
 
@@ -65,6 +66,11 @@ public class Program
                 case "serialization":
                 case "5":
                     BenchmarkRunner.Run<SerializationBenchmarks>(config);
+                    break;
+
+                case "cursor":
+                case "7":
+                    BenchmarkRunner.Run<CursorBenchmarks>(config);
                     break;
 
                 case "all":
