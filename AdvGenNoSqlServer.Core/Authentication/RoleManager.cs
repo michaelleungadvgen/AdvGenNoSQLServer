@@ -12,6 +12,7 @@ public class RoleManager
     private readonly Dictionary<string, Role> _roles = new();
     private readonly Dictionary<string, HashSet<string>> _userRoles = new();
     private readonly PermissionRegistry _permissionRegistry = new();
+    private readonly object _syncLock = new();
 
     public RoleManager()
     {
@@ -29,19 +30,22 @@ public class RoleManager
         if (string.IsNullOrWhiteSpace(roleName))
             throw new ArgumentException("Role name cannot be empty", nameof(roleName));
 
-        if (_roles.ContainsKey(roleName))
-            return false;
-
-        var role = new Role
+        lock (_syncLock)
         {
-            Name = roleName,
-            Description = description,
-            Permissions = new HashSet<string>(permissions ?? Enumerable.Empty<string>()),
-            CreatedAt = DateTime.UtcNow
-        };
+            if (_roles.ContainsKey(roleName))
+                return false;
 
-        _roles[roleName] = role;
-        return true;
+            var role = new Role
+            {
+                Name = roleName,
+                Description = description,
+                Permissions = new HashSet<string>(permissions ?? Enumerable.Empty<string>()),
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _roles[roleName] = role;
+            return true;
+        }
     }
 
     /// <summary>
@@ -49,16 +53,19 @@ public class RoleManager
     /// </summary>
     public bool DeleteRole(string roleName)
     {
-        if (!_roles.Remove(roleName))
-            return false;
-
-        // Remove role from all users
-        foreach (var userRoles in _userRoles.Values)
+        lock (_syncLock)
         {
-            userRoles.Remove(roleName);
-        }
+            if (!_roles.Remove(roleName))
+                return false;
 
-        return true;
+            // Remove role from all users
+            foreach (var userRoles in _userRoles.Values)
+            {
+                userRoles.Remove(roleName);
+            }
+
+            return true;
+        }
     }
 
     /// <summary>
@@ -66,8 +73,11 @@ public class RoleManager
     /// </summary>
     public Role? GetRole(string roleName)
     {
-        _roles.TryGetValue(roleName, out var role);
-        return role;
+        lock (_syncLock)
+        {
+            _roles.TryGetValue(roleName, out var role);
+            return role;
+        }
     }
 
     /// <summary>
@@ -75,7 +85,10 @@ public class RoleManager
     /// </summary>
     public IReadOnlyCollection<Role> GetAllRoles()
     {
-        return _roles.Values.ToList();
+        lock (_syncLock)
+        {
+            return _roles.Values.ToList();
+        }
     }
 
     /// <summary>
@@ -83,7 +96,10 @@ public class RoleManager
     /// </summary>
     public bool RoleExists(string roleName)
     {
-        return _roles.ContainsKey(roleName);
+        lock (_syncLock)
+        {
+            return _roles.ContainsKey(roleName);
+        }
     }
 
     #endregion
@@ -95,15 +111,18 @@ public class RoleManager
     /// </summary>
     public bool AddPermissionToRole(string roleName, string permission)
     {
-        if (!_roles.TryGetValue(roleName, out var role))
-            return false;
+        lock (_syncLock)
+        {
+            if (!_roles.TryGetValue(roleName, out var role))
+                return false;
 
-        if (!_permissionRegistry.IsValidPermission(permission))
-            throw new ArgumentException($"Invalid permission: {permission}", nameof(permission));
+            if (!_permissionRegistry.IsValidPermission(permission))
+                throw new ArgumentException($"Invalid permission: {permission}", nameof(permission));
 
-        role.Permissions.Add(permission);
-        role.UpdatedAt = DateTime.UtcNow;
-        return true;
+            role.Permissions.Add(permission);
+            role.UpdatedAt = DateTime.UtcNow;
+            return true;
+        }
     }
 
     /// <summary>
@@ -111,13 +130,16 @@ public class RoleManager
     /// </summary>
     public bool RemovePermissionFromRole(string roleName, string permission)
     {
-        if (!_roles.TryGetValue(roleName, out var role))
-            return false;
+        lock (_syncLock)
+        {
+            if (!_roles.TryGetValue(roleName, out var role))
+                return false;
 
-        var removed = role.Permissions.Remove(permission);
-        if (removed)
-            role.UpdatedAt = DateTime.UtcNow;
-        return removed;
+            var removed = role.Permissions.Remove(permission);
+            if (removed)
+                role.UpdatedAt = DateTime.UtcNow;
+            return removed;
+        }
     }
 
     /// <summary>
@@ -125,10 +147,13 @@ public class RoleManager
     /// </summary>
     public IReadOnlyCollection<string> GetRolePermissions(string roleName)
     {
-        if (!_roles.TryGetValue(roleName, out var role))
-            return Array.Empty<string>();
+        lock (_syncLock)
+        {
+            if (!_roles.TryGetValue(roleName, out var role))
+                return Array.Empty<string>();
 
-        return role.Permissions.ToList();
+            return role.Permissions.ToList();
+        }
     }
 
     /// <summary>
@@ -136,10 +161,13 @@ public class RoleManager
     /// </summary>
     public bool RoleHasPermission(string roleName, string permission)
     {
-        if (!_roles.TryGetValue(roleName, out var role))
-            return false;
+        lock (_syncLock)
+        {
+            if (!_roles.TryGetValue(roleName, out var role))
+                return false;
 
-        return role.Permissions.Contains(permission);
+            return role.Permissions.Contains(permission);
+        }
     }
 
     /// <summary>
@@ -159,16 +187,19 @@ public class RoleManager
     /// </summary>
     public bool AssignRoleToUser(string username, string roleName)
     {
-        if (!_roles.ContainsKey(roleName))
-            return false;
-
-        if (!_userRoles.TryGetValue(username, out var roles))
+        lock (_syncLock)
         {
-            roles = new HashSet<string>();
-            _userRoles[username] = roles;
-        }
+            if (!_roles.ContainsKey(roleName))
+                return false;
 
-        return roles.Add(roleName);
+            if (!_userRoles.TryGetValue(username, out var roles))
+            {
+                roles = new HashSet<string>();
+                _userRoles[username] = roles;
+            }
+
+            return roles.Add(roleName);
+        }
     }
 
     /// <summary>
@@ -176,10 +207,13 @@ public class RoleManager
     /// </summary>
     public bool RemoveRoleFromUser(string username, string roleName)
     {
-        if (!_userRoles.TryGetValue(username, out var roles))
-            return false;
+        lock (_syncLock)
+        {
+            if (!_userRoles.TryGetValue(username, out var roles))
+                return false;
 
-        return roles.Remove(roleName);
+            return roles.Remove(roleName);
+        }
     }
 
     /// <summary>
@@ -187,10 +221,13 @@ public class RoleManager
     /// </summary>
     public IReadOnlyCollection<string> GetUserRoles(string username)
     {
-        if (!_userRoles.TryGetValue(username, out var roles))
-            return Array.Empty<string>();
+        lock (_syncLock)
+        {
+            if (!_userRoles.TryGetValue(username, out var roles))
+                return Array.Empty<string>();
 
-        return roles.ToList();
+            return roles.ToList();
+        }
     }
 
     /// <summary>
@@ -198,10 +235,13 @@ public class RoleManager
     /// </summary>
     public bool UserHasRole(string username, string roleName)
     {
-        if (!_userRoles.TryGetValue(username, out var roles))
-            return false;
+        lock (_syncLock)
+        {
+            if (!_userRoles.TryGetValue(username, out var roles))
+                return false;
 
-        return roles.Contains(roleName);
+            return roles.Contains(roleName);
+        }
     }
 
     /// <summary>
@@ -209,7 +249,10 @@ public class RoleManager
     /// </summary>
     public void ClearUserRoles(string username)
     {
-        _userRoles.Remove(username);
+        lock (_syncLock)
+        {
+            _userRoles.Remove(username);
+        }
     }
 
     #endregion
@@ -221,19 +264,22 @@ public class RoleManager
     /// </summary>
     public bool UserHasPermission(string username, string permission)
     {
-        if (!_userRoles.TryGetValue(username, out var roles))
-            return false;
-
-        foreach (var roleName in roles)
+        lock (_syncLock)
         {
-            if (_roles.TryGetValue(roleName, out var role))
-            {
-                if (role.Permissions.Contains(permission))
-                    return true;
-            }
-        }
+            if (!_userRoles.TryGetValue(username, out var roles))
+                return false;
 
-        return false;
+            foreach (var roleName in roles)
+            {
+                if (_roles.TryGetValue(roleName, out var role))
+                {
+                    if (role.Permissions.Contains(permission))
+                        return true;
+                }
+            }
+
+            return false;
+        }
     }
 
     /// <summary>
@@ -241,19 +287,22 @@ public class RoleManager
     /// </summary>
     public IReadOnlyCollection<string> GetUserPermissions(string username)
     {
-        if (!_userRoles.TryGetValue(username, out var roles))
-            return Array.Empty<string>();
-
-        var permissions = new HashSet<string>();
-        foreach (var roleName in roles)
+        lock (_syncLock)
         {
-            if (_roles.TryGetValue(roleName, out var role))
-            {
-                permissions.UnionWith(role.Permissions);
-            }
-        }
+            if (!_userRoles.TryGetValue(username, out var roles))
+                return Array.Empty<string>();
 
-        return permissions.ToList();
+            var permissions = new HashSet<string>();
+            foreach (var roleName in roles)
+            {
+                if (_roles.TryGetValue(roleName, out var role))
+                {
+                    permissions.UnionWith(role.Permissions);
+                }
+            }
+
+            return permissions.ToList();
+        }
     }
 
     #endregion
@@ -382,6 +431,7 @@ public static class Permissions
 public class PermissionRegistry
 {
     private readonly HashSet<string> _validPermissions;
+    private readonly object _syncLock = new();
 
     public PermissionRegistry()
     {
@@ -414,16 +464,25 @@ public class PermissionRegistry
 
     public bool IsValidPermission(string permission)
     {
-        return _validPermissions.Contains(permission);
+        lock (_syncLock)
+        {
+            return _validPermissions.Contains(permission);
+        }
     }
 
     public IReadOnlyCollection<string> GetAllPermissions()
     {
-        return _validPermissions.ToList();
+        lock (_syncLock)
+        {
+            return _validPermissions.ToList();
+        }
     }
 
     public void RegisterCustomPermission(string permission)
     {
-        _validPermissions.Add(permission);
+        lock (_syncLock)
+        {
+            _validPermissions.Add(permission);
+        }
     }
 }
