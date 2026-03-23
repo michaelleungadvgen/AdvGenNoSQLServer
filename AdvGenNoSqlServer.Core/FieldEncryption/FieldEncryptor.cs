@@ -122,7 +122,7 @@ public class FieldEncryptor : IFieldEncryptor
         var effectiveKeyId = keyId ?? DefaultKeyId;
         var serializedValue = SerializeValue(fieldValue);
         var encrypted = _encryptionService.Encrypt(serializedValue);
-        
+
         // Prefix with key ID for later decryption
         var prefixed = $"__enc__:{effectiveKeyId}:{encrypted}";
         return Task.FromResult(Convert.ToBase64String(Encoding.UTF8.GetBytes(prefixed)));
@@ -137,7 +137,7 @@ public class FieldEncryptor : IFieldEncryptor
         try
         {
             var prefixed = Encoding.UTF8.GetString(Convert.FromBase64String(encryptedValue));
-            
+
             // Check if it's an encrypted value
             if (!prefixed.StartsWith("__enc__:"))
                 return Task.FromResult<object?>(Convert.ChangeType(prefixed, targetType));
@@ -148,10 +148,10 @@ public class FieldEncryptor : IFieldEncryptor
 
             var effectiveKeyId = keyId ?? parts[1];
             var ciphertext = parts[2];
-            
+
             var decrypted = _encryptionService.Decrypt(ciphertext);
             var result = DeserializeValue(decrypted, targetType);
-            
+
             return Task.FromResult(result);
         }
         catch (Exception ex) when (ex is not FieldEncryptionException)

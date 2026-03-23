@@ -185,7 +185,7 @@ namespace AdvGenNoSqlServer.Network.Clustering
             try
             {
                 connection = new PeerConnection(connectionId, client, _config.Security);
-                
+
                 // Perform handshake
                 var handshakeResult = await connection.PerformHandshakeAsync(ct);
                 if (!handshakeResult.Success)
@@ -195,22 +195,22 @@ namespace AdvGenNoSqlServer.Network.Clustering
                 }
 
                 var nodeId = handshakeResult.NodeId!;
-                
+
                 // Store connection
                 _connections[nodeId] = connection;
 
-                OnPeerConnected(new PeerConnectedEventArgs 
-                { 
-                    NodeId = nodeId, 
-                    Endpoint = connection.RemoteEndpoint 
+                OnPeerConnected(new PeerConnectedEventArgs
+                {
+                    NodeId = nodeId,
+                    Endpoint = connection.RemoteEndpoint
                 });
 
                 // Process messages
                 await connection.ProcessMessagesAsync(
-                    msg => OnMessageReceived(new MessageReceivedEventArgs 
-                    { 
-                        NodeId = nodeId, 
-                        Message = msg 
+                    msg => OnMessageReceived(new MessageReceivedEventArgs
+                    {
+                        NodeId = nodeId,
+                        Message = msg
                     }),
                     ct);
             }
@@ -226,10 +226,10 @@ namespace AdvGenNoSqlServer.Network.Clustering
                     if (!string.IsNullOrEmpty(nodeId))
                     {
                         _connections.TryRemove(nodeId, out _);
-                        OnPeerDisconnected(new PeerDisconnectedEventArgs 
-                        { 
+                        OnPeerDisconnected(new PeerDisconnectedEventArgs
+                        {
                             NodeId = nodeId,
-                            Endpoint = connection.RemoteEndpoint 
+                            Endpoint = connection.RemoteEndpoint
                         });
                     }
                     await connection.DisposeAsync();
@@ -252,7 +252,7 @@ namespace AdvGenNoSqlServer.Network.Clustering
 
                 // Send join handshake
                 var result = await connection.InitiateHandshakeAsync(
-                    _clusterManager.LocalNode, 
+                    _clusterManager.LocalNode,
                     _config.Security.ClusterSecret,
                     ct);
 
@@ -265,10 +265,10 @@ namespace AdvGenNoSqlServer.Network.Clustering
                 var nodeId = result.NodeId!;
                 _connections[nodeId] = connection;
 
-                OnPeerConnected(new PeerConnectedEventArgs 
-                { 
-                    NodeId = nodeId, 
-                    Endpoint = connection.RemoteEndpoint 
+                OnPeerConnected(new PeerConnectedEventArgs
+                {
+                    NodeId = nodeId,
+                    Endpoint = connection.RemoteEndpoint
                 });
 
                 // Start processing messages
@@ -277,20 +277,20 @@ namespace AdvGenNoSqlServer.Network.Clustering
                     try
                     {
                         await connection.ProcessMessagesAsync(
-                            msg => OnMessageReceived(new MessageReceivedEventArgs 
-                            { 
-                                NodeId = nodeId, 
-                                Message = msg 
+                            msg => OnMessageReceived(new MessageReceivedEventArgs
+                            {
+                                NodeId = nodeId,
+                                Message = msg
                             }),
                             ct);
                     }
                     finally
                     {
                         _connections.TryRemove(nodeId, out _);
-                        OnPeerDisconnected(new PeerDisconnectedEventArgs 
-                        { 
+                        OnPeerDisconnected(new PeerDisconnectedEventArgs
+                        {
                             NodeId = nodeId,
-                            Endpoint = connection.RemoteEndpoint 
+                            Endpoint = connection.RemoteEndpoint
                         });
                         await connection.DisposeAsync();
                     }
@@ -367,8 +367,8 @@ namespace AdvGenNoSqlServer.Network.Clustering
             _stream = client.GetStream();
             _security = security;
             RemoteEndpoint = client.Client?.RemoteEndPoint?.ToString() ?? "unknown";
-            _jsonOptions = new JsonSerializerOptions 
-            { 
+            _jsonOptions = new JsonSerializerOptions
+            {
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
                 WriteIndented = false
             };
@@ -392,11 +392,11 @@ namespace AdvGenNoSqlServer.Network.Clustering
                     var expectedHash = ComputeClusterSecretHash(_security.ClusterSecret);
                     if (request.ClusterSecretHash != expectedHash)
                     {
-                        await SendAsync(new JoinResponseMessage 
-                        { 
+                        await SendAsync(new JoinResponseMessage
+                        {
                             SenderId = "",
-                            Accepted = false, 
-                            ErrorMessage = "Invalid cluster secret" 
+                            Accepted = false,
+                            ErrorMessage = "Invalid cluster secret"
                         }, ct);
                         return HandshakeResult.FailedResult("Invalid cluster secret");
                     }
@@ -426,7 +426,7 @@ namespace AdvGenNoSqlServer.Network.Clustering
         /// Initiates client-side handshake.
         /// </summary>
         public async Task<HandshakeResult> InitiateHandshakeAsync(
-            NodeIdentity localNode, 
+            NodeIdentity localNode,
             string? clusterSecret,
             CancellationToken ct)
         {
@@ -530,7 +530,7 @@ namespace AdvGenNoSqlServer.Network.Clustering
             }
 
             var json = Encoding.UTF8.GetString(buffer);
-            
+
             // Try to determine message type
             using var doc = JsonDocument.Parse(json);
             if (!doc.RootElement.TryGetProperty("messageType", out var typeElement))

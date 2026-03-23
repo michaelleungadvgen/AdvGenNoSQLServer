@@ -55,7 +55,7 @@ public class FullTextSearchTests
         var stemmer = new PorterStemmer();
 
         Assert.Equal("", stemmer.Stem(""));
-        Assert.Equal(null, stemmer.Stem(null));
+        Assert.Null(stemmer.Stem(null));
     }
 
     [Fact]
@@ -771,7 +771,7 @@ public class FullTextSearchTests
     {
         var termFreqs = new Dictionary<string, int> { ["test"] = 2 };
         var highlights = new List<string> { "<em>test</em> content" };
-        
+
         var result = new SearchResult("doc1", 1.5, "content", highlights, termFreqs);
 
         Assert.Equal("doc1", result.DocumentId);
@@ -785,7 +785,7 @@ public class FullTextSearchTests
     public void FullTextSearchResult_Success_Constructor_SetsProperties()
     {
         var results = new List<SearchResult> { new("doc1", 1.0, "content") };
-        
+
         var result = new FullTextSearchResult(results, 1, "test query", 10.5);
 
         Assert.True(result.Success);
@@ -827,7 +827,7 @@ public class FullTextSearchTests
     public void WithFullTextSearch_WrapsStore()
     {
         var store = new DocumentStore();
-        
+
         var ftStore = store.WithFullTextSearch();
 
         Assert.IsType<FullTextDocumentStore>(ftStore);

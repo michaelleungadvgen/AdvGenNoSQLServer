@@ -30,7 +30,7 @@ public class InMemoryKeyVault : IKeyVault
         _keys = new ConcurrentDictionary<string, DataKey>();
         _keyMaterials = new ConcurrentDictionary<string, byte[]>();
         _altNameToKeyId = new ConcurrentDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        
+
         // Create a default key
         _masterKeyId = CreateDefaultKeyAsync().GetAwaiter().GetResult();
     }
@@ -46,7 +46,7 @@ public class InMemoryKeyVault : IKeyVault
         var keyId = Guid.NewGuid().ToString("N");
         var keySize = options?.KeySize ?? 256;
         var algorithm = options?.Algorithm ?? EncryptionAlgorithm.AES256GCM;
-        
+
         // Generate random key material
         var keyBytes = new byte[keySize / 8];
         RandomNumberGenerator.Fill(keyBytes);
@@ -64,8 +64,8 @@ public class InMemoryKeyVault : IKeyVault
             KeyAltName = keyAltName,
             EncryptedKeyMaterial = encryptedKeyMaterial,
             CreatedAt = DateTime.UtcNow,
-            ExpiresAt = options?.ExpiresIn.HasValue ?? false 
-                ? DateTime.UtcNow.Add(options.ExpiresIn.Value) 
+            ExpiresAt = options?.ExpiresIn.HasValue ?? false
+                ? DateTime.UtcNow.Add(options.ExpiresIn.Value)
                 : null,
             Status = KeyStatus.Active,
             Version = 1,

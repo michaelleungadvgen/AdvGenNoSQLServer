@@ -58,7 +58,7 @@ namespace AdvGenNoSqlServer.Network.Clustering
 
                 var host = parts[0];
                 var client = new TcpClient();
-                
+
                 using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 timeoutCts.CancelAfter(_config.ConnectionTimeout);
 
@@ -82,18 +82,18 @@ namespace AdvGenNoSqlServer.Network.Clustering
                 var nodeId = result.NodeId!;
                 _connections[nodeId] = connection;
 
-                OnConnected(new PeerConnectedEventArgs 
-                { 
-                    NodeId = nodeId, 
-                    Endpoint = seedEndpoint 
+                OnConnected(new PeerConnectedEventArgs
+                {
+                    NodeId = nodeId,
+                    Endpoint = seedEndpoint
                 });
 
                 // Start message processing
                 _ = ProcessMessagesAsync(connection, nodeId, ct);
 
                 // Return successful join
-                return new JoinResult 
-                { 
+                return new JoinResult
+                {
                     Success = true,
                     ClusterInfo = new ClusterInfo
                     {
@@ -182,20 +182,20 @@ namespace AdvGenNoSqlServer.Network.Clustering
             try
             {
                 await connection.ProcessMessagesAsync(
-                    msg => OnMessageReceived(new MessageReceivedEventArgs 
-                    { 
-                        NodeId = nodeId, 
-                        Message = msg 
+                    msg => OnMessageReceived(new MessageReceivedEventArgs
+                    {
+                        NodeId = nodeId,
+                        Message = msg
                     }),
                     ct);
             }
             finally
             {
                 _connections.TryRemove(nodeId, out _);
-                OnDisconnected(new PeerDisconnectedEventArgs 
-                { 
+                OnDisconnected(new PeerDisconnectedEventArgs
+                {
                     NodeId = nodeId,
-                    Endpoint = connection.RemoteEndpoint 
+                    Endpoint = connection.RemoteEndpoint
                 });
                 await connection.DisposeAsync();
             }

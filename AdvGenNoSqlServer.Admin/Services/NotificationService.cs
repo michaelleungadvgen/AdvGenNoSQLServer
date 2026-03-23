@@ -36,13 +36,13 @@ public class NotificationService
             Type = type,
             Timestamp = DateTime.Now
         });
-        
+
         // Keep only last 100 notifications
         if (_notifications.Count > 100)
         {
             _notifications.RemoveAt(0);
         }
-        
+
         NotificationsChanged?.Invoke(this, EventArgs.Empty);
     }
 

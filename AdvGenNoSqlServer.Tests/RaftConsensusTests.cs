@@ -165,7 +165,7 @@ namespace AdvGenNoSqlServer.Tests
             // Arrange
             var raft = CreateRaft("node1");
             await raft.StartAsync();
-            
+
             // Simulate higher term
             await ForceTerm(raft, 5);
 
@@ -757,7 +757,7 @@ namespace AdvGenNoSqlServer.Tests
         {
             if (_voteResponses.TryGetValue(targetNodeId, out var response))
                 return Task.FromResult(response);
-            
+
             return Task.FromResult(VoteResponse.Denied(request.Term, targetNodeId));
         }
 
@@ -766,7 +766,7 @@ namespace AdvGenNoSqlServer.Tests
         {
             if (_appendResponses.TryGetValue(targetNodeId, out var response))
                 return Task.FromResult(response);
-            
+
             return Task.FromResult(AppendResponse.CreateFailure(request.Term, targetNodeId));
         }
     }

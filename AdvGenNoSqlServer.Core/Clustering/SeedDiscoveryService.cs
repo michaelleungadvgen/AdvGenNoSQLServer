@@ -337,10 +337,10 @@ namespace AdvGenNoSqlServer.Core.Clustering
                 }
                 catch (Exception ex)
                 {
-                    OnSeedFailed(new SeedFailedEventArgs 
-                    { 
-                        Seed = seed, 
-                        Error = $"Join failed: {ex.Message}" 
+                    OnSeedFailed(new SeedFailedEventArgs
+                    {
+                        Seed = seed,
+                        Error = $"Join failed: {ex.Message}"
                     });
                 }
             }
@@ -349,7 +349,7 @@ namespace AdvGenNoSqlServer.Core.Clustering
         }
 
         private async Task<(SeedEndpoint Seed, bool Success, string? Error)> TryConnectToSeedAsync(
-            SeedEndpoint seed, 
+            SeedEndpoint seed,
             CancellationToken ct)
         {
             try
@@ -383,7 +383,7 @@ namespace AdvGenNoSqlServer.Core.Clustering
                     {
                         using var client = new System.Net.Sockets.TcpClient();
                         await client.ConnectAsync(address, seed.Port, timeoutCts.Token);
-                        
+
                         // Successfully connected - seed is reachable
                         client.Close();
                         return (seed, true, null);

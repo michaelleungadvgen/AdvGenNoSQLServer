@@ -134,7 +134,7 @@ public class FullTextIndexManager
             if (_collectionIndexes.TryGetValue(collectionName, out var collectionIndex))
             {
                 bool removed = collectionIndex.RemoveIndex(fieldName);
-                
+
                 // Clean up empty collection entry
                 if (collectionIndex.IndexCount == 0)
                 {
@@ -229,7 +229,7 @@ public class FullTextIndexManager
         ArgumentException.ThrowIfNullOrEmpty(query, nameof(query));
 
         var opts = options ?? FullTextSearchOptions.Default;
-        
+
         // If a specific field is specified, search only that field
         if (!string.IsNullOrEmpty(opts.SearchField))
         {
@@ -265,7 +265,7 @@ public class FullTextIndexManager
                         {
                             mergedTermFreqs[term] = mergedTermFreqs.GetValueOrDefault(term) + freq;
                         }
-                        
+
                         allResults[docResult.DocumentId] = new SearchResult(
                             docResult.DocumentId,
                             mergedScore,

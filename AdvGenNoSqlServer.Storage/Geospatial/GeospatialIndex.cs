@@ -47,13 +47,13 @@ public sealed class GeospatialIndex : IGeospatialIndex
     public IEnumerable<GeospatialQueryResult> FindNear(GeoPoint center, double maxDistance, GeospatialQueryOptions? options = null)
     {
         options ??= GeospatialQueryOptions.Default;
-        
+
         var results = new List<GeospatialQueryResult>();
 
         foreach (var entry in _entries.Values)
         {
             var distance = center.DistanceTo(entry.Location, options.DistanceUnit);
-            
+
             // Check min distance
             if (options.MinDistance.HasValue && distance < options.MinDistance.Value)
                 continue;
@@ -61,8 +61,8 @@ public sealed class GeospatialIndex : IGeospatialIndex
             if (distance <= maxDistance)
             {
                 results.Add(new GeospatialQueryResult(
-                    entry.DocumentId, 
-                    entry.Location, 
+                    entry.DocumentId,
+                    entry.Location,
                     options.IncludeDistance ? distance : 0,
                     entry.Metadata));
             }
@@ -92,13 +92,13 @@ public sealed class GeospatialIndex : IGeospatialIndex
     public IEnumerable<GeospatialQueryResult> FindWithinCircle(GeoCircle circle, GeospatialQueryOptions? options = null)
     {
         options ??= GeospatialQueryOptions.Default;
-        
+
         var results = new List<GeospatialQueryResult>();
 
         foreach (var entry in _entries.Values)
         {
             var distance = circle.Center.DistanceTo(entry.Location, circle.Unit);
-            
+
             if (distance <= circle.Radius)
             {
                 results.Add(new GeospatialQueryResult(
@@ -120,7 +120,7 @@ public sealed class GeospatialIndex : IGeospatialIndex
     public IEnumerable<GeospatialIndexEntry> FindWithinPolygon(GeoPolygon polygon, GeospatialQueryOptions? options = null)
     {
         options ??= GeospatialQueryOptions.Default;
-        
+
         var results = _entries.Values
             .Where(e => polygon.Contains(e.Location))
             .ToList();
@@ -145,7 +145,7 @@ public sealed class GeospatialIndex : IGeospatialIndex
     public GeospatialIndexStats GetStats()
     {
         GeoBoundingBox? boundingBox = null;
-        
+
         if (_entries.Count > 0)
         {
             var locations = _entries.Values.Select(e => e.Location).ToList();

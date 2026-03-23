@@ -105,11 +105,11 @@ public class ETagOptions
     /// <summary>
     /// Creates options for weak ETags (version-based only)
     /// </summary>
-    public static ETagOptions Weak => new() 
-    { 
-        UseWeakETagsByDefault = true, 
+    public static ETagOptions Weak => new()
+    {
+        UseWeakETagsByDefault = true,
         IncludeContent = false,
-        IncludeVersion = true 
+        IncludeVersion = true
     };
 }
 
@@ -210,25 +210,25 @@ public class ETagValidationResponse
     /// <summary>
     /// Creates a document not found response
     /// </summary>
-    public static ETagValidationResponse DocumentNotFound(string documentId) => 
+    public static ETagValidationResponse DocumentNotFound(string documentId) =>
         new(ETagValidationResult.DocumentNotFound, errorMessage: $"Document '{documentId}' not found");
 
     /// <summary>
     /// Creates an ETag mismatch response with current ETag
     /// </summary>
-    public static ETagValidationResponse ETagMismatch(string currentETag) => 
+    public static ETagValidationResponse ETagMismatch(string currentETag) =>
         new(ETagValidationResult.ETagMismatch, currentETag, "ETag does not match - document has been modified");
 
     /// <summary>
     /// Creates an invalid ETag response
     /// </summary>
-    public static ETagValidationResponse InvalidETag(string reason) => 
+    public static ETagValidationResponse InvalidETag(string reason) =>
         new(ETagValidationResult.InvalidETag, errorMessage: $"Invalid ETag: {reason}");
 
     /// <summary>
     /// Creates an ETag not provided response
     /// </summary>
-    public static ETagValidationResponse ETagNotProvided() => 
+    public static ETagValidationResponse ETagNotProvided() =>
         new(ETagValidationResult.ETagNotProvided, errorMessage: "ETag not provided for conditional operation");
 }
 

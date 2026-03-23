@@ -246,13 +246,13 @@ public class SlowQueryLoggingTests
     [Fact]
     public void QueryProfiler_RecordQuery_SlowQuery_RaisesEvent()
     {
-        var options = new ProfilingOptions 
-        { 
-            Enabled = true, 
-            SlowQueryThresholdMs = 100 
+        var options = new ProfilingOptions
+        {
+            Enabled = true,
+            SlowQueryThresholdMs = 100
         };
         var profiler = new QueryProfiler(options);
-        
+
         SlowQueryDetectedEventArgs? capturedArgs = null;
         profiler.SlowQueryDetected += (sender, args) => capturedArgs = args;
 
@@ -274,13 +274,13 @@ public class SlowQueryLoggingTests
     [Fact]
     public void QueryProfiler_RecordQuery_NotSlowQuery_DoesNotRaiseEvent()
     {
-        var options = new ProfilingOptions 
-        { 
-            Enabled = true, 
-            SlowQueryThresholdMs = 100 
+        var options = new ProfilingOptions
+        {
+            Enabled = true,
+            SlowQueryThresholdMs = 100
         };
         var profiler = new QueryProfiler(options);
-        
+
         bool eventRaised = false;
         profiler.SlowQueryDetected += (sender, args) => eventRaised = true;
 
@@ -320,11 +320,11 @@ public class SlowQueryLoggingTests
 
         for (int i = 0; i < 10; i++)
         {
-            profiler.RecordQuery(new QueryProfile 
-            { 
-                Collection = "test", 
-                DurationMs = 150 + i, 
-                IsSlowQuery = true 
+            profiler.RecordQuery(new QueryProfile
+            {
+                Collection = "test",
+                DurationMs = 150 + i,
+                IsSlowQuery = true
             });
         }
 
@@ -383,25 +383,25 @@ public class SlowQueryLoggingTests
         var profiler = new QueryProfiler(new ProfilingOptions { Enabled = true });
 
         // Record queries with different timestamps
-        profiler.RecordQuery(new QueryProfile 
-        { 
-            Collection = "first", 
-            DurationMs = 100, 
-            Timestamp = DateTime.UtcNow.AddMinutes(-5) 
+        profiler.RecordQuery(new QueryProfile
+        {
+            Collection = "first",
+            DurationMs = 100,
+            Timestamp = DateTime.UtcNow.AddMinutes(-5)
         });
-        
-        profiler.RecordQuery(new QueryProfile 
-        { 
-            Collection = "second", 
-            DurationMs = 100, 
-            Timestamp = DateTime.UtcNow 
+
+        profiler.RecordQuery(new QueryProfile
+        {
+            Collection = "second",
+            DurationMs = 100,
+            Timestamp = DateTime.UtcNow
         });
-        
-        profiler.RecordQuery(new QueryProfile 
-        { 
-            Collection = "third", 
-            DurationMs = 100, 
-            Timestamp = DateTime.UtcNow.AddMinutes(-2) 
+
+        profiler.RecordQuery(new QueryProfile
+        {
+            Collection = "third",
+            DurationMs = 100,
+            Timestamp = DateTime.UtcNow.AddMinutes(-2)
         });
 
         var queries = await profiler.GetAllQueriesAsync();
@@ -430,7 +430,7 @@ public class SlowQueryLoggingTests
     {
         var profiler = new QueryProfiler(new ProfilingOptions { Enabled = true });
         var profile = new QueryProfile { Collection = "test", DurationMs = 100 };
-        
+
         profiler.RecordQuery(profile);
 
         var retrieved = profiler.GetQueryById(profile.QueryId);
@@ -471,24 +471,24 @@ public class SlowQueryLoggingTests
         var profiler = new QueryProfiler(new ProfilingOptions { Enabled = true });
         var baseTime = new DateTime(2026, 3, 19, 12, 0, 0, DateTimeKind.Utc);
 
-        profiler.RecordQuery(new QueryProfile 
-        { 
-            Collection = "old", 
-            DurationMs = 100, 
+        profiler.RecordQuery(new QueryProfile
+        {
+            Collection = "old",
+            DurationMs = 100,
             Timestamp = baseTime.AddHours(-2)  // 10:00 AM
         });
-        
-        profiler.RecordQuery(new QueryProfile 
-        { 
-            Collection = "inrange", 
-            DurationMs = 100, 
+
+        profiler.RecordQuery(new QueryProfile
+        {
+            Collection = "inrange",
+            DurationMs = 100,
             Timestamp = baseTime  // 12:00 PM - exactly at start boundary
         });
-        
-        profiler.RecordQuery(new QueryProfile 
-        { 
-            Collection = "future", 
-            DurationMs = 100, 
+
+        profiler.RecordQuery(new QueryProfile
+        {
+            Collection = "future",
+            DurationMs = 100,
             Timestamp = baseTime.AddHours(2)  // 2:00 PM
         });
 
@@ -527,9 +527,9 @@ public class SlowQueryLoggingTests
     [Fact]
     public void QueryProfiler_RecordQuery_WithSampling_MaySkipQueries()
     {
-        var options = new ProfilingOptions 
-        { 
-            Enabled = true, 
+        var options = new ProfilingOptions
+        {
+            Enabled = true,
             SampleRate = 0.0 // Sample nothing
         };
         var profiler = new QueryProfiler(options);
@@ -546,9 +546,9 @@ public class SlowQueryLoggingTests
     [Fact]
     public void QueryProfiler_RecordQuery_WithFullSampling_RecordsAllQueries()
     {
-        var options = new ProfilingOptions 
-        { 
-            Enabled = true, 
+        var options = new ProfilingOptions
+        {
+            Enabled = true,
             SampleRate = 1.0 // Sample everything
         };
         var profiler = new QueryProfiler(options);
@@ -569,9 +569,9 @@ public class SlowQueryLoggingTests
     [Fact]
     public void QueryProfiler_RecordQuery_LogOnlySlowQueries_SkipsFastQueries()
     {
-        var options = new ProfilingOptions 
-        { 
-            Enabled = true, 
+        var options = new ProfilingOptions
+        {
+            Enabled = true,
             SlowQueryThresholdMs = 100,
             LogOnlySlowQueries = true
         };
@@ -591,10 +591,10 @@ public class SlowQueryLoggingTests
     [Fact]
     public void QueryProfiler_RecordQuery_MaxQueries_TrimsOldQueries()
     {
-        var options = new ProfilingOptions 
-        { 
-            Enabled = true, 
-            MaxLoggedQueries = 5 
+        var options = new ProfilingOptions
+        {
+            Enabled = true,
+            MaxLoggedQueries = 5
         };
         var profiler = new QueryProfiler(options);
 
@@ -616,7 +616,7 @@ public class SlowQueryLoggingTests
     public void QueryProfiler_Dispose_CanBeCalledMultipleTimes()
     {
         var profiler = new QueryProfiler();
-        
+
         profiler.Dispose();
         profiler.Dispose(); // Should not throw
     }
@@ -626,7 +626,7 @@ public class SlowQueryLoggingTests
     {
         var profiler = new QueryProfiler(new ProfilingOptions { Enabled = true });
         profiler.RecordQuery(new QueryProfile { Collection = "test", DurationMs = 100 });
-        
+
         profiler.Dispose();
 
         var stats = profiler.GetStatistics();

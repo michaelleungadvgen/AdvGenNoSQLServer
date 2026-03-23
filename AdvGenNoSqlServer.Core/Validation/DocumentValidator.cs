@@ -82,7 +82,7 @@ namespace AdvGenNoSqlServer.Core.Validation
             }
 
             // Validate required properties
-            if (schema.TryGetProperty("required", out var requiredProperty) && 
+            if (schema.TryGetProperty("required", out var requiredProperty) &&
                 requiredProperty.ValueKind == JsonValueKind.Array)
             {
                 foreach (var req in requiredProperty.EnumerateArray())
@@ -133,7 +133,7 @@ namespace AdvGenNoSqlServer.Core.Validation
                             if (!allowedProps.Contains(actualProp))
                             {
                                 var propPath = string.IsNullOrEmpty(path) ? actualProp : $"{path}.{actualProp}";
-                                errors.Add(ValidationError.Custom(propPath, "ADDITIONAL_PROPERTY", 
+                                errors.Add(ValidationError.Custom(propPath, "ADDITIONAL_PROPERTY",
                                     $"Additional property '{actualProp}' is not allowed."));
                             }
                         }
@@ -142,7 +142,7 @@ namespace AdvGenNoSqlServer.Core.Validation
             }
 
             // Validate minProperties
-            if (schema.TryGetProperty("minProperties", out var minProps) && 
+            if (schema.TryGetProperty("minProperties", out var minProps) &&
                 minProps.TryGetInt32(out var minProperties))
             {
                 var actualCount = data.Count;
@@ -155,7 +155,7 @@ namespace AdvGenNoSqlServer.Core.Validation
             }
 
             // Validate maxProperties
-            if (schema.TryGetProperty("maxProperties", out var maxProps) && 
+            if (schema.TryGetProperty("maxProperties", out var maxProps) &&
                 maxProps.TryGetInt32(out var maxProperties))
             {
                 var actualCount = data.Count;
@@ -269,7 +269,7 @@ namespace AdvGenNoSqlServer.Core.Validation
             }
 
             // Validate minLength
-            if (schema.TryGetProperty("minLength", out var minLengthProp) && 
+            if (schema.TryGetProperty("minLength", out var minLengthProp) &&
                 minLengthProp.TryGetInt32(out var minLength))
             {
                 if (value.Length < minLength)
@@ -279,7 +279,7 @@ namespace AdvGenNoSqlServer.Core.Validation
             }
 
             // Validate maxLength
-            if (schema.TryGetProperty("maxLength", out var maxLengthProp) && 
+            if (schema.TryGetProperty("maxLength", out var maxLengthProp) &&
                 maxLengthProp.TryGetInt32(out var maxLength))
             {
                 if (value.Length > maxLength)
@@ -440,7 +440,7 @@ namespace AdvGenNoSqlServer.Core.Validation
             }
 
             // Validate minItems
-            if (schema.TryGetProperty("minItems", out var minItemsProp) && 
+            if (schema.TryGetProperty("minItems", out var minItemsProp) &&
                 minItemsProp.TryGetInt32(out var minItems))
             {
                 if (itemList.Count < minItems)
@@ -452,7 +452,7 @@ namespace AdvGenNoSqlServer.Core.Validation
             }
 
             // Validate maxItems
-            if (schema.TryGetProperty("maxItems", out var maxItemsProp) && 
+            if (schema.TryGetProperty("maxItems", out var maxItemsProp) &&
                 maxItemsProp.TryGetInt32(out var maxItems))
             {
                 if (itemList.Count > maxItems)
@@ -464,7 +464,7 @@ namespace AdvGenNoSqlServer.Core.Validation
             }
 
             // Validate uniqueItems
-            if (schema.TryGetProperty("uniqueItems", out var uniqueItemsProp) && 
+            if (schema.TryGetProperty("uniqueItems", out var uniqueItemsProp) &&
                 uniqueItemsProp.ValueKind == JsonValueKind.True)
             {
                 var seen = new HashSet<string>();

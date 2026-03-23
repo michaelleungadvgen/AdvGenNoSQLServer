@@ -87,7 +87,7 @@ public class Session : ISession
             IsolationLevel = isolationLevel ?? Options.IsolationLevel,
             Timeout = TimeSpan.FromMilliseconds(Options.TransactionTimeoutMs)
         };
-        
+
         var context = await _transactionCoordinator.BeginTransactionAsync(options, cancellationToken);
         _currentTransactionId = context.TransactionId;
         State = SessionState.Active;

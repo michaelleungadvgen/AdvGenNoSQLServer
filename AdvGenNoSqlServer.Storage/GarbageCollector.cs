@@ -256,7 +256,12 @@ public class GarbageCollector : IGarbageCollector, IDisposable
         var cleanedCount = 0;
         var bytesFreed = 0L;
         var cutoffTime = DateTime.UtcNow.Subtract(_options.RetentionPeriod);
-        var tombstonesToProcess = _tombstones.Values
+
+        // Use Select(kvp => kvp.Value) over .Values to iterate lazily over the ConcurrentDictionary
+        // This avoids lock acquisition across all buckets and eagerly allocating an array of all items,
+        // significantly reducing memory footprint and lock contention.
+        var tombstonesToProcess = _tombstones
+            .Select(kvp => kvp.Value)
             .Where(t => t.DeletedAt < cutoffTime)
             .Take(_options.MaxTombstonesPerRun)
             .ToList();
@@ -341,18 +346,29 @@ public class GarbageCollector : IGarbageCollector, IDisposable
     /// <inheritdoc />
     public IEnumerable<Tombstone> GetTombstones()
     {
-        return _tombstones.Values.ToList();
+        // Iterate directly and yield return to avoid the O(N) allocation of .Values.ToList()
+        // and prevent acquiring all locks simultaneously on the ConcurrentDictionary
+        foreach (var kvp in _tombstones)
+        {
+            yield return kvp.Value;
+        }
     }
 
     /// <inheritdoc />
     public IEnumerable<Tombstone> GetTombstones(string collectionName)
     {
         if (string.IsNullOrWhiteSpace(collectionName))
-            return Enumerable.Empty<Tombstone>();
+            yield break;
 
-        return _tombstones.Values
-            .Where(t => t.CollectionName.Equals(collectionName, StringComparison.OrdinalIgnoreCase))
-            .ToList();
+        // Iterate directly and yield return to avoid the O(N) allocation of .Values.Where(...).ToList()
+        // and prevent acquiring all locks simultaneously on the ConcurrentDictionary
+        foreach (var kvp in _tombstones)
+        {
+            if (kvp.Value.CollectionName.Equals(collectionName, StringComparison.OrdinalIgnoreCase))
+            {
+                yield return kvp.Value;
+            }
+        }
     }
 
     /// <inheritdoc />
