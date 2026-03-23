@@ -78,9 +78,9 @@ public class ChangeStreamEnabledDocumentStore : IDocumentStore, IDisposable
 
         // Publish update event
         var changeEvent = ChangeStreamEvent.CreateUpdate(
-            collectionName, 
-            document.Id, 
-            result, 
+            collectionName,
+            document.Id,
+            result,
             documentBeforeChange);
         _changeStreamManager.PublishEvent(changeEvent);
 
@@ -103,8 +103,8 @@ public class ChangeStreamEnabledDocumentStore : IDocumentStore, IDisposable
         {
             // Publish delete event
             var changeEvent = ChangeStreamEvent.CreateDelete(
-                collectionName, 
-                documentId, 
+                collectionName,
+                documentId,
                 documentBeforeChange);
             _changeStreamManager.PublishEvent(changeEvent);
         }

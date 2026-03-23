@@ -76,10 +76,10 @@ namespace AdvGenNoSqlServer.Tests
         [Fact]
         public void SeedEndpoint_CheckIsLocal_LocalhostSamePort_ReturnsTrue()
         {
-            var endpoint = new SeedEndpoint 
-            { 
-                Host = "localhost", 
-                Port = 9092 
+            var endpoint = new SeedEndpoint
+            {
+                Host = "localhost",
+                Port = 9092
             };
 
             var result = endpoint.CheckIsLocal(9092);
@@ -91,10 +91,10 @@ namespace AdvGenNoSqlServer.Tests
         [Fact]
         public void SeedEndpoint_CheckIsLocal_LocalhostDifferentPort_ReturnsFalse()
         {
-            var endpoint = new SeedEndpoint 
-            { 
-                Host = "localhost", 
-                Port = 9093 
+            var endpoint = new SeedEndpoint
+            {
+                Host = "localhost",
+                Port = 9093
             };
 
             var result = endpoint.CheckIsLocal(9092);
@@ -106,10 +106,10 @@ namespace AdvGenNoSqlServer.Tests
         [Fact]
         public void SeedEndpoint_CheckIsLocal_LoopbackIP_ReturnsTrue()
         {
-            var endpoint = new SeedEndpoint 
-            { 
-                Host = "127.0.0.1", 
-                Port = 9092 
+            var endpoint = new SeedEndpoint
+            {
+                Host = "127.0.0.1",
+                Port = 9092
             };
 
             var result = endpoint.CheckIsLocal(9092);
@@ -121,10 +121,10 @@ namespace AdvGenNoSqlServer.Tests
         [Fact]
         public void SeedEndpoint_CheckIsLocal_IPv6Loopback_ReturnsTrue()
         {
-            var endpoint = new SeedEndpoint 
-            { 
-                Host = "::1", 
-                Port = 9092 
+            var endpoint = new SeedEndpoint
+            {
+                Host = "::1",
+                Port = 9092
             };
 
             var result = endpoint.CheckIsLocal(9092);
@@ -136,10 +136,10 @@ namespace AdvGenNoSqlServer.Tests
         [Fact]
         public void SeedEndpoint_CheckIsLocal_RemoteHost_ReturnsFalse()
         {
-            var endpoint = new SeedEndpoint 
-            { 
-                Host = "192.168.1.100", 
-                Port = 9092 
+            var endpoint = new SeedEndpoint
+            {
+                Host = "192.168.1.100",
+                Port = 9092
             };
 
             var result = endpoint.CheckIsLocal(9092);
@@ -184,9 +184,9 @@ namespace AdvGenNoSqlServer.Tests
         [Fact]
         public void Constructor_InvalidSeeds_AreFilteredOut()
         {
-            var config = CreateTestConfig(new[] { 
-                "localhost:9092", 
-                "invalid", 
+            var config = CreateTestConfig(new[] {
+                "localhost:9092",
+                "invalid",
                 "192.168.1.1:9093",
                 "bad:port",
                 ""
@@ -302,7 +302,7 @@ namespace AdvGenNoSqlServer.Tests
             listener.Start();
             var port = ((IPEndPoint)listener.LocalEndpoint).Port;
 
-            var config = CreateTestConfig(new[] { 
+            var config = CreateTestConfig(new[] {
                 $"127.0.0.1:{port}",  // Reachable
                 "127.0.0.1:1"        // Unreachable
             });
@@ -404,7 +404,7 @@ namespace AdvGenNoSqlServer.Tests
             var config = CreateTestConfig(new[] { $"127.0.0.1:{port}" });
             config.ConnectionTimeout = TimeSpan.FromSeconds(2);
             var clusterManager = new TestClusterManager();
-            
+
             Func<string, CancellationToken, Task<JoinResult>> connectFunc = (endpoint, ct) =>
             {
                 return Task.FromResult(JoinResult.SuccessResult(new ClusterInfo
@@ -449,7 +449,7 @@ namespace AdvGenNoSqlServer.Tests
             var config = CreateTestConfig(new[] { $"127.0.0.1:{port1}", $"127.0.0.1:{port2}" });
             config.ConnectionTimeout = TimeSpan.FromSeconds(2);
             var clusterManager = new TestClusterManager();
-            
+
             var callCount = 0;
             Func<string, CancellationToken, Task<JoinResult>> connectFunc = (endpoint, ct) =>
             {

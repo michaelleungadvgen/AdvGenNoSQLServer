@@ -217,11 +217,11 @@ namespace AdvGenNoSqlServer.Core.Clustering
 
             GossipReceived?.Invoke(this, new GossipReceivedEventArgs
             {
-                Sender = new NodeInfo 
-                { 
-                    NodeId = senderId, 
-                    Host = "", 
-                    P2PPort = 0 
+                Sender = new NodeInfo
+                {
+                    NodeId = senderId,
+                    Host = "",
+                    P2PPort = 0
                 },
                 StateCount = message.NodeStates?.Count ?? 0
             });

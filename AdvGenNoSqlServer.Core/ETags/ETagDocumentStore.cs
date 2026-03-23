@@ -47,14 +47,14 @@ public class ETagDocumentStore : IDocumentStore, IDisposable
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Tuple of document and ETag, or null if not found</returns>
     public async Task<(Document? Document, string? ETag)> GetWithETagAsync(
-        string collectionName, 
-        string documentId, 
+        string collectionName,
+        string documentId,
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
 
         var document = await _innerStore.GetAsync(collectionName, documentId, cancellationToken);
-        
+
         if (document == null)
             return (null, null);
 
@@ -70,8 +70,8 @@ public class ETagDocumentStore : IDocumentStore, IDisposable
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>List of tuples containing document and ETag</returns>
     public async Task<IEnumerable<(Document Document, string ETag)>> GetManyWithETagsAsync(
-        string collectionName, 
-        IEnumerable<string> documentIds, 
+        string collectionName,
+        IEnumerable<string> documentIds,
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -99,8 +99,8 @@ public class ETagDocumentStore : IDocumentStore, IDisposable
     /// <exception cref="DocumentNotFoundException">If document doesn't exist</exception>
     /// <exception cref="ConcurrencyException">If ETag doesn't match</exception>
     public async Task<Document> UpdateIfMatchAsync(
-        string collectionName, 
-        Document document, 
+        string collectionName,
+        Document document,
         string eTag,
         CancellationToken cancellationToken = default)
     {
@@ -114,7 +114,7 @@ public class ETagDocumentStore : IDocumentStore, IDisposable
 
         // Get current document
         var currentDocument = await _innerStore.GetAsync(collectionName, document.Id, cancellationToken);
-        
+
         if (currentDocument == null)
         {
             throw new DocumentNotFoundException(collectionName, document.Id);
@@ -141,8 +141,8 @@ public class ETagDocumentStore : IDocumentStore, IDisposable
     /// <returns>True if deleted, false if not found</returns>
     /// <exception cref="ConcurrencyException">If ETag doesn't match</exception>
     public async Task<bool> DeleteIfMatchAsync(
-        string collectionName, 
-        string documentId, 
+        string collectionName,
+        string documentId,
         string eTag,
         CancellationToken cancellationToken = default)
     {
@@ -156,7 +156,7 @@ public class ETagDocumentStore : IDocumentStore, IDisposable
 
         // Get current document
         var currentDocument = await _innerStore.GetAsync(collectionName, documentId, cancellationToken);
-        
+
         if (currentDocument == null)
         {
             return false;
@@ -182,8 +182,8 @@ public class ETagDocumentStore : IDocumentStore, IDisposable
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Validation result</returns>
     public async Task<ETagValidationResponse> ValidateETagAsync(
-        string collectionName, 
-        string documentId, 
+        string collectionName,
+        string documentId,
         string? eTag,
         CancellationToken cancellationToken = default)
     {
@@ -193,7 +193,7 @@ public class ETagDocumentStore : IDocumentStore, IDisposable
             return ETagValidationResponse.ETagNotProvided();
 
         var document = await _innerStore.GetAsync(collectionName, documentId, cancellationToken);
-        
+
         if (document == null)
             return ETagValidationResponse.DocumentNotFound(documentId);
 
@@ -213,15 +213,15 @@ public class ETagDocumentStore : IDocumentStore, IDisposable
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Document if ETag doesn't match, null if it matches (304 Not Modified semantics)</returns>
     public async Task<(Document? Document, string? ETag, bool NotModified)> GetIfNoneMatchAsync(
-        string collectionName, 
-        string documentId, 
+        string collectionName,
+        string documentId,
         string? ifNoneMatch,
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
 
         var document = await _innerStore.GetAsync(collectionName, documentId, cancellationToken);
-        
+
         if (document == null)
             return (null, null, false);
 

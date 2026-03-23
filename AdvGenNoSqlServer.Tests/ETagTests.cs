@@ -74,14 +74,14 @@ public class ETagTests
     {
         var generator = new ETagGenerator();
         var document = CreateTestDocument("doc1", new Dictionary<string, object> { ["name"] = "Test" });
-        
+
         var eTag1 = generator.GenerateETag(document);
-        
+
         // Modify document
         document.Data["name"] = "Modified";
         document.Version++;
         document.UpdatedAt = DateTime.UtcNow.AddSeconds(1);
-        
+
         var eTag2 = generator.GenerateETag(document);
 
         Assert.NotEqual(eTag1, eTag2);
@@ -141,7 +141,7 @@ public class ETagTests
     {
         var generator = new ETagGenerator();
         var document = CreateTestDocument("doc1", new Dictionary<string, object> { ["name"] = "Test" });
-        
+
         Assert.False(generator.ValidateETag(document, "invalid-etag"));
     }
 
@@ -162,10 +162,10 @@ public class ETagTests
         var options = ETagOptions.Weak;
         var generator = new ETagGenerator(options);
         var document = CreateTestDocument("doc1", new Dictionary<string, object> { ["name"] = "Test" });
-        
+
         // Generate a weak ETag
         var weakETag = generator.GenerateWeakETag(document);
-        
+
         // Should validate with weak comparison
         Assert.True(generator.ValidateWeakETag(document, weakETag));
     }
@@ -193,10 +193,10 @@ public class ETagTests
     {
         var options = ETagOptions.Strong;
         var generator = new ETagGenerator(options);
-        
+
         var doc1 = CreateTestDocument("doc1", new Dictionary<string, object> { ["name"] = "Test", ["value"] = 1 });
         var doc2 = CreateTestDocument("doc1", new Dictionary<string, object> { ["name"] = "Test", ["value"] = 2 });
-        
+
         // Same ID but different content
         var eTag1 = generator.GenerateETag(doc1);
         var eTag2 = generator.GenerateETag(doc2);
@@ -209,10 +209,10 @@ public class ETagTests
     {
         var options = ETagOptions.Weak;
         var generator = new ETagGenerator(options);
-        
+
         var doc1 = CreateTestDocument("doc1", new Dictionary<string, object> { ["name"] = "Test1" });
         var doc2 = CreateTestDocument("doc1", new Dictionary<string, object> { ["name"] = "Test2" });
-        
+
         // Same ID and version but different content - weak ETags should match
         var eTag1 = generator.GenerateWeakETag(doc1);
         var eTag2 = generator.GenerateWeakETag(doc2);
@@ -229,7 +229,7 @@ public class ETagTests
     {
         var innerStore = new DocumentStore();
         var store = new ETagDocumentStore(innerStore);
-        
+
         var document = CreateTestDocument("doc1", new Dictionary<string, object> { ["name"] = "Test" });
         await innerStore.InsertAsync("test", document);
 
@@ -257,7 +257,7 @@ public class ETagTests
     {
         var innerStore = new DocumentStore();
         var store = new ETagDocumentStore(innerStore);
-        
+
         var doc1 = CreateTestDocument("doc1", new Dictionary<string, object> { ["name"] = "Test1" });
         var doc2 = CreateTestDocument("doc2", new Dictionary<string, object> { ["name"] = "Test2" });
         await innerStore.InsertAsync("test", doc1);
@@ -276,7 +276,7 @@ public class ETagTests
         var store = new ETagDocumentStore(innerStore);
         var collectionName = $"test_{Guid.NewGuid():N}";
         var docId = $"doc_{Guid.NewGuid():N}";
-        
+
         // Insert initial document
         var document = CreateTestDocument(docId, new Dictionary<string, object> { ["name"] = "Test" });
         await innerStore.InsertAsync(collectionName, document);
@@ -285,19 +285,19 @@ public class ETagTests
         var (retrieved, eTag) = await store.GetWithETagAsync(collectionName, docId);
         Assert.NotNull(retrieved);
         Assert.NotNull(eTag);
-        
+
         // Create a new document with the same ID but updated data
         // Important: Don't modify the retrieved object directly as it may affect ETag calculation
         var updatedDocument = CreateTestDocument(docId, new Dictionary<string, object>(retrieved.Data)
         {
             ["name"] = "Updated"
         });
-        
+
         // Preserve the timestamps from retrieved document for ETag validation
         updatedDocument.GetType().GetProperty("CreatedAt")?.SetValue(updatedDocument, retrieved.CreatedAt);
         updatedDocument.GetType().GetProperty("UpdatedAt")?.SetValue(updatedDocument, retrieved.UpdatedAt);
         updatedDocument.GetType().GetProperty("Version")?.SetValue(updatedDocument, retrieved.Version);
-        
+
         var updated = await store.UpdateIfMatchAsync(collectionName, updatedDocument, eTag);
 
         Assert.Equal("Updated", updated.Data["name"]);
@@ -308,7 +308,7 @@ public class ETagTests
     {
         var innerStore = new DocumentStore();
         var store = new ETagDocumentStore(innerStore);
-        
+
         var document = CreateTestDocument("doc1", new Dictionary<string, object> { ["name"] = "Test" });
         await innerStore.InsertAsync("test", document);
 
@@ -323,7 +323,7 @@ public class ETagTests
     {
         var innerStore = new DocumentStore();
         var store = new ETagDocumentStore(innerStore);
-        
+
         var document = CreateTestDocument("doc1", new Dictionary<string, object> { ["name"] = "Test" });
 
         await Assert.ThrowsAsync<DocumentNotFoundException>(async () =>
@@ -337,7 +337,7 @@ public class ETagTests
     {
         var innerStore = new DocumentStore();
         var store = new ETagDocumentStore(innerStore);
-        
+
         var document = CreateTestDocument("doc1", new Dictionary<string, object> { ["name"] = "Test" });
 
         await Assert.ThrowsAsync<ArgumentException>(async () =>
@@ -351,7 +351,7 @@ public class ETagTests
     {
         var innerStore = new DocumentStore();
         var store = new ETagDocumentStore(innerStore);
-        
+
         var document = CreateTestDocument("doc1", new Dictionary<string, object> { ["name"] = "Test" });
         await innerStore.InsertAsync("test", document);
 
@@ -378,7 +378,7 @@ public class ETagTests
     {
         var innerStore = new DocumentStore();
         var store = new ETagDocumentStore(innerStore);
-        
+
         var document = CreateTestDocument("doc1", new Dictionary<string, object> { ["name"] = "Test" });
         await innerStore.InsertAsync("test", document);
 
@@ -393,7 +393,7 @@ public class ETagTests
     {
         var innerStore = new DocumentStore();
         var store = new ETagDocumentStore(innerStore);
-        
+
         var document = CreateTestDocument("doc1", new Dictionary<string, object> { ["name"] = "Test" });
         await innerStore.InsertAsync("test", document);
 
@@ -409,7 +409,7 @@ public class ETagTests
     {
         var innerStore = new DocumentStore();
         var store = new ETagDocumentStore(innerStore);
-        
+
         var document = CreateTestDocument("doc1", new Dictionary<string, object> { ["name"] = "Test" });
         await innerStore.InsertAsync("test", document);
 
@@ -435,7 +435,7 @@ public class ETagTests
     {
         var innerStore = new DocumentStore();
         var store = new ETagDocumentStore(innerStore);
-        
+
         var document = CreateTestDocument("doc1", new Dictionary<string, object> { ["name"] = "Test" });
         await innerStore.InsertAsync("test", document);
 
@@ -449,7 +449,7 @@ public class ETagTests
     {
         var innerStore = new DocumentStore();
         var store = new ETagDocumentStore(innerStore);
-        
+
         var document = CreateTestDocument("doc1", new Dictionary<string, object> { ["name"] = "Test" });
         await innerStore.InsertAsync("test", document);
 
@@ -465,7 +465,7 @@ public class ETagTests
     {
         var innerStore = new DocumentStore();
         var store = new ETagDocumentStore(innerStore);
-        
+
         var document = CreateTestDocument("doc1", new Dictionary<string, object> { ["name"] = "Test" });
         await innerStore.InsertAsync("test", document);
 
@@ -481,7 +481,7 @@ public class ETagTests
     {
         var innerStore = new DocumentStore();
         var store = new ETagDocumentStore(innerStore);
-        
+
         var document = CreateTestDocument("doc1", new Dictionary<string, object> { ["name"] = "Test" });
         await innerStore.InsertAsync("test", document);
 
@@ -512,7 +512,7 @@ public class ETagTests
         var store = new ETagDocumentStore(innerStore);
         var collectionName = $"test_{Guid.NewGuid():N}";
         var docId = $"doc_{Guid.NewGuid():N}";
-        
+
         var document = CreateTestDocument(docId, new Dictionary<string, object> { ["counter"] = 0 });
         await innerStore.InsertAsync(collectionName, document);
 
@@ -541,7 +541,7 @@ public class ETagTests
     {
         var innerStore = new DocumentStore();
         var store = new ETagDocumentStore(innerStore);
-        
+
         var document = CreateTestDocument("doc1", new Dictionary<string, object> { ["counter"] = 0 });
         await innerStore.InsertAsync("test", document);
 
@@ -827,7 +827,7 @@ public class ETagTests
     public void ETagDocumentStoreExtensions_WithETags_WrapsStore()
     {
         var innerStore = new DocumentStore();
-        
+
         var store = innerStore.WithETags();
 
         Assert.NotNull(store);
@@ -840,7 +840,7 @@ public class ETagTests
     {
         var innerStore = new DocumentStore();
         var generator = new ETagGenerator(ETagOptions.Weak);
-        
+
         var store = innerStore.WithETags(generator);
 
         Assert.NotNull(store);
@@ -875,12 +875,12 @@ public class ETagTests
             ["name"] = "Updated",
             ["count"] = 1
         });
-        
+
         // Copy metadata from retrieved document so ETag validation passes
         typeof(Document).GetProperty("CreatedAt")?.SetValue(updateDoc, retrieved.CreatedAt);
         typeof(Document).GetProperty("UpdatedAt")?.SetValue(updateDoc, retrieved.UpdatedAt);
         typeof(Document).GetProperty("Version")?.SetValue(updateDoc, retrieved.Version);
-        
+
         var updated = await store.UpdateIfMatchAsync(collectionName, updateDoc, eTag);
         Assert.Equal("Updated", updated.Data["name"]);
         Assert.Equal(1, updated.Data["count"]);

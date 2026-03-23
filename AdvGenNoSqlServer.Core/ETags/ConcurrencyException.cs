@@ -67,7 +67,7 @@ public class ConcurrencyException : Exception
     {
         var message = $"Concurrency conflict detected in collection '{collectionName}' for document '{documentId}'. " +
                       $"The document has been modified by another operation. ";
-        
+
         if (!string.IsNullOrEmpty(providedETag))
         {
             message += $"Provided ETag: '{providedETag}', Current ETag: '{currentETag}'. ";
@@ -76,9 +76,9 @@ public class ConcurrencyException : Exception
         {
             message += $"Current ETag: '{currentETag}'. ";
         }
-        
+
         message += "Please fetch the latest version of the document and retry the operation.";
-        
+
         return message;
     }
 }

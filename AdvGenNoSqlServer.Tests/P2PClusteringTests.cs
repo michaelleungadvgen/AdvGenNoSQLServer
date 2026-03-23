@@ -53,11 +53,11 @@ namespace AdvGenNoSqlServer.Tests
             Assert.Equal(original.NodeId, clone.NodeId);
             Assert.Equal(original.Tags, clone.Tags);
             Assert.Equal(original.PublicKey, clone.PublicKey);
-            
+
             // Modify clone should not affect original
             clone.Tags[0] = "modified";
             clone.PublicKey[0] = 99;
-            
+
             Assert.Equal("tag1", original.Tags[0]);
             Assert.Equal(1, original.PublicKey[0]);
         }
@@ -156,12 +156,12 @@ namespace AdvGenNoSqlServer.Tests
         public void ClusterInfo_QuorumSize_CalculatedCorrectly(int nodeCount, int expectedQuorum)
         {
             var nodes = Enumerable.Range(0, nodeCount)
-                .Select(i => new NodeInfo 
-                { 
-                    NodeId = i.ToString(), 
-                    Host = "h", 
+                .Select(i => new NodeInfo
+                {
+                    NodeId = i.ToString(),
+                    Host = "h",
                     P2PPort = i,
-                    State = NodeState.Active 
+                    State = NodeState.Active
                 })
                 .ToList();
 
@@ -385,9 +385,9 @@ namespace AdvGenNoSqlServer.Tests
         [Fact]
         public async Task ClusterManager_GetClusterInfo_ReturnsCorrectInfo()
         {
-            var config = new P2PConfiguration 
-            { 
-                ClusterId = "cluster-123", 
+            var config = new P2PConfiguration
+            {
+                ClusterId = "cluster-123",
                 ClusterName = "Test Cluster",
                 Mode = ClusterMode.LeaderFollower
             };
@@ -439,12 +439,12 @@ namespace AdvGenNoSqlServer.Tests
             manager.InitializeLocalNode("localhost", 9090);
             await manager.CreateClusterAsync("Test");
 
-            var newNode = new NodeInfo 
-            { 
-                NodeId = "new-node", 
-                Host = "other", 
+            var newNode = new NodeInfo
+            {
+                NodeId = "new-node",
+                Host = "other",
                 P2PPort = 9092,
-                State = NodeState.Active 
+                State = NodeState.Active
             };
 
             var added = await manager.AddOrUpdateNodeAsync(newNode);
@@ -461,12 +461,12 @@ namespace AdvGenNoSqlServer.Tests
             var manager = new ClusterManager(config);
             manager.InitializeLocalNode("localhost", 9090);
             await manager.CreateClusterAsync("Test");
-            await manager.AddOrUpdateNodeAsync(new NodeInfo 
-            { 
-                NodeId = "other", 
-                Host = "h", 
+            await manager.AddOrUpdateNodeAsync(new NodeInfo
+            {
+                NodeId = "other",
+                Host = "h",
                 P2PPort = 1,
-                State = NodeState.Active 
+                State = NodeState.Active
             });
 
             var removed = await manager.RemoveNodeAsync("other");
@@ -504,12 +504,12 @@ namespace AdvGenNoSqlServer.Tests
             NodeJoinedEventArgs? eventArgs = null;
             manager.NodeJoined += (s, e) => eventArgs = e;
 
-            await manager.AddOrUpdateNodeAsync(new NodeInfo 
-            { 
-                NodeId = "new", 
-                Host = "h", 
+            await manager.AddOrUpdateNodeAsync(new NodeInfo
+            {
+                NodeId = "new",
+                Host = "h",
                 P2PPort = 1,
-                State = NodeState.Active 
+                State = NodeState.Active
             });
 
             Assert.NotNull(eventArgs);
@@ -558,8 +558,8 @@ namespace AdvGenNoSqlServer.Tests
         [Fact]
         public void JoinRequestMessage_HasCorrectType()
         {
-            var msg = new JoinRequestMessage 
-            { 
+            var msg = new JoinRequestMessage
+            {
                 SenderId = "test",
                 NodeIdentity = NodeIdentity.Create("c", "h", 1, 2),
                 ClusterSecretHash = "hash"
@@ -571,10 +571,10 @@ namespace AdvGenNoSqlServer.Tests
         [Fact]
         public void JoinResponseMessage_HasCorrectType()
         {
-            var msg = new JoinResponseMessage 
-            { 
+            var msg = new JoinResponseMessage
+            {
                 SenderId = "test",
-                Accepted = true 
+                Accepted = true
             };
 
             Assert.Equal(P2PMessageType.JoinResponse, msg.MessageType);

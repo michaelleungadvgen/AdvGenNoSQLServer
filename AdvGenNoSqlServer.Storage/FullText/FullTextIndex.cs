@@ -17,10 +17,10 @@ public class FullTextIndex : IFullTextIndex
 {
     // Inverted index: term -> list of (documentId, term frequency, positions)
     private readonly ConcurrentDictionary<string, List<Posting>> _invertedIndex;
-    
+
     // Document info: documentId -> (token count, original text)
     private readonly ConcurrentDictionary<string, DocumentInfo> _documents;
-    
+
     // Thread-safe locking for write operations
     private readonly ReaderWriterLockSlim _lock;
 
@@ -51,7 +51,7 @@ public class FullTextIndex : IFullTextIndex
         CollectionName = collectionName ?? throw new ArgumentNullException(nameof(collectionName));
         FieldName = fieldName ?? throw new ArgumentNullException(nameof(fieldName));
         Analyzer = analyzer ?? new StandardAnalyzer();
-        
+
         _invertedIndex = new ConcurrentDictionary<string, List<Posting>>();
         _documents = new ConcurrentDictionary<string, DocumentInfo>();
         _lock = new ReaderWriterLockSlim(LockRecursionPolicy.NoRecursion);
@@ -74,7 +74,7 @@ public class FullTextIndex : IFullTextIndex
 
             // Analyze text with positions
             var tokensWithPositions = Analyzer.AnalyzeWithPositions(text);
-            
+
             if (tokensWithPositions.Count == 0)
                 return;
 
@@ -87,7 +87,7 @@ public class FullTextIndex : IFullTextIndex
             foreach (var (token, positions) in tokenGroups)
             {
                 var posting = new Posting(documentId, positions.Count, positions);
-                
+
                 var postings = _invertedIndex.GetOrAdd(token, _ => new List<Posting>());
                 lock (postings)
                 {
@@ -133,7 +133,7 @@ public class FullTextIndex : IFullTextIndex
             {
                 postings.RemoveAll(p => p.DocumentId == documentId);
             }
-            
+
             // Clean up empty term entries
             if (postings.Count == 0)
             {
@@ -157,7 +157,7 @@ public class FullTextIndex : IFullTextIndex
 
             // Analyze query
             var queryTokens = Analyzer.Analyze(query);
-            
+
             if (queryTokens.Count == 0)
                 return FullTextSearchResult.Empty(query);
 
@@ -179,15 +179,15 @@ public class FullTextIndex : IFullTextIndex
                             // Calculate TF-IDF score
                             // Use BM25-inspired scoring with document length normalization
                             double tf = posting.TermFrequency;
-                            double docLength = _documents.TryGetValue(posting.DocumentId, out var docInfo) 
-                                ? docInfo.TokenCount 
+                            double docLength = _documents.TryGetValue(posting.DocumentId, out var docInfo)
+                                ? docInfo.TokenCount
                                 : 1;
                             double avgDocLength = GetAverageDocumentLength();
-                            
+
                             // BM25 parameters
                             const double k1 = 1.2;
                             const double b = 0.75;
-                            
+
                             double tfNormalized = tf * (k1 + 1) / (tf + k1 * (1 - b + b * docLength / avgDocLength));
                             double score = tfNormalized * idf;
 
@@ -209,7 +209,7 @@ public class FullTextIndex : IFullTextIndex
             {
                 // AND logic: document must contain all query terms
                 var requiredTerms = new HashSet<string>(queryTokens);
-                scores = scores.Where(kvp => 
+                scores = scores.Where(kvp =>
                 {
                     if (termFrequencies.TryGetValue(kvp.Key, out var tf))
                     {
@@ -233,7 +233,7 @@ public class FullTextIndex : IFullTextIndex
                 .Take(opts.MaxResults)
                 .Select(x =>
                 {
-                    var highlights = opts.HighlightMatches 
+                    var highlights = opts.HighlightMatches
                         ? GenerateHighlights(x.DocumentId, queryTokens, opts)
                         : new List<string>();
 
@@ -260,7 +260,7 @@ public class FullTextIndex : IFullTextIndex
     private List<string> GenerateHighlights(string documentId, IReadOnlyList<string> queryTokens, FullTextSearchOptions options)
     {
         var highlights = new List<string>();
-        
+
         if (!_documents.TryGetValue(documentId, out var docInfo))
             return highlights;
 
@@ -289,7 +289,7 @@ public class FullTextIndex : IFullTextIndex
             // Find character positions
             int charStart = FindCharPosition(text, analyzedTokens, startPos);
             int charEnd = FindCharPosition(text, analyzedTokens, endPos);
-            
+
             // Expand context
             charStart = Math.Max(0, charStart - contextChars);
             charEnd = Math.Min(text.Length, charEnd + contextChars);
@@ -302,7 +302,7 @@ public class FullTextIndex : IFullTextIndex
 
             // Extract and highlight snippet
             string snippet = text.Substring(charStart, charEnd - charStart);
-            
+
             // Highlight query terms
             foreach (var token in queryTokens)
             {
@@ -327,7 +327,7 @@ public class FullTextIndex : IFullTextIndex
         // In a real implementation, we'd track character positions during tokenization
         var tokenPattern = new Regex(@"[a-zA-Z0-9]+", RegexOptions.Compiled);
         var matches = tokenPattern.Matches(text);
-        
+
         if (tokenIndex < matches.Count)
         {
             return matches[tokenIndex].Index;
@@ -375,6 +375,6 @@ public class FullTextIndex : IFullTextIndex
 
     // Internal data structures
     private readonly record struct Posting(string DocumentId, int TermFrequency, List<int> Positions);
-    
+
     private readonly record struct DocumentInfo(int TokenCount, string OriginalText);
 }

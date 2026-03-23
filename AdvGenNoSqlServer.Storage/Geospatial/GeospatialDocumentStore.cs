@@ -44,10 +44,10 @@ public sealed class GeospatialDocumentStore : IDocumentStore
     /// Finds documents near a point.
     /// </summary>
     public IEnumerable<GeospatialQueryResult> FindNear(
-        string collectionName, 
-        string fieldName, 
-        GeoPoint center, 
-        double maxDistance, 
+        string collectionName,
+        string fieldName,
+        GeoPoint center,
+        double maxDistance,
         GeospatialQueryOptions? options = null)
     {
         var index = _indexManager.GetIndex(collectionName, fieldName);
@@ -112,13 +112,13 @@ public sealed class GeospatialDocumentStore : IDocumentStore
     public Task<Document> InsertAsync(string collectionName, Document document, CancellationToken cancellationToken = default)
     {
         var result = _innerStore.InsertAsync(collectionName, document, cancellationToken);
-        
+
         // Index in all relevant geospatial indexes
         foreach (var index in _indexManager.GetCollectionIndexes(collectionName))
         {
             _indexManager.IndexDocument(collectionName, index.FieldName, document);
         }
-        
+
         return result;
     }
 
@@ -140,26 +140,26 @@ public sealed class GeospatialDocumentStore : IDocumentStore
     public Task<Document> UpdateAsync(string collectionName, Document document, CancellationToken cancellationToken = default)
     {
         var result = _innerStore.UpdateAsync(collectionName, document, cancellationToken);
-        
+
         // Re-index in all relevant geospatial indexes
         foreach (var index in _indexManager.GetCollectionIndexes(collectionName))
         {
             _indexManager.IndexDocument(collectionName, index.FieldName, document);
         }
-        
+
         return result;
     }
 
     public Task<bool> DeleteAsync(string collectionName, string documentId, CancellationToken cancellationToken = default)
     {
         var result = _innerStore.DeleteAsync(collectionName, documentId, cancellationToken);
-        
+
         // Remove from all geospatial indexes
         foreach (var index in _indexManager.GetCollectionIndexes(collectionName))
         {
             _indexManager.RemoveDocument(collectionName, index.FieldName, documentId);
         }
-        
+
         return result;
     }
 
@@ -185,7 +185,7 @@ public sealed class GeospatialDocumentStore : IDocumentStore
         {
             _indexManager.DropIndex(collectionName, index.FieldName);
         }
-        
+
         return _innerStore.DropCollectionAsync(collectionName, cancellationToken);
     }
 
@@ -201,7 +201,7 @@ public sealed class GeospatialDocumentStore : IDocumentStore
         {
             index.Clear();
         }
-        
+
         return _innerStore.ClearCollectionAsync(collectionName, cancellationToken);
     }
 

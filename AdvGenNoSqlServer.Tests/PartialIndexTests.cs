@@ -156,8 +156,8 @@ public class PartialIndexTests
         Func<Document, bool> filter = doc => doc.Data.TryGetValue("status", out var val) && val?.ToString() == "active";
 
         // Act
-        var index = _indexManager.CreatePartialIndex<string>(collectionName, fieldName, false, 
-            doc => doc.Data.TryGetValue("email", out var val) ? val?.ToString() : null, 
+        var index = _indexManager.CreatePartialIndex<string>(collectionName, fieldName, false,
+            doc => doc.Data.TryGetValue("email", out var val) ? val?.ToString() : null,
             filter);
 
         // Assert
@@ -177,7 +177,7 @@ public class PartialIndexTests
             filter);
 
         // Act & Assert
-        Assert.Throws<InvalidOperationException>(() => 
+        Assert.Throws<InvalidOperationException>(() =>
             _indexManager.CreatePartialIndex<string>(collectionName, fieldName, false,
                 doc => doc.Data.TryGetValue("email", out var val) ? val?.ToString() : null,
                 filter));
@@ -190,7 +190,7 @@ public class PartialIndexTests
         Func<Document, bool> filter = doc => true;
 
         // Act & Assert
-        Assert.Throws<ArgumentException>(() => 
+        Assert.Throws<ArgumentException>(() =>
             _indexManager.CreatePartialIndex<string>("", "email", false, doc => "test", filter));
     }
 
@@ -201,7 +201,7 @@ public class PartialIndexTests
         Func<Document, bool> filter = doc => true;
 
         // Act & Assert
-        Assert.Throws<ArgumentException>(() => 
+        Assert.Throws<ArgumentException>(() =>
             _indexManager.CreatePartialIndex<string>("users", "", false, doc => "test", filter));
     }
 
@@ -212,7 +212,7 @@ public class PartialIndexTests
         Func<Document, bool> filter = doc => true;
 
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => 
+        Assert.Throws<ArgumentNullException>(() =>
             _indexManager.CreatePartialIndex<string>("users", "email", false, null!, filter));
     }
 
@@ -220,7 +220,7 @@ public class PartialIndexTests
     public void IndexManager_CreatePartialIndex_NullFilterExpression_ThrowsArgumentNullException()
     {
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => 
+        Assert.Throws<ArgumentNullException>(() =>
             _indexManager.CreatePartialIndex<string>("users", "email", false, doc => "test", null!));
     }
 
@@ -235,7 +235,7 @@ public class PartialIndexTests
         string collectionName = "users";
         string fieldName = "email";
         Func<Document, bool> filter = doc => doc.Data.TryGetValue("status", out var val) && val?.ToString() == "active";
-        
+
         var index = _indexManager.CreatePartialIndex<string>(collectionName, fieldName, false,
             doc => doc.Data.TryGetValue("email", out var val) ? val?.ToString() : null,
             filter);
@@ -266,7 +266,7 @@ public class PartialIndexTests
         string collectionName = "users";
         string fieldName = "email";
         Func<Document, bool> filter = doc => doc.Data.TryGetValue("status", out var val) && val?.ToString() == "active";
-        
+
         var index = _indexManager.CreatePartialIndex<string>(collectionName, fieldName, false,
             doc => doc.Data.TryGetValue("email", out var val) ? val?.ToString() : null,
             filter);
@@ -296,7 +296,7 @@ public class PartialIndexTests
         string collectionName = "users";
         string fieldName = "email";
         Func<Document, bool> filter = doc => doc.Data.TryGetValue("status", out var val) && val?.ToString() == "active";
-        
+
         var index = _indexManager.CreatePartialIndex<string>(collectionName, fieldName, false,
             doc => doc.Data.TryGetValue("email", out var val) ? val?.ToString() : null,
             filter);
@@ -327,7 +327,7 @@ public class PartialIndexTests
         string collectionName = "users";
         string fieldName = "email";
         Func<Document, bool> filter = doc => doc.Data.TryGetValue("status", out var val) && val?.ToString() == "active";
-        
+
         var index = _indexManager.CreatePartialIndex<string>(collectionName, fieldName, false,
             doc => doc.Data.TryGetValue("email", out var val) ? val?.ToString() : null,
             filter);
@@ -359,7 +359,7 @@ public class PartialIndexTests
         string collectionName = "users";
         string fieldName = "email";
         Func<Document, bool> filter = doc => doc.Data.TryGetValue("status", out var val) && val?.ToString() == "active";
-        
+
         var index = _indexManager.CreatePartialIndex<string>(collectionName, fieldName, false,
             doc => doc.Data.TryGetValue("email", out var val) ? val?.ToString() : null,
             filter);
@@ -401,7 +401,7 @@ public class PartialIndexTests
         string collectionName = "users";
         string fieldName = "email";
         Func<Document, bool> filter = doc => doc.Data.TryGetValue("status", out var val) && val?.ToString() == "active";
-        
+
         var index = _indexManager.CreatePartialIndex<string>(collectionName, fieldName, false,
             doc => doc.Data.TryGetValue("email", out var val) ? val?.ToString() : null,
             filter);
@@ -443,7 +443,7 @@ public class PartialIndexTests
         string collectionName = "users";
         string fieldName = "email";
         Func<Document, bool> filter = doc => doc.Data.TryGetValue("status", out var val) && val?.ToString() == "active";
-        
+
         var index = _indexManager.CreatePartialIndex<string>(collectionName, fieldName, false,
             doc => doc.Data.TryGetValue("email", out var val) ? val?.ToString() : null,
             filter);
@@ -489,11 +489,11 @@ public class PartialIndexTests
         // Arrange - only index documents with age > 18
         string collectionName = "users";
         string fieldName = "name";
-        Func<Document, bool> filter = doc => 
-            doc.Data.TryGetValue("age", out var val) && 
-            val is int age && 
+        Func<Document, bool> filter = doc =>
+            doc.Data.TryGetValue("age", out var val) &&
+            val is int age &&
             age > 18;
-        
+
         var index = _indexManager.CreatePartialIndex<string>(collectionName, fieldName, false,
             doc => doc.Data.TryGetValue("name", out var val) ? val?.ToString() : null,
             filter);
@@ -517,11 +517,11 @@ public class PartialIndexTests
         // Arrange - only index documents where isActive is true
         string collectionName = "users";
         string fieldName = "username";
-        Func<Document, bool> filter = doc => 
-            doc.Data.TryGetValue("isActive", out var val) && 
-            val is bool isActive && 
+        Func<Document, bool> filter = doc =>
+            doc.Data.TryGetValue("isActive", out var val) &&
+            val is bool isActive &&
             isActive;
-        
+
         var index = _indexManager.CreatePartialIndex<string>(collectionName, fieldName, false,
             doc => doc.Data.TryGetValue("username", out var val) ? val?.ToString() : null,
             filter);
@@ -545,10 +545,10 @@ public class PartialIndexTests
         // Arrange - only index documents where status=active AND type=premium
         string collectionName = "users";
         string fieldName = "email";
-        Func<Document, bool> filter = doc => 
+        Func<Document, bool> filter = doc =>
             doc.Data.TryGetValue("status", out var status) && status?.ToString() == "active" &&
             doc.Data.TryGetValue("type", out var type) && type?.ToString() == "premium";
-        
+
         var index = _indexManager.CreatePartialIndex<string>(collectionName, fieldName, false,
             doc => doc.Data.TryGetValue("email", out var val) ? val?.ToString() : null,
             filter);
@@ -576,7 +576,7 @@ public class PartialIndexTests
         string collectionName = "users";
         string fieldName = "email";
         Func<Document, bool> filter = doc => doc.Data.ContainsKey("verifiedAt");
-        
+
         var index = _indexManager.CreatePartialIndex<string>(collectionName, fieldName, false,
             doc => doc.Data.TryGetValue("email", out var val) ? val?.ToString() : null,
             filter);
@@ -605,7 +605,7 @@ public class PartialIndexTests
         string collectionName = "users";
         string fieldName = "email";
         Func<Document, bool> filter = doc => doc.Data.TryGetValue("status", out var val) && val?.ToString() == "active";
-        
+
         _indexManager.CreatePartialIndex<string>(collectionName, fieldName, false,
             doc => doc.Data.TryGetValue("email", out var val) ? val?.ToString() : null,
             filter);
@@ -625,7 +625,7 @@ public class PartialIndexTests
         string collectionName = "users";
         string fieldName = "email";
         Func<Document, bool> filter = doc => doc.Data.TryGetValue("status", out var val) && val?.ToString() == "active";
-        
+
         _indexManager.CreatePartialIndex<string>(collectionName, fieldName, true,
             doc => doc.Data.TryGetValue("email", out var val) ? val?.ToString() : null,
             filter);
@@ -645,7 +645,7 @@ public class PartialIndexTests
         string collectionName = "users";
         string fieldName = "email";
         Func<Document, bool> filter = doc => doc.Data.TryGetValue("status", out var val) && val?.ToString() == "active";
-        
+
         _indexManager.CreatePartialIndex<string>(collectionName, fieldName, false,
             doc => doc.Data.TryGetValue("email", out var val) ? val?.ToString() : null,
             filter);
@@ -674,7 +674,7 @@ public class PartialIndexTests
         string collectionName = "users";
         string fieldName = "code";
         Func<Document, bool> filter = doc => doc.Data.TryGetValue("status", out var val) && val?.ToString() == "active";
-        
+
         var index = _indexManager.CreatePartialIndex<string>(collectionName, fieldName, true,
             doc => doc.Data.TryGetValue("code", out var val) ? val?.ToString() : null,
             filter);
@@ -695,7 +695,7 @@ public class PartialIndexTests
         string collectionName = "users";
         string fieldName = "code";
         Func<Document, bool> filter = doc => doc.Data.TryGetValue("status", out var val) && val?.ToString() == "active";
-        
+
         var index = _indexManager.CreatePartialIndex<string>(collectionName, fieldName, true,
             doc => doc.Data.TryGetValue("code", out var val) ? val?.ToString() : null,
             filter);
@@ -722,7 +722,7 @@ public class PartialIndexTests
         string collectionName = "users";
         string fieldName = "email";
         Func<Document, bool> filter = doc => doc.Data.TryGetValue("status", out var val) && val?.ToString() == "active";
-        
+
         _indexManager.CreatePartialIndex<string>(collectionName, fieldName, false,
             doc => doc.Data.TryGetValue("email", out var val) ? val?.ToString() : null,
             filter);

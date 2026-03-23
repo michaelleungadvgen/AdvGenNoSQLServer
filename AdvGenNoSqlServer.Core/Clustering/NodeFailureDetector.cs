@@ -129,7 +129,7 @@ namespace AdvGenNoSqlServer.Core.Clustering
             Interlocked.Increment(ref _totalHeartbeatsReceived);
 
             var health = _nodeHealth.GetOrAdd(nodeId, _ => new NodeHealthInfo { NodeId = nodeId });
-            
+
             var previousStatus = health.Status;
             health.LastHeartbeat = DateTime.UtcNow;
             health.HeartbeatCount++;

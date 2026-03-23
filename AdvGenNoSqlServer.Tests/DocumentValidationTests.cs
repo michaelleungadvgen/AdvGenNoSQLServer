@@ -803,9 +803,9 @@ namespace AdvGenNoSqlServer.Tests
                     }
                 }
             }").RootElement;
-            var document = CreateDocument(new Dictionary<string, object?> 
-            { 
-                ["user"] = new Dictionary<string, object?> { ["name"] = "John", ["age"] = 30 } 
+            var document = CreateDocument(new Dictionary<string, object?>
+            {
+                ["user"] = new Dictionary<string, object?> { ["name"] = "John", ["age"] = 30 }
             });
 
             var result = await _validator.ValidateAsync(document, schema);
@@ -828,9 +828,9 @@ namespace AdvGenNoSqlServer.Tests
                     }
                 }
             }").RootElement;
-            var document = CreateDocument(new Dictionary<string, object?> 
-            { 
-                ["user"] = new Dictionary<string, object?> { ["age"] = 30 } 
+            var document = CreateDocument(new Dictionary<string, object?>
+            {
+                ["user"] = new Dictionary<string, object?> { ["age"] = 30 }
             });
 
             var result = await _validator.ValidateAsync(document, schema);

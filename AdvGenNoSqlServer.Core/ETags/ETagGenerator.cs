@@ -70,10 +70,10 @@ public class ETagGenerator : IETagGenerator
 
         // Normalize the provided ETag
         var normalizedProvided = NormalizeETag(eTag);
-        
+
         // Check if provided ETag is weak
         var isWeak = IsWeakETag(eTag);
-        
+
         // Generate expected ETag
         var expectedHash = ComputeHash(document, isWeak);
         var normalizedExpected = NormalizeETag(FormatETag(expectedHash, isWeak));
@@ -115,13 +115,13 @@ public class ETagGenerator : IETagGenerator
             return string.Empty;
 
         var normalized = eTag.Trim();
-        
+
         // Remove weak prefix
         if (normalized.StartsWith("W/", StringComparison.OrdinalIgnoreCase))
         {
             normalized = normalized[2..].Trim();
         }
-        
+
         // Remove quotes
         if (normalized.StartsWith("\"") && normalized.EndsWith("\""))
         {
@@ -214,7 +214,7 @@ public class ETagGenerator : IETagGenerator
     private string FormatETag(byte[] hash, bool weak)
     {
         var hex = Convert.ToHexString(hash).ToLowerInvariant();
-        
+
         // Truncate if needed
         if (hex.Length > _options.MaxETagLength)
         {
@@ -279,7 +279,7 @@ public class ETagGenerator : IETagGenerator
         }
 
         crc ^= 0xFFFFFFFF;
-        
+
         // Convert to bytes (big-endian)
         return new[]
         {

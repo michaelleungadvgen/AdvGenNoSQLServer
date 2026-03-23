@@ -126,8 +126,8 @@ public class WriteConcern : IEquatable<WriteConcern>
         if (other is null) return false;
         if (ReferenceEquals(this, other)) return true;
 
-        return W.Equals(other.W) && 
-               Journal == other.Journal && 
+        return W.Equals(other.W) &&
+               Journal == other.Journal &&
                WTimeout == other.WTimeout;
     }
 
@@ -148,10 +148,10 @@ public class WriteConcern : IEquatable<WriteConcern>
     {
         var wStr = W is string ? $"\"{W}\"" : W.ToString();
         var parts = new List<string> { $"w: {wStr}" };
-        
+
         if (Journal)
             parts.Add("j: true");
-        
+
         if (WTimeout.HasValue)
             parts.Add($"wtimeout: {WTimeout.Value.TotalMilliseconds}ms");
 

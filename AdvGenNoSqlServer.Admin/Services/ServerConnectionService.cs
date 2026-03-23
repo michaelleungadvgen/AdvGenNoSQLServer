@@ -49,11 +49,11 @@ public class ServerConnectionService
             };
 
             _client = new AdvGenNoSqlClient(serverUrl, options);
-            
+
             // Note: In a real implementation, we would connect here
             // For now, we simulate the connection
             await Task.Delay(100);
-            
+
             ConnectionStateChanged?.Invoke(this, EventArgs.Empty);
             return true;
         }
@@ -74,7 +74,7 @@ public class ServerConnectionService
             await Task.Delay(50);
             _client = null;
         }
-        
+
         ConnectionStateChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -94,7 +94,7 @@ public class ServerConnectionService
             QueriesPerSecond = new Random().Next(10, 1000),
             ServerVersion = "1.0.0"
         };
-        
+
         return Task.FromResult(stats);
     }
 
@@ -112,7 +112,7 @@ public class ServerConnectionService
             "sessions",
             "configuration"
         };
-        
+
         return Task.FromResult(collections);
     }
 
@@ -123,7 +123,7 @@ public class ServerConnectionService
     {
         var documents = new List<Document>();
         var random = new Random();
-        
+
         for (int i = 0; i < take; i++)
         {
             var docId = $"doc_{skip + i}_{Guid.NewGuid().ToString()[..8]}";
@@ -141,7 +141,7 @@ public class ServerConnectionService
             };
             documents.Add(doc);
         }
-        
+
         return Task.FromResult(documents);
     }
 
@@ -169,7 +169,7 @@ public class ServerConnectionService
                 }
             }
         };
-        
+
         return Task.FromResult<Document?>(doc);
     }
 
@@ -186,7 +186,7 @@ public class ServerConnectionService
             ExecutionTimeMs = new Random().Next(1, 100),
             TotalCount = new Random().Next(10, 1000)
         };
-        
+
         var random = new Random();
         for (int i = 0; i < Math.Min(10, result.TotalCount); i++)
         {
@@ -201,7 +201,7 @@ public class ServerConnectionService
                 }
             });
         }
-        
+
         return Task.FromResult(result);
     }
 }

@@ -367,13 +367,13 @@ namespace AdvGenNoSqlServer.Core.Clustering
         private int CalculateQuorum(int factor)
         {
             var strategy = _configuration.Strategy;
-            
+
             if (strategy.Equals("Synchronous", StringComparison.OrdinalIgnoreCase))
                 return factor;
-            
+
             if (strategy.Equals("Asynchronous", StringComparison.OrdinalIgnoreCase))
                 return 1;
-            
+
             // SemiSynchronous (default) - majority
             return (factor / 2) + 1;
         }

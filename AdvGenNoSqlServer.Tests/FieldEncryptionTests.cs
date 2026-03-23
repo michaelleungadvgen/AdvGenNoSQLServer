@@ -184,7 +184,7 @@ public class FieldEncryptionTests
     [Fact]
     public async Task EncryptFieldsAsync_NullDocument_ThrowsArgumentNullException()
     {
-        await Assert.ThrowsAsync<ArgumentNullException>(() => 
+        await Assert.ThrowsAsync<ArgumentNullException>(() =>
             _fieldEncryptor.EncryptFieldsAsync(null!, new[] { "field" }));
     }
 
@@ -218,7 +218,7 @@ public class FieldEncryptionTests
     {
         var originalSsn = "123-45-6789";
         var doc = CreateDocument("doc1", new { name = "John", ssn = originalSsn });
-        
+
         var encrypted = await _fieldEncryptor.EncryptFieldsAsync(doc, new[] { "ssn" });
         var decrypted = await _fieldEncryptor.DecryptFieldsAsync(encrypted, new[] { "ssn" });
 
@@ -229,12 +229,12 @@ public class FieldEncryptionTests
     [Fact]
     public async Task EncryptFieldsAsync_NestedField_EncryptsNestedValue()
     {
-        var doc = CreateDocument("doc1", new 
-        { 
-            name = "John", 
-            profile = new { ssn = "123-45-6789", age = 30 } 
+        var doc = CreateDocument("doc1", new
+        {
+            name = "John",
+            profile = new { ssn = "123-45-6789", age = 30 }
         });
-        
+
         var result = await _fieldEncryptor.EncryptFieldsAsync(doc, new[] { "profile.ssn" });
 
         var profile = result.Data?["profile"] as Dictionary<string, object?>;
@@ -247,12 +247,12 @@ public class FieldEncryptionTests
     public async Task EncryptDecryptFieldsAsync_NestedField_RoundTrip_ReturnsOriginalData()
     {
         var originalSsn = "123-45-6789";
-        var doc = CreateDocument("doc1", new 
-        { 
-            name = "John", 
-            profile = new { ssn = originalSsn, age = 30 } 
+        var doc = CreateDocument("doc1", new
+        {
+            name = "John",
+            profile = new { ssn = originalSsn, age = 30 }
         });
-        
+
         var encrypted = await _fieldEncryptor.EncryptFieldsAsync(doc, new[] { "profile.ssn" });
         var decrypted = await _fieldEncryptor.DecryptFieldsAsync(encrypted, new[] { "profile.ssn" });
 
@@ -263,13 +263,13 @@ public class FieldEncryptionTests
     [Fact]
     public async Task EncryptFieldsAsync_MultipleFields_EncryptsAllSpecifiedFields()
     {
-        var doc = CreateDocument("doc1", new 
-        { 
-            name = "John", 
+        var doc = CreateDocument("doc1", new
+        {
+            name = "John",
             ssn = "123-45-6789",
             creditCard = "4111-1111-1111-1111"
         });
-        
+
         var result = await _fieldEncryptor.EncryptFieldsAsync(doc, new[] { "ssn", "creditCard" });
 
         Assert.True(_fieldEncryptor.IsEncryptedValue(result.Data?["ssn"]?.ToString()));
@@ -281,7 +281,7 @@ public class FieldEncryptionTests
     public async Task EncryptFieldsAsync_NonExistentField_DoesNotThrow()
     {
         var doc = CreateDocument("doc1", new { name = "John" });
-        
+
         var result = await _fieldEncryptor.EncryptFieldsAsync(doc, new[] { "nonexistent" });
 
         Assert.Equal("John", result.Data?["name"]?.ToString());
@@ -376,7 +376,7 @@ public class FieldEncryptionTests
     [Fact]
     public async Task RotateKeyAsync_NonExistentKey_ThrowsKeyNotFoundException()
     {
-        await Assert.ThrowsAsync<KeyNotFoundException>(() => 
+        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
             _keyVault.RotateKeyAsync("non-existent"));
     }
 
@@ -455,11 +455,11 @@ public class FieldEncryptionTests
         var doc = CreateDocument("doc1", new { name = "John", ssn = "123-45-6789" });
 
         var inserted = await store.InsertAsync("users", doc);
-        
+
         // Get directly from inner store to verify encryption
         var fromInner = await _documentStore.GetAsync("users", "doc1");
         Assert.NotNull(fromInner);
-        
+
         var ssnValue = fromInner.Data?["ssn"]?.ToString();
         Assert.True(_fieldEncryptor.IsEncryptedValue(ssnValue));
     }
@@ -666,7 +666,7 @@ public class FieldEncryptionTests
     [Fact]
     public async Task DecryptValueAsync_InvalidFormat_ThrowsFieldEncryptionException()
     {
-        await Assert.ThrowsAsync<FieldEncryptionException>(() => 
+        await Assert.ThrowsAsync<FieldEncryptionException>(() =>
             _fieldEncryptor.DecryptValueAsync("__enc__:invalid", typeof(string)));
     }
 

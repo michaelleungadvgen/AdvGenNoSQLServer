@@ -84,9 +84,9 @@ public class TagSet : Dictionary<string, string>
         foreach (var tag in this)
         {
             // Find matching key case-insensitively
-            var matchingKey = nodeTags.Keys.FirstOrDefault(k => 
+            var matchingKey = nodeTags.Keys.FirstOrDefault(k =>
                 string.Equals(k, tag.Key, StringComparison.OrdinalIgnoreCase));
-            
+
             if (matchingKey == null)
                 return false;
 

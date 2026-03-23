@@ -20,7 +20,7 @@ public class GeospatialIndexTests
     public void GeoPoint_Constructor_ShouldSetCoordinates()
     {
         var point = new GeoPoint(144.9631, -37.8136);
-        
+
         Assert.Equal(144.9631, point.Longitude);
         Assert.Equal(-37.8136, point.Latitude);
     }
@@ -51,7 +51,7 @@ public class GeospatialIndexTests
     {
         var point = new GeoPoint(144.9631, -37.8136);
         var distance = point.DistanceTo(point);
-        
+
         Assert.Equal(0, distance, 6);
     }
 
@@ -61,9 +61,9 @@ public class GeospatialIndexTests
         // Melbourne to Sydney is approximately 713 km
         var melbourne = new GeoPoint(144.9631, -37.8136);
         var sydney = new GeoPoint(151.2093, -33.8688);
-        
+
         var distance = melbourne.DistanceTo(sydney);
-        
+
         Assert.True(distance > 700 && distance < 730, $"Expected ~713km, got {distance}km");
     }
 
@@ -72,10 +72,10 @@ public class GeospatialIndexTests
     {
         var melbourne = new GeoPoint(144.9631, -37.8136);
         var sydney = new GeoPoint(151.2093, -33.8688);
-        
+
         var distanceKm = melbourne.DistanceTo(sydney, DistanceUnit.Kilometers);
         var distanceMiles = melbourne.DistanceTo(sydney, DistanceUnit.Miles);
-        
+
         var expectedMiles = distanceKm * 0.621371;
         Assert.Equal(expectedMiles, distanceMiles, 1);
     }
@@ -85,7 +85,7 @@ public class GeospatialIndexTests
     {
         var point1 = new GeoPoint(144.9631, -37.8136);
         var point2 = new GeoPoint(144.9631, -37.8136);
-        
+
         Assert.Equal(point1, point2);
         Assert.True(point1 == point2);
     }
@@ -95,7 +95,7 @@ public class GeospatialIndexTests
     {
         var point1 = new GeoPoint(144.9631, -37.8136);
         var point2 = new GeoPoint(151.2093, -33.8688);
-        
+
         Assert.NotEqual(point1, point2);
         Assert.True(point1 != point2);
     }
@@ -105,7 +105,7 @@ public class GeospatialIndexTests
     {
         var array = new[] { 144.9631, -37.8136 };
         var point = GeoPoint.FromObject(array);
-        
+
         Assert.NotNull(point);
         Assert.Equal(144.9631, point.Value.Longitude);
         Assert.Equal(-37.8136, point.Value.Latitude);
@@ -116,7 +116,7 @@ public class GeospatialIndexTests
     {
         var list = new List<object> { 144.9631, -37.8136 };
         var point = GeoPoint.FromObject(list);
-        
+
         Assert.NotNull(point);
         Assert.Equal(144.9631, point.Value.Longitude);
         Assert.Equal(-37.8136, point.Value.Latitude);
@@ -131,7 +131,7 @@ public class GeospatialIndexTests
             ["lat"] = -37.8136
         };
         var point = GeoPoint.FromObject(dict);
-        
+
         Assert.NotNull(point);
         Assert.Equal(144.9631, point.Value.Longitude);
         Assert.Equal(-37.8136, point.Value.Latitude);
@@ -146,7 +146,7 @@ public class GeospatialIndexTests
             ["lat"] = -37.8136
         };
         var point = GeoPoint.FromObject(dict);
-        
+
         Assert.NotNull(point);
         Assert.Equal(144.9631, point.Value.Longitude);
     }
@@ -160,7 +160,7 @@ public class GeospatialIndexTests
             ["latitude"] = -37.8136
         };
         var point = GeoPoint.FromObject(dict);
-        
+
         Assert.NotNull(point);
         Assert.Equal(144.9631, point.Value.Longitude);
         Assert.Equal(-37.8136, point.Value.Latitude);
@@ -185,7 +185,7 @@ public class GeospatialIndexTests
     {
         var point = new GeoPoint(144.9631, -37.8136);
         var str = point.ToString();
-        
+
         Assert.Contains("144.9631", str);
         Assert.Contains("-37.8136", str);
     }
@@ -199,7 +199,7 @@ public class GeospatialIndexTests
     {
         var box = new GeoBoundingBox(144.0, -38.0, 145.0, -37.0);
         var point = new GeoPoint(144.5, -37.5);
-        
+
         Assert.True(box.Contains(point));
     }
 
@@ -208,7 +208,7 @@ public class GeospatialIndexTests
     {
         var box = new GeoBoundingBox(144.0, -38.0, 145.0, -37.0);
         var point = new GeoPoint(150.0, -37.5);
-        
+
         Assert.False(box.Contains(point));
     }
 
@@ -217,7 +217,7 @@ public class GeospatialIndexTests
     {
         var box = new GeoBoundingBox(144.0, -38.0, 146.0, -36.0);
         var center = box.Center;
-        
+
         Assert.Equal(145.0, center.Longitude);
         Assert.Equal(-37.0, center.Latitude);
     }
@@ -242,7 +242,7 @@ public class GeospatialIndexTests
         var bottomLeft = new GeoPoint(144.0, -38.0);
         var topRight = new GeoPoint(145.0, -37.0);
         var box = new GeoBoundingBox(bottomLeft, topRight);
-        
+
         Assert.Equal(144.0, box.MinLongitude);
         Assert.Equal(-38.0, box.MinLatitude);
         Assert.Equal(145.0, box.MaxLongitude);
@@ -259,7 +259,7 @@ public class GeospatialIndexTests
         var center = new GeoPoint(144.9631, -37.8136);
         var circle = new GeoCircle(center, 15); // 15km radius
         var point = new GeoPoint(144.9631, -37.7236); // About 10km north
-        
+
         Assert.True(circle.Contains(point));
     }
 
@@ -269,7 +269,7 @@ public class GeospatialIndexTests
         var center = new GeoPoint(144.9631, -37.8136);
         var circle = new GeoCircle(center, 10); // 10km radius
         var point = new GeoPoint(151.2093, -33.8688); // Sydney, far away
-        
+
         Assert.False(circle.Contains(point));
     }
 
@@ -279,9 +279,9 @@ public class GeospatialIndexTests
         var center = new GeoPoint(144.9631, -37.8136);
         var circleKm = new GeoCircle(center, 15, DistanceUnit.Kilometers);
         var circleMi = new GeoCircle(center, 9.32, DistanceUnit.Miles); // ~15km in miles
-        
+
         var point = new GeoPoint(144.9631, -37.7236); // ~10km north
-        
+
         Assert.True(circleKm.Contains(point));
         Assert.True(circleMi.Contains(point));
     }
@@ -301,9 +301,9 @@ public class GeospatialIndexTests
             new GeoPoint(144.0, -37.0),
             new GeoPoint(144.0, -38.0) // Close the polygon
         );
-        
+
         var point = new GeoPoint(144.5, -37.5);
-        
+
         Assert.True(polygon.Contains(point));
     }
 
@@ -316,9 +316,9 @@ public class GeospatialIndexTests
             new GeoPoint(145.0, -37.0),
             new GeoPoint(144.0, -37.0)
         );
-        
+
         var point = new GeoPoint(146.0, -36.0);
-        
+
         Assert.False(polygon.Contains(point));
     }
 
@@ -329,9 +329,9 @@ public class GeospatialIndexTests
             new GeoPoint(144.0, -38.0),
             new GeoPoint(145.0, -37.0)
         );
-        
+
         var point = new GeoPoint(144.5, -37.5);
-        
+
         Assert.False(polygon.Contains(point));
     }
 
@@ -344,9 +344,9 @@ public class GeospatialIndexTests
             new GeoPoint(145.0, -37.0),
             new GeoPoint(144.0, -37.0)
         );
-        
+
         var box = polygon.GetBoundingBox();
-        
+
         Assert.Equal(144.0, box.MinLongitude);
         Assert.Equal(-38.0, box.MinLatitude);
         Assert.Equal(145.0, box.MaxLongitude);
@@ -358,7 +358,7 @@ public class GeospatialIndexTests
     {
         var polygon = new GeoPolygon(Array.Empty<GeoPoint>());
         var box = polygon.GetBoundingBox();
-        
+
         Assert.Equal(0, box.MinLongitude);
         Assert.Equal(0, box.MinLatitude);
         Assert.Equal(0, box.MaxLongitude);
@@ -373,7 +373,7 @@ public class GeospatialIndexTests
     public void GeospatialIndex_Constructor_SetsProperties()
     {
         var index = new GeospatialIndex("places", "location");
-        
+
         Assert.Equal("places", index.CollectionName);
         Assert.Equal("location", index.FieldName);
         Assert.Equal(0, index.Count);
@@ -384,9 +384,9 @@ public class GeospatialIndexTests
     {
         var index = new GeospatialIndex("places", "location");
         var point = new GeoPoint(144.9631, -37.8136);
-        
+
         index.Index("doc1", point);
-        
+
         Assert.Equal(1, index.Count);
         Assert.True(index.Contains("doc1"));
     }
@@ -397,10 +397,10 @@ public class GeospatialIndexTests
         var index = new GeospatialIndex("places", "location");
         var point1 = new GeoPoint(144.9631, -37.8136);
         var point2 = new GeoPoint(151.2093, -33.8688);
-        
+
         index.Index("doc1", point1);
         index.Index("doc1", point2);
-        
+
         Assert.Equal(1, index.Count);
         var location = index.GetLocation("doc1");
         Assert.Equal(point2, location);
@@ -411,10 +411,10 @@ public class GeospatialIndexTests
     {
         var index = new GeospatialIndex("places", "location");
         var point = new GeoPoint(144.9631, -37.8136);
-        
+
         index.Index("doc1", point);
         var removed = index.Remove("doc1");
-        
+
         Assert.True(removed);
         Assert.Equal(0, index.Count);
         Assert.False(index.Contains("doc1"));
@@ -424,9 +424,9 @@ public class GeospatialIndexTests
     public void GeospatialIndex_Remove_NonExistingDocument_ReturnsFalse()
     {
         var index = new GeospatialIndex("places", "location");
-        
+
         var removed = index.Remove("doc1");
-        
+
         Assert.False(removed);
     }
 
@@ -435,10 +435,10 @@ public class GeospatialIndexTests
     {
         var index = new GeospatialIndex("places", "location");
         var point = new GeoPoint(144.9631, -37.8136);
-        
+
         index.Index("doc1", point);
         var location = index.GetLocation("doc1");
-        
+
         Assert.Equal(point, location);
     }
 
@@ -446,9 +446,9 @@ public class GeospatialIndexTests
     public void GeospatialIndex_GetLocation_NonExistingDocument_ReturnsNull()
     {
         var index = new GeospatialIndex("places", "location");
-        
+
         var location = index.GetLocation("doc1");
-        
+
         Assert.Null(location);
     }
 
@@ -456,11 +456,11 @@ public class GeospatialIndexTests
     public void GeospatialIndex_Clear_RemovesAllDocuments()
     {
         var index = new GeospatialIndex("places", "location");
-        
+
         index.Index("doc1", new GeoPoint(144.9631, -37.8136));
         index.Index("doc2", new GeoPoint(151.2093, -33.8688));
         index.Clear();
-        
+
         Assert.Equal(0, index.Count);
         Assert.False(index.Contains("doc1"));
         Assert.False(index.Contains("doc2"));
@@ -471,14 +471,14 @@ public class GeospatialIndexTests
     {
         var index = new GeospatialIndex("places", "location");
         var center = new GeoPoint(144.9631, -37.8136); // Melbourne
-        
+
         // Index some points
         index.Index("melbourne", center);
         index.Index("sydney", new GeoPoint(151.2093, -33.8688)); // ~713km away
         index.Index("nearby", new GeoPoint(144.9731, -37.8036)); // ~1.4km away
-        
+
         var results = index.FindNear(center, 10).ToList(); // 10km radius
-        
+
         Assert.Equal(2, results.Count);
         Assert.Contains(results, r => r.DocumentId == "melbourne");
         Assert.Contains(results, r => r.DocumentId == "nearby");
@@ -490,13 +490,13 @@ public class GeospatialIndexTests
     {
         var index = new GeospatialIndex("places", "location");
         var center = new GeoPoint(144.9631, -37.8136);
-        
+
         index.Index("near", new GeoPoint(144.9731, -37.8036)); // ~1.4km
         index.Index("far", new GeoPoint(144.9631, -37.7236)); // ~10km
         index.Index("medium", new GeoPoint(144.9631, -37.7636)); // ~5.5km
-        
+
         var results = index.FindNear(center, 15).ToList();
-        
+
         Assert.Equal("near", results[0].DocumentId);
         Assert.Equal("medium", results[1].DocumentId);
         Assert.Equal("far", results[2].DocumentId);
@@ -507,14 +507,14 @@ public class GeospatialIndexTests
     {
         var index = new GeospatialIndex("places", "location");
         var center = new GeoPoint(144.9631, -37.8136);
-        
+
         index.Index("doc1", new GeoPoint(144.9631, -37.8136));
         index.Index("doc2", new GeoPoint(144.9632, -37.8136));
         index.Index("doc3", new GeoPoint(144.9633, -37.8136));
-        
+
         var options = new GeospatialQueryOptions { Limit = 2 };
         var results = index.FindNear(center, 100, options).ToList();
-        
+
         Assert.Equal(2, results.Count);
     }
 
@@ -523,13 +523,13 @@ public class GeospatialIndexTests
     {
         var index = new GeospatialIndex("places", "location");
         var center = new GeoPoint(144.9631, -37.8136);
-        
+
         index.Index("atCenter", center);
         index.Index("nearby", new GeoPoint(144.9731, -37.8036)); // ~1.4km
-        
+
         var options = new GeospatialQueryOptions { MinDistance = 0.5 };
         var results = index.FindNear(center, 10, options).ToList();
-        
+
         Assert.DoesNotContain(results, r => r.DocumentId == "atCenter");
         Assert.Contains(results, r => r.DocumentId == "nearby");
     }
@@ -539,12 +539,12 @@ public class GeospatialIndexTests
     {
         var index = new GeospatialIndex("places", "location");
         var box = new GeoBoundingBox(144.0, -38.0, 145.0, -37.0);
-        
+
         index.Index("inside", new GeoPoint(144.5, -37.5));
         index.Index("outside", new GeoPoint(150.0, -33.0));
-        
+
         var results = index.FindWithinBox(box).ToList();
-        
+
         Assert.Single(results);
         Assert.Equal("inside", results[0].DocumentId);
     }
@@ -555,12 +555,12 @@ public class GeospatialIndexTests
         var index = new GeospatialIndex("places", "location");
         var center = new GeoPoint(144.9631, -37.8136);
         var circle = new GeoCircle(center, 15); // 15km radius
-        
+
         index.Index("inside", new GeoPoint(144.9631, -37.7236)); // ~10km north
         index.Index("outside", new GeoPoint(151.2093, -33.8688)); // Sydney
-        
+
         var results = index.FindWithinCircle(circle).ToList();
-        
+
         Assert.Single(results);
         Assert.Equal("inside", results[0].DocumentId);
     }
@@ -575,12 +575,12 @@ public class GeospatialIndexTests
             new GeoPoint(145.0, -37.0),
             new GeoPoint(144.0, -37.0)
         );
-        
+
         index.Index("inside", new GeoPoint(144.5, -37.5));
         index.Index("outside", new GeoPoint(150.0, -33.0));
-        
+
         var results = index.FindWithinPolygon(polygon).ToList();
-        
+
         Assert.Single(results);
         Assert.Equal("inside", results[0].DocumentId);
     }
@@ -589,12 +589,12 @@ public class GeospatialIndexTests
     public void GeospatialIndex_GetStats_ReturnsCorrectStatistics()
     {
         var index = new GeospatialIndex("places", "location");
-        
+
         index.Index("doc1", new GeoPoint(144.0, -38.0));
         index.Index("doc2", new GeoPoint(145.0, -37.0));
-        
+
         var stats = index.GetStats();
-        
+
         Assert.Equal("places", stats.CollectionName);
         Assert.Equal("location", stats.FieldName);
         Assert.Equal(2, stats.TotalDocuments);
@@ -607,7 +607,7 @@ public class GeospatialIndexTests
     {
         var index = new GeospatialIndex("places", "location");
         var tasks = new List<Task>();
-        
+
         for (int i = 0; i < 100; i++)
         {
             var id = i;
@@ -616,9 +616,9 @@ public class GeospatialIndexTests
                 index.Index($"doc{id}", new GeoPoint(144.0 + i * 0.001, -37.0 - i * 0.001));
             }));
         }
-        
+
         Task.WaitAll(tasks.ToArray());
-        
+
         Assert.Equal(100, index.Count);
     }
 
@@ -630,9 +630,9 @@ public class GeospatialIndexTests
     public void GeospatialIndexManager_CreateIndex_ReturnsIndex()
     {
         var manager = new GeospatialIndexManager();
-        
+
         var index = manager.CreateIndex("places", "location");
-        
+
         Assert.NotNull(index);
         Assert.Equal("places", index.CollectionName);
         Assert.Equal("location", index.FieldName);
@@ -643,9 +643,9 @@ public class GeospatialIndexTests
     {
         var manager = new GeospatialIndexManager();
         manager.CreateIndex("places", "location");
-        
+
         var index = manager.GetIndex("places", "location");
-        
+
         Assert.NotNull(index);
     }
 
@@ -653,9 +653,9 @@ public class GeospatialIndexTests
     public void GeospatialIndexManager_GetIndex_NonExistingIndex_ReturnsNull()
     {
         var manager = new GeospatialIndexManager();
-        
+
         var index = manager.GetIndex("places", "location");
-        
+
         Assert.Null(index);
     }
 
@@ -664,7 +664,7 @@ public class GeospatialIndexTests
     {
         var manager = new GeospatialIndexManager();
         manager.CreateIndex("places", "location");
-        
+
         Assert.True(manager.HasIndex("places", "location"));
     }
 
@@ -673,9 +673,9 @@ public class GeospatialIndexTests
     {
         var manager = new GeospatialIndexManager();
         manager.CreateIndex("places", "location");
-        
+
         var dropped = manager.DropIndex("places", "location");
-        
+
         Assert.True(dropped);
         Assert.False(manager.HasIndex("places", "location"));
     }
@@ -687,9 +687,9 @@ public class GeospatialIndexTests
         manager.CreateIndex("places", "location");
         manager.CreateIndex("places", "geo");
         manager.CreateIndex("other", "location");
-        
+
         var indexes = manager.GetCollectionIndexes("places").ToList();
-        
+
         Assert.Equal(2, indexes.Count);
         Assert.All(indexes, i => Assert.Equal("places", i.CollectionName));
     }
@@ -699,7 +699,7 @@ public class GeospatialIndexTests
     {
         var manager = new GeospatialIndexManager();
         manager.CreateIndex("places", "location");
-        
+
         var document = new Document
         {
             Id = "doc1",
@@ -709,9 +709,9 @@ public class GeospatialIndexTests
                 ["name"] = "Melbourne"
             }
         };
-        
+
         manager.IndexDocument("places", "location", document);
-        
+
         var index = manager.GetIndex("places", "location");
         Assert.True(index?.Contains("doc1"));
     }
@@ -721,7 +721,7 @@ public class GeospatialIndexTests
     {
         var manager = new GeospatialIndexManager();
         manager.CreateIndex("places", "location");
-        
+
         var document = new Document
         {
             Id = "doc1",
@@ -730,10 +730,10 @@ public class GeospatialIndexTests
                 ["location"] = new[] { 144.9631, -37.8136 }
             }
         };
-        
+
         manager.IndexDocument("places", "location", document);
         manager.RemoveDocument("places", "location", "doc1");
-        
+
         var index = manager.GetIndex("places", "location");
         Assert.False(index?.Contains("doc1"));
     }
@@ -744,9 +744,9 @@ public class GeospatialIndexTests
         var manager = new GeospatialIndexManager();
         manager.CreateIndex("places", "location");
         manager.CreateIndex("other", "location");
-        
+
         manager.ClearAll();
-        
+
         Assert.Null(manager.GetIndex("places", "location"));
         Assert.Null(manager.GetIndex("other", "location"));
     }
@@ -761,7 +761,7 @@ public class GeospatialIndexTests
         var innerStore = new DocumentStore();
         var geoStore = new GeospatialDocumentStore(innerStore);
         geoStore.CreateGeospatialIndex("places", "location");
-        
+
         var document = new Document
         {
             Id = "doc1",
@@ -771,9 +771,9 @@ public class GeospatialIndexTests
                 ["name"] = "Melbourne"
             }
         };
-        
+
         await geoStore.InsertAsync("places", document);
-        
+
         var index = geoStore.IndexManager.GetIndex("places", "location");
         Assert.True(index?.Contains("doc1"));
     }
@@ -784,7 +784,7 @@ public class GeospatialIndexTests
         var innerStore = new DocumentStore();
         var geoStore = new GeospatialDocumentStore(innerStore);
         geoStore.CreateGeospatialIndex("places", "location");
-        
+
         var document = new Document
         {
             Id = "doc1",
@@ -793,10 +793,10 @@ public class GeospatialIndexTests
                 ["location"] = new[] { 144.9631, -37.8136 }
             }
         };
-        
+
         await geoStore.InsertAsync("places", document);
         await geoStore.DeleteAsync("places", "doc1");
-        
+
         var index = geoStore.IndexManager.GetIndex("places", "location");
         Assert.False(index?.Contains("doc1"));
     }
@@ -807,7 +807,7 @@ public class GeospatialIndexTests
         var innerStore = new DocumentStore();
         var geoStore = new GeospatialDocumentStore(innerStore);
         geoStore.CreateGeospatialIndex("places", "location");
-        
+
         // Insert some places
         await geoStore.InsertAsync("places", new Document
         {
@@ -818,7 +818,7 @@ public class GeospatialIndexTests
                 ["name"] = "Melbourne"
             }
         });
-        
+
         await geoStore.InsertAsync("places", new Document
         {
             Id = "sydney",
@@ -828,9 +828,9 @@ public class GeospatialIndexTests
                 ["name"] = "Sydney"
             }
         });
-        
+
         var results = geoStore.FindNear("places", "location", new GeoPoint(144.9631, -37.8136), 100).ToList();
-        
+
         Assert.Single(results);
         Assert.Equal("melbourne", results[0].DocumentId);
     }
@@ -841,7 +841,7 @@ public class GeospatialIndexTests
         var innerStore = new DocumentStore();
         var geoStore = new GeospatialDocumentStore(innerStore);
         // Don't create index
-        
+
         Assert.Throws<InvalidOperationException>(() =>
         {
             geoStore.FindNear("places", "location", new GeoPoint(144.9631, -37.8136), 100).ToList();
@@ -854,10 +854,10 @@ public class GeospatialIndexTests
         var innerStore = new DocumentStore();
         var geoStore = new GeospatialDocumentStore(innerStore);
         geoStore.CreateGeospatialIndex("places", "location");
-        
+
         await innerStore.CreateCollectionAsync("places");
         await geoStore.DropCollectionAsync("places");
-        
+
         Assert.False(geoStore.IndexManager.HasIndex("places", "location"));
     }
 
@@ -869,9 +869,9 @@ public class GeospatialIndexTests
     public void DocumentStore_WithGeospatialSupport_ReturnsGeospatialDocumentStore()
     {
         var innerStore = new DocumentStore();
-        
+
         var geoStore = innerStore.WithGeospatialSupport();
-        
+
         Assert.IsType<GeospatialDocumentStore>(geoStore);
         Assert.Equal(innerStore, geoStore.InnerStore);
     }

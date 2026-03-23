@@ -54,8 +54,8 @@ namespace AdvGenNoSqlServer.Core.Clustering
         /// </summary>
         public void InitializeLocalNode(string host, int clientPort)
         {
-            var nodeId = string.IsNullOrEmpty(_config.NodeId) 
-                ? Guid.NewGuid().ToString("N") 
+            var nodeId = string.IsNullOrEmpty(_config.NodeId)
+                ? Guid.NewGuid().ToString("N")
                 : _config.NodeId;
 
             _localNode = new NodeIdentity
@@ -179,10 +179,10 @@ namespace AdvGenNoSqlServer.Core.Clustering
             var previousState = _localNode.State;
             _localNode.State = NodeState.Leaving;
 
-            OnNodeLeft(new NodeLeftEventArgs 
-            { 
-                Node = NodeInfo.FromIdentity(_localNode), 
-                Graceful = true 
+            OnNodeLeft(new NodeLeftEventArgs
+            {
+                Node = NodeInfo.FromIdentity(_localNode),
+                Graceful = true
             });
 
             _localNode.State = NodeState.Dead;
@@ -211,7 +211,7 @@ namespace AdvGenNoSqlServer.Core.Clustering
         public Task<bool> RemoveNodeAsync(string nodeId, CancellationToken ct = default)
         {
             EnsureNotDisposed();
-            
+
             if (nodeId == _localNode?.NodeId)
                 return Task.FromResult(false);
 
@@ -242,7 +242,7 @@ namespace AdvGenNoSqlServer.Core.Clustering
             // For foundation, just increment term locally
             // Full implementation would use Raft consensus
             _currentTerm++;
-            
+
             var previousLeader = _currentLeader;
             _currentLeader = NodeInfo.FromIdentity(_localNode!);
             _currentLeader.IsLeader = true;

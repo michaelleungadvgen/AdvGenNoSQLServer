@@ -59,17 +59,17 @@ public readonly struct GeoPoint : IEquatable<GeoPoint>
     public double DistanceTo(GeoPoint other, DistanceUnit unit)
     {
         var radius = unit == DistanceUnit.Kilometers ? EarthRadiusKm : EarthRadiusMiles;
-        
+
         var dLat = ToRadians(other.Latitude - Latitude);
         var dLon = ToRadians(other.Longitude - Longitude);
-        
+
         var lat1 = ToRadians(Latitude);
         var lat2 = ToRadians(other.Latitude);
-        
+
         var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
                 Math.Sin(dLon / 2) * Math.Sin(dLon / 2) * Math.Cos(lat1) * Math.Cos(lat2);
         var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
-        
+
         return radius * c;
     }
 
@@ -88,7 +88,7 @@ public readonly struct GeoPoint : IEquatable<GeoPoint>
         {
             return FromJsonElement(jsonElement);
         }
-        
+
         if (locationData is Dictionary<string, object> dict)
         {
             if (dict.TryGetValue("lng", out var lng) && dict.TryGetValue("lat", out var lat))
@@ -98,19 +98,19 @@ public readonly struct GeoPoint : IEquatable<GeoPoint>
             if (dict.TryGetValue("longitude", out var longitude) && dict.TryGetValue("latitude", out var latitude))
                 return new GeoPoint(Convert.ToDouble(longitude), Convert.ToDouble(latitude));
         }
-        
+
         if (locationData is IEnumerable<object> array)
         {
             var items = array.ToList();
             if (items.Count >= 2)
                 return new GeoPoint(Convert.ToDouble(items[0]), Convert.ToDouble(items[1]));
         }
-        
+
         if (locationData is double[] doubleArray && doubleArray.Length >= 2)
         {
             return new GeoPoint(doubleArray[0], doubleArray[1]);
         }
-        
+
         return null;
     }
 
@@ -122,7 +122,7 @@ public readonly struct GeoPoint : IEquatable<GeoPoint>
             if (array.Count >= 2)
                 return new GeoPoint(array[0].GetDouble(), array[1].GetDouble());
         }
-        
+
         if (element.ValueKind == System.Text.Json.JsonValueKind.Object)
         {
             if (element.TryGetProperty("lng", out var lng) && element.TryGetProperty("lat", out var lat))
@@ -132,12 +132,12 @@ public readonly struct GeoPoint : IEquatable<GeoPoint>
             if (element.TryGetProperty("longitude", out var longitude) && element.TryGetProperty("latitude", out var latitude))
                 return new GeoPoint(longitude.GetDouble(), latitude.GetDouble());
         }
-        
+
         return null;
     }
 
-    public bool Equals(GeoPoint other) => 
-        Math.Abs(Longitude - other.Longitude) < 1e-9 && 
+    public bool Equals(GeoPoint other) =>
+        Math.Abs(Longitude - other.Longitude) < 1e-9 &&
         Math.Abs(Latitude - other.Latitude) < 1e-9;
 
     public override bool Equals(object? obj) => obj is GeoPoint other && Equals(other);
@@ -218,13 +218,13 @@ public readonly struct GeoBoundingBox
     /// <summary>
     /// Validates that the box has valid coordinates.
     /// </summary>
-    public bool IsValid => 
-        MinLongitude <= MaxLongitude && 
+    public bool IsValid =>
+        MinLongitude <= MaxLongitude &&
         MinLatitude <= MaxLatitude &&
         MinLongitude >= -180 && MaxLongitude <= 180 &&
         MinLatitude >= -90 && MaxLatitude <= 90;
 
-    public override string ToString() => 
+    public override string ToString() =>
         $"[[{MinLongitude:F6}, {MinLatitude:F6}], [{MaxLongitude:F6}, {MaxLatitude:F6}]]";
 }
 
@@ -272,10 +272,10 @@ public readonly struct GeoCircle
         var kmPerDegreeLon = 111.32 * Math.Cos(latRadians);
         var kmPerDegreeLat = 110.574;
 
-        var radiusDegreesLon = Unit == DistanceUnit.Kilometers 
+        var radiusDegreesLon = Unit == DistanceUnit.Kilometers
             ? Radius / kmPerDegreeLon
             : (Radius * 1.60934) / kmPerDegreeLon; // Convert miles to km first
-        
+
         var radiusDegreesLat = Unit == DistanceUnit.Kilometers
             ? Radius / kmPerDegreeLat
             : (Radius * 1.60934) / kmPerDegreeLat;

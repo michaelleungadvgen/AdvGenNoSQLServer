@@ -203,7 +203,7 @@ public class PorterStemmer : IStemmer
 
     private static string Step4(string word)
     {
-        string[] suffixes = { "al", "ance", "ence", "er", "ic", "able", "ible", "ant", "ement", 
+        string[] suffixes = { "al", "ance", "ence", "er", "ic", "able", "ible", "ant", "ement",
                               "ment", "ent", "ion", "ou", "ism", "ate", "iti", "ous", "ive", "ize" };
 
         foreach (var suffix in suffixes)

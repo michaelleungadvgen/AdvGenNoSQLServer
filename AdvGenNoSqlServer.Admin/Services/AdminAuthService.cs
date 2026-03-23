@@ -48,11 +48,11 @@ public class AdminAuthService
             _currentUser = username;
             _authToken = $"simulated_token_{Guid.NewGuid()}";
             _isAuthenticated = true;
-            
+
             AuthenticationStateChanged?.Invoke(this, EventArgs.Empty);
             return Task.FromResult(true);
         }
-        
+
         return Task.FromResult(false);
     }
 
@@ -64,7 +64,7 @@ public class AdminAuthService
         _authToken = null;
         _currentUser = null;
         _isAuthenticated = false;
-        
+
         AuthenticationStateChanged?.Invoke(this, EventArgs.Empty);
     }
 }
