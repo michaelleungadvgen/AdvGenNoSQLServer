@@ -148,13 +148,27 @@ public sealed class GeospatialIndex : IGeospatialIndex
         
         if (_entries.Count > 0)
         {
-            var locations = _entries.Values.Select(e => e.Location).ToList();
-            boundingBox = new GeoBoundingBox(
-                locations.Min(l => l.Longitude),
-                locations.Min(l => l.Latitude),
-                locations.Max(l => l.Longitude),
-                locations.Max(l => l.Latitude)
-            );
+            // Bolt: Avoid .Values.Select().ToList() allocation and O(N) linear scans
+            double minLon = double.MaxValue;
+            double minLat = double.MaxValue;
+            double maxLon = double.MinValue;
+            double maxLat = double.MinValue;
+
+            bool hasEntries = false;
+            foreach (var kvp in _entries)
+            {
+                var loc = kvp.Value.Location;
+                if (loc.Longitude < minLon) minLon = loc.Longitude;
+                if (loc.Longitude > maxLon) maxLon = loc.Longitude;
+                if (loc.Latitude < minLat) minLat = loc.Latitude;
+                if (loc.Latitude > maxLat) maxLat = loc.Latitude;
+                hasEntries = true;
+            }
+
+            if (hasEntries)
+            {
+                boundingBox = new GeoBoundingBox(minLon, minLat, maxLon, maxLat);
+            }
         }
 
         return new GeospatialIndexStats
