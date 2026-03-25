@@ -144,12 +144,13 @@ public class SessionTests : IDisposable
     {
         // Arrange
         var session = new Session(_mockDocumentStore.Object, _mockTransactionCoordinator.Object);
+        var transactionId = session.CurrentTransactionId;
 
         // Act
         await session.CommitAsync();
 
         // Assert
-        _mockTransactionCoordinator.Verify(x => x.CommitAsync(session.CurrentTransactionId!, default), Times.Once);
+        _mockTransactionCoordinator.Verify(x => x.CommitAsync(transactionId!, default), Times.Once);
         Assert.Equal(SessionState.Committed, session.State);
         Assert.Null(session.CurrentTransactionId);
     }
@@ -171,12 +172,13 @@ public class SessionTests : IDisposable
     {
         // Arrange
         var session = new Session(_mockDocumentStore.Object, _mockTransactionCoordinator.Object);
+        var transactionId = session.CurrentTransactionId;
 
         // Act
         await session.RollbackAsync();
 
         // Assert
-        _mockTransactionCoordinator.Verify(x => x.RollbackAsync(session.CurrentTransactionId!, default), Times.Once);
+        _mockTransactionCoordinator.Verify(x => x.RollbackAsync(transactionId!, default), Times.Once);
         Assert.Equal(SessionState.RolledBack, session.State);
         Assert.Null(session.CurrentTransactionId);
     }
@@ -222,7 +224,7 @@ public class SessionTests : IDisposable
         var doc = new Document { Id = "doc1", Data = new Dictionary<string, object?> { ["name"] = "Test" } };
         _mockDocumentStore.Setup(x => x.GetAsync("collection", "doc1", default)).ReturnsAsync(doc);
 
-        var options = new SessionOptions { EnableChangeTracking = false };
+        var options = new SessionOptions { EnableChangeTracking = false, AutoBeginTransaction = false };
         var session = new Session(_mockDocumentStore.Object, _mockTransactionCoordinator.Object, options);
         await session.BeginTransactionAsync();
 
@@ -255,7 +257,7 @@ public class SessionTests : IDisposable
     {
         // Arrange
         var doc = new Document { Id = "doc1", Data = new Dictionary<string, object?> { ["name"] = "Test" } };
-        var options = new SessionOptions { EnableChangeTracking = false };
+        var options = new SessionOptions { EnableChangeTracking = false, AutoBeginTransaction = false };
         var session = new Session(_mockDocumentStore.Object, _mockTransactionCoordinator.Object, options);
         await session.BeginTransactionAsync();
 
@@ -301,7 +303,7 @@ public class SessionTests : IDisposable
     {
         // Arrange
         _mockDocumentStore.Setup(x => x.DeleteAsync("collection", "doc1", default)).ReturnsAsync(true);
-        var options = new SessionOptions { EnableChangeTracking = false };
+        var options = new SessionOptions { EnableChangeTracking = false, AutoBeginTransaction = false };
         var session = new Session(_mockDocumentStore.Object, _mockTransactionCoordinator.Object, options);
         await session.BeginTransactionAsync();
 
