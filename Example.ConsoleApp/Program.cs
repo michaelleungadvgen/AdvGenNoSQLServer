@@ -52,9 +52,12 @@ namespace AdvGenNoSqlServer.Example.ConsoleApp
                 Console.WriteLine("  7. Capped Collections Examples (NEW)");
                 Console.WriteLine("     - Fixed-size collections, Automatic document eviction");
                 Console.WriteLine("     - Log storage, Event streaming, Circular buffers");
-                Console.WriteLine("  8. Run All Examples");
-                Console.WriteLine("  9. Exit");
-                Console.Write("\nSelect option (1-9): ");
+                Console.WriteLine("  8. INSERT Examples (NEW)");
+                Console.WriteLine("     - Insert with explicit ID, Auto-generated ID");
+                Console.WriteLine("     - Duplicate handling, Bulk insert operations");
+                Console.WriteLine("  9. Run All Examples");
+                Console.WriteLine("  0. Exit");
+                Console.Write("\nSelect option (0-9): ");
 
                 var choice = Console.ReadLine();
 
@@ -84,6 +87,9 @@ namespace AdvGenNoSqlServer.Example.ConsoleApp
                             await RunCappedCollectionsExamples();
                             break;
                         case "8":
+                            await RunInsertExamples();
+                            break;
+                        case "9":
                             await RunBasicExamples();
                             await RunMultiDatabaseAndRbacExamples();
                             await RunP2PClusterExamples();
@@ -91,13 +97,14 @@ namespace AdvGenNoSqlServer.Example.ConsoleApp
                             await RunDatabaseManagerExamples();
                             await RunWriteConcernExamples();
                             await RunCappedCollectionsExamples();
+                            await RunInsertExamples();
                             break;
-                        case "9":
+                        case "0":
                             Console.WriteLine("\n👋 Goodbye!");
                             return;
                         default:
                             Console.ForegroundColor = ConsoleColor.Yellow;
-                            Console.WriteLine("\n⚠ Invalid option. Please select 1-9.");
+                            Console.WriteLine("\n⚠ Invalid option. Please select 0-9.");
                             Console.ResetColor();
                             break;
                     }
@@ -205,6 +212,19 @@ namespace AdvGenNoSqlServer.Example.ConsoleApp
             Console.WriteLine(new string('═', 60));
 
             var examples = new CappedCollectionsExamples("./data/capped_examples");
+            await examples.RunAllExamplesAsync();
+        }
+
+        /// <summary>
+        /// Run INSERT examples demonstrating document insertion operations
+        /// </summary>
+        static async Task RunInsertExamples()
+        {
+            Console.WriteLine("\n" + new string('═', 60));
+            Console.WriteLine("  INSERT EXAMPLES (Real Components)");
+            Console.WriteLine(new string('═', 60));
+
+            var examples = new InsertExamples("./data/insert_examples");
             await examples.RunAllExamplesAsync();
         }
 

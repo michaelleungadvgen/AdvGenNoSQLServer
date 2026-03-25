@@ -4595,7 +4595,7 @@ public async Task Run[CommandName]Example()
 ### 48.11 Example Checklist
 
 #### P0 Commands
-- [ ] INSERT examples (3 scenarios)
+- [x] INSERT examples (3 scenarios) ✓ COMPLETED (Agent-111)
 - [ ] REPLACE examples (3 scenarios)
 - [ ] UPSERT examples (3 scenarios)
 - [ ] FIND_ONE examples (3 scenarios)
