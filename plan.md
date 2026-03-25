@@ -357,7 +357,7 @@ if (negotiatedProtocol == default)
 | 39 | Client certificate support | mTLS for high security | 4h | ✓ COMPLETED (Agent-79 - ClientCertificateValidator, ClientCertificateConfiguration, 42 tests) |
 | 40 | Certificate pinning | Thumbprint validation | 3h | ✓ COMPLETED (Agent-78 - CertificatePin, CertificatePinValidator, CertificatePinningOptions, 60 tests) |
 | 41 | ALPN support | Protocol negotiation | 2h | ✓ COMPLETED (Agent-80 - AlpnConfiguration, AlpnTlsProvider, 60 tests)
-| 42 | Certificate hot-reload | Reload certs without restart | 3h |
+| 42 | Certificate hot-reload | Reload certs without restart | 3h | ✓ COMPLETED (Agent-73 - CertificateReloader with FileSystemWatcher, 29 tests)
 | 43 | Cipher suite configuration | Restrict weak ciphers | 2h | ✓ COMPLETED (Agent-77 - CipherSuiteOptions, CipherSuiteValidator, 42 tests) |
 
 **Total Transport Security Effort: ~18 hours**
@@ -3715,11 +3715,11 @@ public class RaftConfiguration
 
 **Effort: ~20 hours** **Status: Complete - March 20, 2026**
 
-#### Phase 2: Discovery & Gossip
+#### Phase 2: Discovery & Gossip ✓ COMPLETED (Agent-68 - March 25, 2026)
 - [x] Implement static seed discovery (Agent-67 - March 20, 2026)
-- [ ] Implement gossip protocol for state propagation
-- [ ] Implement failure detection (heartbeats)
-- [ ] Handle node join/leave events
+- [x] Implement gossip protocol for state propagation (Agent-68 - GossipProtocol with SWIM-style, 40 tests)
+- [x] Implement failure detection (heartbeats)
+- [x] Handle node join/leave events
 
 **Effort: ~16 hours**
 
