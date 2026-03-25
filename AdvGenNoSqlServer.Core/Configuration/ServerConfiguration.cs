@@ -278,6 +278,12 @@ public class ServerConfiguration
         /// </summary>
         public CertificatePinningConfiguration? CertificatePinningConfig { get; set; }
 
+        /// <summary>
+        /// Client certificate configuration for mutual TLS (mTLS)
+        /// When configured, client certificates will be validated according to the settings
+        /// </summary>
+        public ClientCertificateConfiguration? ClientCertificateConfig { get; set; }
+
         #endregion
 }
 

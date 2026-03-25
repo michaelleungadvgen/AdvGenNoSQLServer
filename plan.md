@@ -354,7 +354,7 @@ if (negotiatedProtocol == default)
 |---|------|-------------|-------------|
 | 37 | RequireEncryption option | Reject non-TLS connections | 2h | ✓ COMPLETED (Agent-76 - RejectNonTlsConnections property) |
 | 38 | TLS 1.3 enforcement | Upgrade minimum version | 2h | ✓ COMPLETED (Agent-76) |
-| 39 | Client certificate support | mTLS for high security | 4h |
+| 39 | Client certificate support | mTLS for high security | 4h | ✓ COMPLETED (Agent-79 - ClientCertificateValidator, ClientCertificateConfiguration, 42 tests) |
 | 40 | Certificate pinning | Thumbprint validation | 3h | ✓ COMPLETED (Agent-78 - CertificatePin, CertificatePinValidator, CertificatePinningOptions, 60 tests) |
 | 41 | ALPN support | Protocol negotiation | 2h |
 | 42 | Certificate hot-reload | Reload certs without restart | 3h |
@@ -367,7 +367,7 @@ if (negotiatedProtocol == default)
 - [x] Enforce TLS 1.3 as minimum (TLS 1.2 fallback optional) ✓ (Agent-76)
 - [x] Reject non-TLS connections when `RequireEncryption=true` ✓ (Agent-76 - RejectNonTlsConnections property)
 - [x] Disable weak cipher suites (RC4, DES, 3DES, MD5) ✓ (Agent-77 - CipherSuiteValidator with configurable options)
-- [ ] Implement certificate chain validation
+- [x] Implement client certificate (mTLS) support ✓ (Agent-79)
 - [x] Support certificate pinning for sensitive deployments ✓ (Agent-78)
 - [ ] Implement ALPN for protocol versioning
 - [x] Support certificate hot-reload ✓ (Agent-73)

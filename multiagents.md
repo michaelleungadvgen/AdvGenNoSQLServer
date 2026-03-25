@@ -22,6 +22,7 @@
 | Agent-76 | TLS 1.3 Enforcement Implementation | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-77 | Cipher Suite Configuration | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-78 | Certificate Pinning Implementation | Completed | 2026-03-25 | 2026-03-25 |
+| Agent-79 | Client Certificate Support (mTLS) | Completed | 2026-03-25 | 2026-03-25 |
 
 ### Agent-78: Certificate Pinning Implementation ✓ COMPLETED
 **Completed**: 2026-03-25
@@ -102,6 +103,84 @@ var options = new CertificatePinningOptions("PRIMARY_THUMBPRINT", "BACKUP_THUMBP
 - Support both file and store-based certificates
 - Ensure backward compatibility (pinning disabled by default)
 - Document security best practices
+
+---
+
+### Agent-79: Client Certificate Support (mTLS) ✓ COMPLETED
+**Completed**: 2026-03-25
+**Summary**:
+- Created `ClientCertificateMode` enum with None, Optional, Required modes in Core.Configuration
+- Created `RevocationCheckMode` enum with None, Online, Offline modes
+- Created `ClientCertificateConfiguration` class with comprehensive configuration options:
+  - Mode (None/Optional/Required), CA certificate path, allowed thumbprints
+  - Chain validation, revocation mode, validity period, EKU validation settings
+  - Self-signed certificate allowance, custom validation callback
+  - `Validate()` and `Clone()` methods
+- Created `ClientCertificateValidationResult` class with detailed validation information:
+  - IsValid, Certificate, Thumbprint, Subject, Issuer, ValidationTime
+  - Errors and Warnings collections
+  - Chain validation, revocation check status
+  - Factory methods: Success(), Failure(), NoCertificate()
+- Created `ClientCertificateValidator` static class with:
+  - `Validate()` - Main validation with chain, thumbprint, EKU, self-signed checks
+  - `ValidateRequired()` - For Required mode (rejects null certs)
+  - `ValidateOptional()` - For Optional mode (allows null certs)
+  - `ComputeSha256Thumbprint()` - SHA-256 thumbprint computation
+  - `LoadCaCertificate()` - Load CA cert from PEM or DER format
+  - `CertificateValidated` event for monitoring
+- Created `ClientCertificateException` with factory methods:
+  - MissingCertificate(), ValidationFailed(), ChainValidationFailed()
+  - ThumbprintNotAllowed(), CertificateRevoked(), CertificateExpired()
+  - CertificateNotYetValid(), SelfSignedNotAllowed(), MissingClientAuthEku()
+  - GetDetailedMessage() for comprehensive error reporting
+- Updated `TlsStreamHelper` with:
+  - `ClientCertValidated` event for client certificate validation events
+  - `CreateServerSslStreamWithClientCertAsync()` - Full mTLS support
+  - `CreateSelfSignedClientCertificate()` - For testing
+  - `ToClientCertConfig()` - Convert ServerConfiguration
+  - Internal mapping methods for client certificate modes
+- Updated `ServerConfiguration` with `ClientCertificateConfig` property
+- Created comprehensive unit tests (42 tests, all passing):
+  - Configuration tests (default values, validation, cloning)
+  - Validation result tests (Success, Failure, NoCertificate)
+  - Validator tests (null cert, valid cert, self-signed, thumbprints, EKU)
+  - Mode-specific tests (Required, Optional, None)
+  - Exception tests (all factory methods, detailed messages)
+  - Integration tests with TlsStreamHelper
+
+**Files Created**:
+- `AdvGenNoSqlServer.Core/Configuration/ClientCertificateConfiguration.cs` - Enums and configuration (280+ lines)
+- `AdvGenNoSqlServer.Network/ClientCertificateValidator.cs` - Validator (580+ lines)
+- `AdvGenNoSqlServer.Network/ClientCertificateException.cs` - Exception class (280+ lines)
+- `AdvGenNoSqlServer.Tests/ClientCertificateTests.cs` - 42 comprehensive tests (650+ lines)
+
+**Files Modified**:
+- `AdvGenNoSqlServer.Core/Configuration/ServerConfiguration.cs` - Added ClientCertificateConfig property
+- `AdvGenNoSqlServer.Network/TlsStreamHelper.cs` - Added client cert validation support
+
+**Build Status**: ✓ Compiles successfully (0 errors)
+**Test Status**: ✓ 42/42 Client Certificate tests pass
+
+**Usage Example**:
+```csharp
+// Configure client certificate authentication
+var config = new ServerConfiguration
+{
+    EnableSsl = true,
+    ClientCertificateConfig = new ClientCertificateConfiguration
+    {
+        Mode = ClientCertificateMode.Required,
+        ValidateCertificateChain = true,
+        ValidateEnhancedKeyUsage = true,
+        AllowedThumbprints = new List<string> { "SHA256:..." },
+        RevocationMode = RevocationCheckMode.Online
+    }
+};
+
+// Create SSL stream with client cert validation
+var sslStream = await TlsStreamHelper.CreateServerSslStreamWithClientCertAsync(
+    client, config, config.ClientCertificateConfig);
+```
 
 ---
 

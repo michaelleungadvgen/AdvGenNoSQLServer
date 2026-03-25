@@ -12,6 +12,51 @@ using System.Security.Cryptography.X509Certificates;
 namespace AdvGenNoSqlServer.Network
 {
     /// <summary>
+    /// Event arguments for client certificate validation events in TlsStreamHelper
+    /// </summary>
+    public class ClientCertValidationEventArgs : EventArgs
+    {
+        /// <summary>
+        /// The client certificate
+        /// </summary>
+        public X509Certificate2? Certificate { get; }
+
+        /// <summary>
+        /// Whether the certificate is valid
+        /// </summary>
+        public bool IsValid { get; }
+
+        /// <summary>
+        /// Validation errors if any
+        /// </summary>
+        public IReadOnlyList<string> Errors { get; }
+
+        /// <summary>
+        /// The client certificate mode
+        /// </summary>
+        public ClientCertificateMode Mode { get; }
+
+        /// <summary>
+        /// Creates a new instance of ClientCertValidationEventArgs
+        /// </summary>
+        public ClientCertValidationEventArgs(
+            X509Certificate2? certificate,
+            bool isValid,
+            IReadOnlyList<string> errors,
+            ClientCertificateMode mode)
+        {
+            Certificate = certificate;
+            IsValid = isValid;
+            Errors = errors;
+            Mode = mode;
+        }
+    }
+
+    /// <summary>
+    /// Delegate for client certificate validation events in TlsStreamHelper
+    /// </summary>
+    public delegate void ClientCertValidationEventHandler(object sender, ClientCertValidationEventArgs e);
+    /// <summary>
     /// Event arguments for cipher suite validation
     /// </summary>
     public class CipherValidationEventArgs : EventArgs
@@ -54,6 +99,11 @@ namespace AdvGenNoSqlServer.Network
         /// Event raised when a cipher suite is validated
         /// </summary>
         public static event CipherValidationEventHandler? CipherValidated;
+
+        /// <summary>
+        /// Event raised when a client certificate is validated
+        /// </summary>
+        public static event ClientCertValidationEventHandler? ClientCertValidated;
         /// <summary>
         /// Creates an SSL server stream and performs the TLS handshake
         /// </summary>
@@ -501,6 +551,296 @@ namespace AdvGenNoSqlServer.Network
             }
 
             return options;
+        }
+
+        /// <summary>
+        /// Converts ClientCertificateConfiguration to the format used by the validator
+        /// </summary>
+        public static ClientCertificateConfiguration? ToClientCertConfig(ServerConfiguration configuration)
+        {
+            if (configuration.RequireClientCertificate)
+            {
+                // Legacy mode - require client certificate
+                return new ClientCertificateConfiguration
+                {
+                    Mode = ClientCertificateMode.Required,
+                    ValidateCertificateChain = true,
+                    RevocationMode = configuration.CheckCertificateRevocation 
+                        ? RevocationCheckMode.Online 
+                        : RevocationCheckMode.None
+                };
+            }
+
+            // Check for new configuration property
+            var config = configuration.ClientCertificateConfig;
+            if (config != null)
+            {
+                return config;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Creates an SSL server stream with client certificate validation
+        /// </summary>
+        /// <param name="client">The TCP client</param>
+        /// <param name="configuration">Server configuration with SSL settings</param>
+        /// <param name="clientCertConfig">Client certificate configuration</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>An authenticated SSL stream with validated client certificate</returns>
+        public static async Task<SslStream> CreateServerSslStreamWithClientCertAsync(
+            TcpClient client,
+            ServerConfiguration configuration,
+            ClientCertificateConfiguration clientCertConfig,
+            CancellationToken cancellationToken = default)
+        {
+            if (!configuration.EnableSsl)
+                throw new InvalidOperationException("SSL is not enabled in configuration");
+
+            var certificate = LoadCertificate(configuration);
+            if (certificate == null)
+                throw new InvalidOperationException("Failed to load SSL certificate");
+
+            // Determine if we should request/verify client certificates
+            bool requireClientCert = IsClientCertificateRequired(clientCertConfig.Mode);
+            bool verifyClientCert = clientCertConfig.Mode != ClientCertificateMode.None;
+
+            var sslStream = new SslStream(
+                client.GetStream(),
+                false,
+                (sender, cert, chain, errors) => 
+                    ClientCertificateValidationCallback(cert, chain, errors, clientCertConfig),
+                null,
+                EncryptionPolicy.RequireEncryption);
+
+            try
+            {
+                var sslOptions = new SslServerAuthenticationOptions
+                {
+                    ServerCertificate = certificate,
+                    ClientCertificateRequired = clientCertConfig.Mode == ClientCertificateMode.Required,
+                    EnabledSslProtocols = configuration.SslProtocols,
+                    CertificateRevocationCheckMode = MapToRevocationCheckMode(clientCertConfig.RevocationMode)
+                };
+
+                await sslStream.AuthenticateAsServerAsync(sslOptions, cancellationToken);
+
+                // Validate the negotiated TLS version meets minimum requirements
+                if (!TlsVersionValidator.ValidateTlsVersion(
+                    sslStream.SslProtocol,
+                    configuration.MinimumTlsVersion,
+                    configuration.RequireMinimumTlsVersion))
+                {
+                    var negotiatedVersion = TlsVersionValidator.GetTlsVersionName(sslStream.SslProtocol);
+                    var minimumVersion = TlsVersionValidator.GetTlsVersionName(configuration.MinimumTlsVersion);
+                    
+                    sslStream.Dispose();
+                    throw new TlsVersionException(
+                        $"TLS version {negotiatedVersion} is below the minimum required version {minimumVersion}. " +
+                        $"Please upgrade your client to support at least {minimumVersion}.",
+                        sslStream.SslProtocol,
+                        configuration.MinimumTlsVersion);
+                }
+
+                // Validate the negotiated cipher suite
+                var cipherOptions = ToCipherSuiteOptions(configuration.CipherSuiteConfig);
+                if (!ValidateCipherSuite(sslStream, cipherOptions))
+                {
+                    var cipherSuite = sslStream.NegotiatedCipherSuite;
+                    var reason = CipherSuiteValidator.GetCipherWeaknessReason(cipherSuite);
+                    var cipherName = CipherSuiteValidator.GetTlsCipherSuiteName(cipherSuite);
+                    
+                    sslStream.Dispose();
+                    throw new InvalidOperationException(
+                        $"Cipher suite '{cipherName}' is not allowed. {reason}. " +
+                        "Please configure your client to use a stronger cipher suite.");
+                }
+
+                // Validate certificate pinning if enabled
+                var pinningOptions = ToPinningOptions(configuration.CertificatePinningConfig);
+                if (pinningOptions.Enabled)
+                {
+                    var remoteCertificate = sslStream.RemoteCertificate;
+                    if (!CertificatePinValidator.ValidateCertificate(remoteCertificate, pinningOptions))
+                    {
+                        sslStream.Dispose();
+                        throw new CertificatePinningException(
+                            "Certificate pinning validation failed. The remote certificate does not match any configured pin.",
+                            remoteCertificate,
+                            remoteCertificate != null ? CertificatePinValidator.ComputeSha256Thumbprint(remoteCertificate) : null,
+                            pinningOptions.Pins.Count,
+                            pinningOptions.EnforceStrict);
+                    }
+                }
+
+                // Validate client certificate based on mode
+                if (clientCertConfig.Mode != ClientCertificateMode.None)
+                {
+                    var clientCert = sslStream.RemoteCertificate;
+                    
+                    if (clientCertConfig.Mode == ClientCertificateMode.Required && clientCert == null)
+                    {
+                        sslStream.Dispose();
+                        throw ClientCertificateException.MissingCertificate(clientCertConfig.Mode);
+                    }
+
+                    if (clientCert != null)
+                    {
+                        // Perform full validation
+                        var result = ClientCertificateValidator.Validate(
+                            clientCert,
+                            null,
+                            SslPolicyErrors.None,
+                            clientCertConfig);
+
+                        ClientCertValidated?.Invoke(null, new ClientCertValidationEventArgs(
+                            result.Certificate,
+                            result.IsValid,
+                            result.Errors,
+                            clientCertConfig.Mode));
+
+                        if (!result.IsValid)
+                        {
+                            sslStream.Dispose();
+                            throw ClientCertificateException.ValidationFailed(result, clientCertConfig.Mode);
+                        }
+                    }
+                }
+
+                return sslStream;
+            }
+            catch
+            {
+                sslStream.Dispose();
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Callback for validating client certificates during TLS handshake
+        /// </summary>
+        private static bool ClientCertificateValidationCallback(
+            X509Certificate? certificate,
+            X509Chain? chain,
+            SslPolicyErrors sslPolicyErrors,
+            ClientCertificateConfiguration config)
+        {
+            // If no client cert is required or provided, allow the connection
+            if (config.Mode == ClientCertificateMode.None)
+                return true;
+
+            // If no certificate provided
+            if (certificate == null)
+            {
+                // For Required mode, this will fail later
+                // For Optional mode, it's OK
+                return config.Mode != ClientCertificateMode.Required;
+            }
+
+            // For Optional mode, basic validation is sufficient
+            if (config.Mode == ClientCertificateMode.Optional)
+            {
+                // Allow if no SSL policy errors, or if we allow self-signed
+                if (sslPolicyErrors == SslPolicyErrors.None)
+                    return true;
+
+                // Allow untrusted root if self-signed is allowed
+                if (config.AllowSelfSigned && 
+                    sslPolicyErrors == SslPolicyErrors.RemoteCertificateChainErrors)
+                {
+                    return true;
+                }
+
+                // Otherwise, do full validation
+            }
+
+            // Do full validation
+            var result = ClientCertificateValidator.Validate(certificate, chain, sslPolicyErrors, config);
+            
+            ClientCertValidated?.Invoke(null, new ClientCertValidationEventArgs(
+                result.Certificate,
+                result.IsValid,
+                result.Errors,
+                config.Mode));
+
+            return result.IsValid;
+        }
+
+        /// <summary>
+        /// Maps ClientCertificateMode to determine if client certificate is required
+        /// </summary>
+        private static bool IsClientCertificateRequired(ClientCertificateMode mode)
+        {
+            return mode == ClientCertificateMode.Required;
+        }
+
+        /// <summary>
+        /// Maps ClientCertificateMode to determine if client certificate should be requested
+        /// </summary>
+        private static bool IsClientCertificateRequested(ClientCertificateMode mode)
+        {
+            return mode == ClientCertificateMode.Optional || mode == ClientCertificateMode.Required;
+        }
+
+        /// <summary>
+        /// Maps RevocationCheckMode to X509RevocationMode
+        /// </summary>
+        private static X509RevocationMode MapToRevocationCheckMode(RevocationCheckMode mode)
+        {
+            return mode switch
+            {
+                RevocationCheckMode.None => X509RevocationMode.NoCheck,
+                RevocationCheckMode.Online => X509RevocationMode.Online,
+                RevocationCheckMode.Offline => X509RevocationMode.Offline,
+                _ => X509RevocationMode.Online
+            };
+        }
+
+        /// <summary>
+        /// Creates a self-signed client certificate for testing purposes
+        /// </summary>
+        /// <param name="subjectName">The subject name (e.g., "CN=testclient")</param>
+        /// <param name="validDays">Number of days the certificate is valid</param>
+        /// <returns>A self-signed client certificate</returns>
+        public static X509Certificate2 CreateSelfSignedClientCertificate(
+            string subjectName = "CN=testclient",
+            int validDays = 365)
+        {
+            using var rsa = RSA.Create(2048);
+            var distinguishedName = new X500DistinguishedName(subjectName);
+            var request = new CertificateRequest(
+                distinguishedName,
+                rsa,
+                HashAlgorithmName.SHA256,
+                RSASignaturePadding.Pkcs1);
+
+            request.CertificateExtensions.Add(
+                new X509BasicConstraintsExtension(false, false, 0, false));
+
+            request.CertificateExtensions.Add(
+                new X509KeyUsageExtension(
+                    X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.KeyEncipherment,
+                    false));
+
+            request.CertificateExtensions.Add(
+                new X509EnhancedKeyUsageExtension(
+                    new System.Security.Cryptography.OidCollection
+                    {
+                        new System.Security.Cryptography.Oid("1.3.6.1.5.5.7.3.2") // Client Authentication
+                    },
+                    false));
+
+            var certificate = request.CreateSelfSigned(
+                DateTimeOffset.UtcNow.AddDays(-1),
+                DateTimeOffset.UtcNow.AddDays(validDays));
+
+            // Export and re-import to make it exportable
+            var export = certificate.Export(X509ContentType.Pfx, (string?)null);
+            return X509CertificateLoader.LoadPkcs12(
+                export,
+                null,
+                X509KeyStorageFlags.Exportable | X509KeyStorageFlags.PersistKeySet);
         }
     }
 }
