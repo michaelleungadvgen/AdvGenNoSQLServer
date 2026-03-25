@@ -483,9 +483,8 @@ namespace AdvGenNoSqlServer.Storage.Revisions
 
         private Document CreateDocumentCopy(Document document)
         {
-            // Deep copy by serializing and deserializing
-            var json = System.Text.Json.JsonSerializer.Serialize(document);
-            return System.Text.Json.JsonSerializer.Deserialize<Document>(json)!;
+            // Use the document's Clone method for proper deep copying
+            return document.Clone();
         }
     }
 }

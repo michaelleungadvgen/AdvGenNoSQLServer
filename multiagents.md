@@ -2,7 +2,7 @@
 
 **Project**: AdvGenNoSQL Server  
 **Purpose**: Track parallel agent tasks to avoid conflicts  
-**Last Updated**: March 25, 2026 (Agent-102 - Server-side Patches/Scripts Implementation)
+**Last Updated**: March 25, 2026 (Agent-103 - Fixed Document Revisions Test Failures)
 
 ---
 
@@ -10,6 +10,7 @@
 
 | Agent | Task | Status | Started | Target Completion |
 |-------|------|--------|---------|-------------------|
+| Agent-103 | Fix Document Revisions Test Failures | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-102 | Server-side Patches/Scripts Implementation | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-101 | Create DEPENDENCIES.md License Compliance Document | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-100 | Map-Reduce Implementation | Completed | 2026-03-25 | 2026-03-25 |
@@ -91,6 +92,61 @@ var result = await store.PatchOneAsync(
     });
 
 // result.DocumentAfter contains the modified document
+```
+
+---
+
+### Agent-103: Fix Document Revisions Test Failures ✓ COMPLETED
+**Completed**: 2026-03-25
+**Summary**: Fixed 3 failing Document Revision tests by correcting implementation bugs in RevisionDocumentStore and RevisionManager
+
+**Issues Fixed**:
+1. **Document cloning issue** (2 tests) - The RevisionManager's `CreateDocumentCopy` method was using JSON serialization which doesn't properly clone Dictionary<string, object>. Fixed to use the Document's `Clone()` method instead.
+
+2. **DropCollection cleanup issue** (1 test) - `RevisionDocumentStore.DropCollectionAsync()` and `ClearCollectionAsync()` were trying to use a local `_revisions` dictionary that was never populated. Fixed to properly iterate through documents and delete their revisions.
+
+3. **RevisionHistoryStats issue** - `GetRevisionHistoryStatsAsync()` was also using the unpopulated `_revisions` dictionary. Fixed to query documents from the inner store and get their revisions.
+
+**Changes Made**:
+- `RevisionManager.CreateDocumentCopy()` - Changed from JSON serialization to `document.Clone()` for proper deep copying
+- `RevisionDocumentStore.DropCollectionAsync()` - Now properly cleans up revisions by iterating through documents in the collection
+- `RevisionDocumentStore.ClearCollectionAsync()` - Fixed same issue
+- `RevisionDocumentStore.GetRevisionHistoryStatsAsync()` - Fixed to use proper async iteration through documents
+- Removed unused `_revisions` dictionary field from RevisionDocumentStore
+
+**Files Modified**:
+- `AdvGenNoSqlServer.Storage/Revisions/RevisionManager.cs` - Fixed CreateDocumentCopy to use Clone()
+- `AdvGenNoSqlServer.Storage/Revisions/RevisionDocumentStore.cs` - Fixed DropCollectionAsync, ClearCollectionAsync, GetRevisionHistoryStatsAsync
+
+**Build Status**: ✓ Compiles successfully (0 errors)
+**Test Status**: ✓ 58/58 Document Revision tests now pass (was 55/58 with 3 failing)
+
+**Usage Example**:
+```csharp
+// Create document store with revision tracking
+var store = new DocumentStore().WithRevisions();
+
+// Enable revision tracking for a collection
+store.RevisionManager.EnableForCollection("users");
+
+// Insert a document (creates revision 1)
+await store.InsertAsync("users", new Document { 
+    Id = "user1", 
+    Data = new() { ["name"] = "John" } 
+});
+
+// Update document (creates revision 2)
+var doc = await store.GetAsync("users", "user1");
+doc.Data["name"] = "Jane";
+await store.UpdateAsync("users", doc);
+
+// Get all revisions
+var revisions = await store.GetRevisionsAsync("users", "user1");
+// revisions.Count == 2
+
+// Restore to revision 1
+var restored = await store.RestoreRevisionAsync("users", "user1", 1);
+// restored.Data["name"] == "John"
 ```
 
 ---

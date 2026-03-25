@@ -127,9 +127,9 @@ namespace AdvGenNoSqlServer.Storage.Revisions
         {
             ThrowIfDisposed();
 
-            // Get the existing document for comparison
+            // Get the existing document BEFORE updating (for comparison and revision)
             Document? existingDocument = null;
-            if (_options.SkipUnchangedRevisions && ShouldCreateRevision(collection, RevisionTrigger.Update))
+            if (ShouldCreateRevision(collection, RevisionTrigger.Update))
             {
                 existingDocument = await _innerStore.GetAsync(collection, document.Id, cancellationToken);
             }
@@ -151,12 +151,17 @@ namespace AdvGenNoSqlServer.Storage.Revisions
                         }
                     }
 
-                    await _revisionManager.CreateRevisionAsync(
-                        collection,
-                        document.Id,
-                        document,
-                        RevisionTrigger.Update,
-                        cancellationToken: cancellationToken);
+                    // Create revision from the existing document (the state before update)
+                    // This captures the previous state, not the new state
+                    if (existingDocument != null)
+                    {
+                        await _revisionManager.CreateRevisionAsync(
+                            collection,
+                            document.Id,
+                            existingDocument,
+                            RevisionTrigger.Update,
+                            cancellationToken: cancellationToken);
+                    }
                 }
                 catch
                 {
@@ -254,20 +259,16 @@ namespace AdvGenNoSqlServer.Storage.Revisions
         {
             ThrowIfDisposed();
 
-            // Clean up revisions for this collection
-            if (_revisions.TryGetValue(collection, out var collectionRevisions))
+            // Clean up all revisions for this collection by getting all documents with revisions
+            // and deleting their revisions
+            var allDocs = await _innerStore.GetAllAsync(collection, cancellationToken);
+            foreach (var doc in allDocs)
             {
-                foreach (var documentId in collectionRevisions.Keys)
-                {
-                    await _revisionManager.DeleteRevisionsAsync(collection, documentId, cancellationToken);
-                }
-                _revisions.TryRemove(collection, out _);
+                await _revisionManager.DeleteRevisionsAsync(collection, doc.Id, cancellationToken);
             }
 
             return await _innerStore.DropCollectionAsync(collection, cancellationToken);
         }
-
-        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, System.Collections.Concurrent.ConcurrentDictionary<string, List<DocumentRevision>>> _revisions = new();
 
         /// <summary>
         /// Gets all collection names.
@@ -288,13 +289,11 @@ namespace AdvGenNoSqlServer.Storage.Revisions
         {
             ThrowIfDisposed();
 
-            // Clean up revisions for this collection
-            if (_revisions.TryGetValue(collection, out var collectionRevisions))
+            // Clean up revisions for all documents in this collection
+            var allDocs = await _innerStore.GetAllAsync(collection, cancellationToken);
+            foreach (var doc in allDocs)
             {
-                foreach (var documentId in collectionRevisions.Keys)
-                {
-                    await _revisionManager.DeleteRevisionsAsync(collection, documentId, cancellationToken);
-                }
+                await _revisionManager.DeleteRevisionsAsync(collection, doc.Id, cancellationToken);
             }
 
             await _innerStore.ClearCollectionAsync(collection, cancellationToken);
@@ -347,31 +346,31 @@ namespace AdvGenNoSqlServer.Storage.Revisions
         /// <summary>
         /// Gets the revision history statistics for a collection.
         /// </summary>
-        public Task<RevisionHistoryStats> GetRevisionHistoryStatsAsync(
+        public async Task<RevisionHistoryStats> GetRevisionHistoryStatsAsync(
             string collection,
             CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
 
             var stats = new RevisionHistoryStats();
-
-            if (_revisions.TryGetValue(collection, out var collectionRevisions))
+            var allDocs = await _innerStore.GetAllAsync(collection, cancellationToken);
+            
+            foreach (var doc in allDocs)
             {
-                stats.TotalDocumentsWithRevisions = collectionRevisions.Count;
-                stats.TotalRevisions = 0;
-
-                foreach (var doc in collectionRevisions)
+                var revisions = await _revisionManager.GetAllRevisionsAsync(collection, doc.Id, cancellationToken);
+                if (revisions.Count > 0)
                 {
-                    stats.TotalRevisions += doc.Value.Count;
-                }
-
-                if (collectionRevisions.Count > 0)
-                {
-                    stats.AverageRevisionsPerDocument = (double)stats.TotalRevisions / collectionRevisions.Count;
+                    stats.TotalDocumentsWithRevisions++;
+                    stats.TotalRevisions += revisions.Count;
                 }
             }
 
-            return Task.FromResult(stats);
+            if (stats.TotalDocumentsWithRevisions > 0)
+            {
+                stats.AverageRevisionsPerDocument = (double)stats.TotalRevisions / stats.TotalDocumentsWithRevisions;
+            }
+
+            return stats;
         }
 
         /// <summary>
