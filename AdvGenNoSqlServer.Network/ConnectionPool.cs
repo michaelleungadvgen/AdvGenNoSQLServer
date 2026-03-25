@@ -11,13 +11,14 @@ namespace AdvGenNoSqlServer.Network
     /// <summary>
     /// Manages a pool of available connection slots for resource limiting
     /// </summary>
-    public class ConnectionPool
+    public class ConnectionPool : IDisposable
     {
         private readonly SemaphoreSlim _semaphore;
         private readonly int _maxConnections;
         private int _activeConnections;
         private int _totalAcquired;
         private int _totalReleased;
+        private bool _disposed;
 
         /// <summary>
         /// Maximum number of concurrent connections allowed
@@ -69,6 +70,7 @@ namespace AdvGenNoSqlServer.Network
         /// </summary>
         public bool TryAcquire()
         {
+            ThrowIfDisposed();
             if (_semaphore.Wait(0))
             {
                 Interlocked.Increment(ref _activeConnections);
@@ -83,6 +85,7 @@ namespace AdvGenNoSqlServer.Network
         /// </summary>
         public void Acquire(CancellationToken cancellationToken = default)
         {
+            ThrowIfDisposed();
             _semaphore.Wait(cancellationToken);
             Interlocked.Increment(ref _activeConnections);
             Interlocked.Increment(ref _totalAcquired);
@@ -93,6 +96,7 @@ namespace AdvGenNoSqlServer.Network
         /// </summary>
         public bool TryAcquire(TimeSpan timeout, CancellationToken cancellationToken = default)
         {
+            ThrowIfDisposed();
             if (_semaphore.Wait(timeout, cancellationToken))
             {
                 Interlocked.Increment(ref _activeConnections);
@@ -107,6 +111,7 @@ namespace AdvGenNoSqlServer.Network
         /// </summary>
         public void Release()
         {
+            ThrowIfDisposed();
             Interlocked.Decrement(ref _activeConnections);
             Interlocked.Increment(ref _totalReleased);
             _semaphore.Release();
@@ -117,6 +122,7 @@ namespace AdvGenNoSqlServer.Network
         /// </summary>
         public ConnectionPoolStatistics GetStatistics()
         {
+            ThrowIfDisposed();
             return new ConnectionPoolStatistics
             {
                 MaxConnections = _maxConnections,
@@ -135,8 +141,47 @@ namespace AdvGenNoSqlServer.Network
         /// </summary>
         public void ResetStatistics()
         {
+            ThrowIfDisposed();
             Interlocked.Exchange(ref _totalAcquired, 0);
             Interlocked.Exchange(ref _totalReleased, 0);
+        }
+
+        /// <summary>
+        /// Releases all resources used by the connection pool
+        /// </summary>
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        /// <summary>
+        /// Releases the unmanaged resources used by the connection pool
+        /// and optionally releases the managed resources
+        /// </summary>
+        /// <param name="disposing">true to release both managed and unmanaged resources; false to release only unmanaged resources</param>
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed)
+            {
+                if (disposing)
+                {
+                    _semaphore?.Dispose();
+                }
+
+                _disposed = true;
+            }
+        }
+
+        /// <summary>
+        /// Throws ObjectDisposedException if the pool has been disposed
+        /// </summary>
+        private void ThrowIfDisposed()
+        {
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(nameof(ConnectionPool));
+            }
         }
     }
 
