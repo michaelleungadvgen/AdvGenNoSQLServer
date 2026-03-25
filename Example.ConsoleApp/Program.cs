@@ -58,9 +58,12 @@ namespace AdvGenNoSqlServer.Example.ConsoleApp
                 Console.WriteLine("  9. Full-Text Search Examples (NEW)");
                 Console.WriteLine("     - Basic text search, Relevance scoring");
                 Console.WriteLine("     - Multi-field search, Advanced options");
-                Console.WriteLine("  10. Run All Examples");
+                Console.WriteLine("  10. Geospatial Examples (NEW)");
+                Console.WriteLine("     - Location-based queries, Distance calculations");
+                Console.WriteLine("     - $near, $withinBox, $withinCircle, $withinPolygon");
+                Console.WriteLine("  11. Run All Examples");
                 Console.WriteLine("  0. Exit");
-                Console.Write("\nSelect option (0-10): ");
+                Console.Write("\nSelect option (0-11): ");
 
                 var choice = Console.ReadLine();
 
@@ -96,6 +99,9 @@ namespace AdvGenNoSqlServer.Example.ConsoleApp
                             await RunFullTextSearchExamples();
                             break;
                         case "10":
+                            await GeospatialExamples.RunAllExamples();
+                            break;
+                        case "11":
                             await RunBasicExamples();
                             await RunMultiDatabaseAndRbacExamples();
                             await RunP2PClusterExamples();
@@ -105,13 +111,14 @@ namespace AdvGenNoSqlServer.Example.ConsoleApp
                             await RunCappedCollectionsExamples();
                             await RunInsertExamples();
                             await RunFullTextSearchExamples();
+                            await GeospatialExamples.RunAllExamples();
                             break;
                         case "0":
                             Console.WriteLine("\n👋 Goodbye!");
                             return;
                         default:
                             Console.ForegroundColor = ConsoleColor.Yellow;
-                            Console.WriteLine("\n⚠ Invalid option. Please select 0-10.");
+                            Console.WriteLine("\n⚠ Invalid option. Please select 0-11.");
                             Console.ResetColor();
                             break;
                     }
