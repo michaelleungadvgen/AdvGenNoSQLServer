@@ -4653,7 +4653,7 @@ This section tracks the issues identified in `reviews.md` during the code qualit
 | Task ID | Component | File | Description | Status |
 |---------|-----------|------|-------------|--------|
 | SEC-001 | AuthenticationManager | `AuthenticationManager.cs` | Password hashing uses SHA256 instead of PBKDF2/bcrypt/Argon2. SHA256 is too fast and vulnerable to brute-force attacks. Must use key derivation function with minimum 100k iterations. | [x] FIXED by Agent-84 |
-| SEC-027 | Client | `Client.cs` | Auth payload uses string interpolation `$"{{\"username\":\"{username}\",\"password\":\"{password}\"}}"`. Injection risk if credentials contain special chars. Use JsonSerializer. | [ ] |
+| SEC-027 | Client | `Client.cs` | Auth payload uses string interpolation `$"{{\"username\":\"{username}\",\"password\":\"{password}\"}}"`. Injection risk if credentials contain special chars. Use JsonSerializer. | [x] FIXED by Agent-114 |
 
 ### P1 - High Priority
 
