@@ -284,6 +284,12 @@ public class ServerConfiguration
         /// </summary>
         public ClientCertificateConfiguration? ClientCertificateConfig { get; set; }
 
+        /// <summary>
+        /// Application-Layer Protocol Negotiation (ALPN) configuration
+        /// When enabled, the server will negotiate the application protocol during TLS handshake
+        /// </summary>
+        public AlpnConfiguration? AlpnConfig { get; set; }
+
         #endregion
 }
 
@@ -330,7 +336,11 @@ public class CertificatePinningConfiguration
 
         return Thumbprints.Count > 0 && Thumbprints.All(t => !string.IsNullOrWhiteSpace(t));
     }
-}/// </summary>
+}
+
+/// <summary>
+/// Configuration for cipher suites
+/// </summary>
 public class CipherSuiteConfiguration
 {
     /// <summary>

@@ -23,6 +23,99 @@
 | Agent-77 | Cipher Suite Configuration | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-78 | Certificate Pinning Implementation | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-79 | Client Certificate Support (mTLS) | Completed | 2026-03-25 | 2026-03-25 |
+| Agent-80 | ALPN Support Implementation | Completed | 2026-03-25 | 2026-03-25 |
+
+### Agent-80: ALPN Support Implementation ✓ COMPLETED
+**Completed**: 2026-03-25
+**Summary**:
+- Created `AlpnConfiguration` class with support for:
+  - Enable/disable ALPN
+  - Configurable protocol list (default: ["nosql/1.1", "nosql/1.0"])
+  - RequireAlpn mode to reject connections without ALPN
+  - DefaultProtocol for fallback when ALPN not negotiated
+  - Validation and Clone methods
+- Created `AlpnNegotiationResult` class for negotiation results with Success, NegotiatedProtocol, AlpnOfferedByClient properties
+- Created `AlpnException` class with factory methods for common failure scenarios (NoCommonProtocol, AlpnRequired, UnsupportedProtocol)
+- Created `AlpnTlsProvider` static class with:
+  - `CreateServerSslStreamWithAlpnAsync()` - Server-side ALPN-enabled TLS handshake
+  - `CreateClientSslStreamWithAlpnAsync()` - Client-side ALPN-enabled TLS handshake
+  - `GetNegotiatedProtocol()` - Get negotiated protocol from SslStream
+  - `IsAlpnNegotiated()` - Check if ALPN was successfully negotiated
+  - `CreateServerOptions()` / `CreateClientOptions()` - Create SslOptions with ALPN
+  - `AlpnNegotiated` event for monitoring negotiations
+- Updated `ServerConfiguration` with `AlpnConfig` property
+- Created comprehensive unit tests (59 tests passing, 1 skipped):
+  - AlpnConfiguration tests (defaults, validation, cloning)
+  - AlpnNegotiationResult tests (success, failure, factory methods)
+  - AlpnException tests (constructors, factory methods, inner exceptions)
+  - AlpnTlsProvider tests (options creation, protocol validation)
+  - Integration tests with ServerConfiguration
+
+**Files Created**:
+- `AdvGenNoSqlServer.Core/Configuration/AlpnConfiguration.cs` - Configuration and result classes (280+ lines)
+- `AdvGenNoSqlServer.Network/AlpnTlsProvider.cs` - ALPN TLS provider (400+ lines)
+- `AdvGenNoSqlServer.Tests/AlpnTests.cs` - 60 comprehensive tests (650+ lines)
+
+**Files Modified**:
+- `AdvGenNoSqlServer.Core/Configuration/ServerConfiguration.cs` - Added AlpnConfig property
+
+**Build Status**: ✓ Compiles successfully (0 errors)
+**Test Status**: ✓ 59/59 tests pass (1 skipped - requires SSL connection)
+
+**Usage Example**:
+```csharp
+// Configure ALPN
+var config = new ServerConfiguration
+{
+    EnableSsl = true,
+    AlpnConfig = new AlpnConfiguration
+    {
+        Enabled = true,
+        Protocols = new List<string> { "nosql/1.1", "nosql/1.0" },
+        RequireAlpn = false,
+        DefaultProtocol = "nosql/1.0"
+    }
+};
+
+// Server-side ALPN handshake
+var sslStream = await AlpnTlsProvider.CreateServerSslStreamWithAlpnAsync(client, config);
+var protocol = AlpnTlsProvider.GetNegotiatedProtocol(sslStream);
+
+// Client-side ALPN handshake
+var clientProtocols = new[] { "nosql/1.1", "nosql/1.0" };
+var sslStream = await AlpnTlsProvider.CreateClientSslStreamWithAlpnAsync(
+    client, "localhost", clientProtocols);
+```
+
+---
+
+### Agent-80: ALPN Support Implementation 🔄 IN PROGRESS
+**Scope**: Implement Application-Layer Protocol Negotiation (ALPN) for TLS to enable protocol versioning and negotiation between client and server
+**Planned Components**:
+- `AlpnConfiguration` class - Configuration for ALPN settings (enabled, protocols list, required/enforced)
+- `AlpnTlsProvider` class - ALPN-enabled TLS provider using `SslApplicationProtocol`
+- `AlpnNegotiationResult` class - Result of ALPN negotiation with negotiated protocol info
+- `AlpnException` class - Exception for ALPN negotiation failures
+- Update `TlsStreamHelper` - Add methods for creating ALPN-enabled SSL streams
+- Update `ServerConfiguration` - Add `AlpnConfiguration` property
+- Unit tests (30+ tests) - Protocol negotiation, fallback handling, required vs optional modes
+**Features**:
+- Support for "nosql/1.0" and "nosql/1.1" protocols
+- Protocol negotiation with fallback to default when client doesn't support ALPN
+- Optional vs Required ALPN modes (reject connections that don't negotiate required protocol)
+- Access to negotiated protocol after handshake
+- Integration with existing TLS infrastructure
+**Dependencies**:
+- TlsStreamHelper (exists - Agent-27, 76, 77, 78, 79)
+- ServerConfiguration (exists - needs new AlpnConfiguration property)
+- SslApplicationProtocol from System.Net.Security
+**Notes**:
+- Follow existing code patterns with license headers
+- Ensure backward compatibility (ALPN disabled by default)
+- Support for both client and server-side ALPN
+- Document protocol versioning strategy
+
+---
 
 ### Agent-78: Certificate Pinning Implementation ✓ COMPLETED
 **Completed**: 2026-03-25

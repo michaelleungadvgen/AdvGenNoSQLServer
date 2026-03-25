@@ -356,7 +356,7 @@ if (negotiatedProtocol == default)
 | 38 | TLS 1.3 enforcement | Upgrade minimum version | 2h | ✓ COMPLETED (Agent-76) |
 | 39 | Client certificate support | mTLS for high security | 4h | ✓ COMPLETED (Agent-79 - ClientCertificateValidator, ClientCertificateConfiguration, 42 tests) |
 | 40 | Certificate pinning | Thumbprint validation | 3h | ✓ COMPLETED (Agent-78 - CertificatePin, CertificatePinValidator, CertificatePinningOptions, 60 tests) |
-| 41 | ALPN support | Protocol negotiation | 2h |
+| 41 | ALPN support | Protocol negotiation | 2h | ✓ COMPLETED (Agent-80 - AlpnConfiguration, AlpnTlsProvider, 60 tests)
 | 42 | Certificate hot-reload | Reload certs without restart | 3h |
 | 43 | Cipher suite configuration | Restrict weak ciphers | 2h | ✓ COMPLETED (Agent-77 - CipherSuiteOptions, CipherSuiteValidator, 42 tests) |
 
@@ -369,7 +369,7 @@ if (negotiatedProtocol == default)
 - [x] Disable weak cipher suites (RC4, DES, 3DES, MD5) ✓ (Agent-77 - CipherSuiteValidator with configurable options)
 - [x] Implement client certificate (mTLS) support ✓ (Agent-79)
 - [x] Support certificate pinning for sensitive deployments ✓ (Agent-78)
-- [ ] Implement ALPN for protocol versioning
+- [x] Implement ALPN for protocol versioning ✓ (Agent-80)
 - [x] Support certificate hot-reload ✓ (Agent-73)
 - [x] Log TLS handshake failures for debugging ✓ (existing)
 - [x] Monitor certificate expiration ✓ (Agent-73)
