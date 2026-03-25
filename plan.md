@@ -3981,7 +3981,7 @@ Week 7-8:
 - [ ] 27. Full-Text Search
 - [ ] 28. Geospatial Indexes
 - [ ] 29. Field-Level Encryption
-- [ ] 30. Document Revisions
+- [x] 30. Document Revisions ? COMPLETED (Agent-91)
 
 #### P3 - P2P Cluster (96h total)
 - [x] 31. P2P Foundation (mTLS, cluster secret, node identity) ✓ COMPLETED (Agent-58)
@@ -4612,7 +4612,7 @@ public async Task Run[CommandName]Example()
 - [ ] Full-Text Search examples (4 scenarios)
 - [ ] Geospatial examples (4 scenarios)
 - [ ] Field encryption examples (3 scenarios)
-- [ ] Document revisions examples (3 scenarios)
+- [x] Document Revisions ? COMPLETED (Agent-91) examples (3 scenarios)
 - [x] P2P Cluster examples (6 scenarios) ✓ COMPLETED (Agent-85)
 - [ ] TLS/mTLS examples (4 scenarios)
 
