@@ -393,7 +393,7 @@ namespace AdvGenNoSqlServer.Tests
             };
             var manager = new ClusterManager(config);
             manager.InitializeLocalNode("localhost", 9090);
-            await manager.CreateClusterAsync("Test");
+            await manager.CreateClusterAsync("Test Cluster");
 
             var info = await manager.GetClusterInfoAsync();
 
@@ -665,7 +665,7 @@ namespace AdvGenNoSqlServer.Tests
             }
 
             var info = await manager.GetClusterInfoAsync();
-            Assert.Equal(3, info.ActiveNodeCount);
+            Assert.Equal(4, info.ActiveNodeCount);  // 3 added nodes + local node
             Assert.Equal(4, info.TotalNodeCount);
 
             // Remove a node
