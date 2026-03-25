@@ -1722,16 +1722,30 @@ NoSqlServerException (base)
 
 ## 21. Monitoring & Observability
 
-### 21.1 Metrics (Prometheus-Compatible)
+### 21.1 Metrics (Prometheus-Compatible) ✓ COMPLETED (Agent-105)
 
 ```csharp
 // AdvGenNoSqlServer.Core/Metrics/IMetricsCollector.cs
 public interface IMetricsCollector
 {
-    void IncrementCounter(string name, params KeyValuePair<string, string>[] labels);
-    void RecordHistogram(string name, double value, params KeyValuePair<string, string>[] labels);
-    void SetGauge(string name, double value, params KeyValuePair<string, string>[] labels);
+    void IncrementCounter(string name, params MetricLabel[] labels);
+    void IncrementCounter(string name, double value, params MetricLabel[] labels);
+    void SetGauge(string name, double value, params MetricLabel[] labels);
+    void IncrementGauge(string name, double value, params MetricLabel[] labels);
+    void DecrementGauge(string name, double value, params MetricLabel[] labels);
+    void RecordHistogram(string name, double value, params MetricLabel[] labels);
+    void RecordHistogram(string name, double value, double[] buckets, params MetricLabel[] labels);
+    void MeasureTime(string name, Action action, params MetricLabel[] labels);
+    Task MeasureTimeAsync(string name, Func<Task> action, params MetricLabel[] labels);
+    double? GetValue(string name, params MetricLabel[] labels);
+    MetricsSnapshot GetSnapshot();
+    IReadOnlyCollection<string> GetMetricNames();
+    void Clear();
+    void ClearMetric(string name);
 }
+```
+
+**Implementation**: See `AdvGenNoSqlServer.Core/Metrics/` directory
 ```
 
 #### Key Metrics
