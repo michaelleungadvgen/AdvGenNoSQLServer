@@ -14,6 +14,7 @@ namespace AdvGenNoSqlServer.Storage.Indexing;
 public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
 {
     private readonly ConcurrentDictionary<string, BackgroundIndexBuildJob> _jobs = new();
+    private readonly ConcurrentDictionary<string, string> _activeBuilds = new(); // Key: collection_field, Value: jobId
     private readonly SemaphoreSlim _concurrencySemaphore;
     private readonly IndexManager _indexManager;
     private bool _disposed;
@@ -72,6 +73,13 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
         
         options ??= new BackgroundIndexBuildOptions();
         
+        // Check for duplicate active build
+        var buildKey = $"{collectionName}_{fieldName}";
+        if (_activeBuilds.ContainsKey(buildKey))
+        {
+            throw new InvalidOperationException($"A build job for '{collectionName}.{fieldName}' is already in progress.");
+        }
+        
         // Create the job
         var job = new BackgroundIndexBuildJob
         {
@@ -99,11 +107,17 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
             cancellationToken.Register(() => job.CancellationTokenSource?.Cancel());
         }
         
-        // Store the job
+        // Track active build and store the job
+        if (!_activeBuilds.TryAdd(buildKey, job.JobId))
+        {
+            throw new InvalidOperationException($"A build job for '{collectionName}.{fieldName}' is already in progress.");
+        }
+        
         if (!_jobs.TryAdd(job.JobId, job))
         {
-            // Job with this ID already exists
-            throw new InvalidOperationException($"A build job for '{collectionName}.{fieldName}' is already in progress or completed.");
+            // Shouldn't happen since job IDs are unique, but clean up if it does
+            _activeBuilds.TryRemove(buildKey, out _);
+            throw new InvalidOperationException($"Failed to create build job for '{collectionName}.{fieldName}'.");
         }
         
         // Start the build task
@@ -112,6 +126,17 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
             try
             {
                 await ExecuteBuildAsync(job, documents, keySelector, isUnique, progress);
+            }
+            catch (OperationCanceledException)
+            {
+                // Handle cancellation - don't mark as failed
+                if (job.Status != BackgroundIndexBuildStatus.Cancelled)
+                {
+                    job.Status = BackgroundIndexBuildStatus.Cancelled;
+                    job.Result ??= BackgroundIndexBuildResult.Cancelled(job.JobId, collectionName, fieldName);
+                    job.CompletedAt = DateTime.UtcNow;
+                    OnBuildCompleted(job.Result);
+                }
             }
             catch (Exception ex)
             {
@@ -288,6 +313,13 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
                 errors.AddRange(batchErrors);
                 
                 processedCount += batch.Count;
+                
+                // Update and report progress for final batch
+                job.Progress.DocumentsProcessed = processedCount;
+                job.Progress.ErrorCount = errorCount;
+                job.Progress.Elapsed = stopwatch.Elapsed;
+                progress?.Report(job.Progress);
+                OnBuildProgress(job.Progress);
             }
             
             // Mark as completed
@@ -313,6 +345,9 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
         finally
         {
             _concurrencySemaphore.Release();
+            // Remove from active builds when done
+            var buildKey = $"{job.CollectionName}_{job.FieldName}";
+            _activeBuilds.TryRemove(buildKey, out _);
         }
     }
     

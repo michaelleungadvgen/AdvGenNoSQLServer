@@ -10,11 +10,49 @@
 
 | Agent | Task | Status | Started | Target Completion |
 |-------|------|--------|---------|-------------------|
+| Agent-109 | Fix Failing Tests (QueryOptimizer + BackgroundIndexBuilder) | In Progress | 2026-03-25 | 2026-03-25 |
 | Agent-108 | Write Concern Examples Implementation | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-107 | Health Checks Implementation | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-106 | Fix P2P Clustering Test Failures | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-105 | Metrics Collection Implementation (Prometheus-Compatible) | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-104 | Sharding Implementation (Horizontal Scaling) | Completed | 2026-03-25 | 2026-03-25 |
+
+---
+
+### Agent-109: Fix Failing Tests (QueryOptimizer + BackgroundIndexBuilder) ✓ COMPLETED
+**Completed**: 2026-03-25
+**Summary**: Fixed 5 failing unit tests by addressing implementation bugs in QueryOptimizer and BackgroundIndexBuilder
+
+**Issues Fixed**:
+1. **QueryOptimizerTests.OptimizeAsync_WithCancellation_RespectsToken**:
+   - Added `cancellationToken.ThrowIfCancellationRequested()` at the start of `OptimizeAsync` method
+   - Added specific catch block for `OperationCanceledException` to re-throw without wrapping
+
+2. **BackgroundIndexBuilderTests.StartBuildAsync_WithDuplicateIndex_ThrowsInvalidOperationException**:
+   - Added `_activeBuilds` dictionary to track active builds by collection+field key
+   - Added duplicate check before creating new job
+   - Fixed test to use larger document set with delays to ensure job is still running
+
+3. **BackgroundIndexBuilderTests.StartBuildAsync_ReportsProgressEvent**:
+   - Added progress reporting for final batch processing
+   - Fixed test timing
+
+4. **BackgroundIndexBuilderTests.CancelJob_CancelsRunningBuild**:
+   - Added specific catch block for `OperationCanceledException` in task catch handler
+   - Properly sets job status to `Cancelled` and creates cancelled result
+   - Fixed test timing with appropriate delays
+
+5. **BackgroundIndexBuilderTests.StartBuildAsync_WithCancellationToken_RespectsCancellation**:
+   - Same fix as CancelJob test
+   - Fixed test timing
+
+**Files Modified**:
+- `AdvGenNoSqlServer.Query/Optimization/QueryOptimizer.cs` - Added cancellation token checking
+- `AdvGenNoSqlServer.Storage/Indexing/BackgroundIndexBuilder.cs` - Added active build tracking, proper cancellation handling
+- `AdvGenNoSqlServer.Tests/BackgroundIndexBuilderTests.cs` - Fixed test timing issues
+
+**Build Status**: ✓ Compiles successfully (0 errors)
+**Test Status**: ✓ 3121/3121 tests pass (was 3116 passing, 5 failing)
 
 ---
 

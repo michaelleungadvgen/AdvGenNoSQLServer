@@ -49,6 +49,9 @@ public class QueryOptimizer : IQueryOptimizer, IDisposable
         QueryOptimizerOptions? options = null,
         CancellationToken cancellationToken = default)
     {
+        // Check for cancellation first
+        cancellationToken.ThrowIfCancellationRequested();
+        
         var stopwatch = Stopwatch.StartNew();
         options ??= DefaultOptions;
 
@@ -123,6 +126,11 @@ public class QueryOptimizer : IQueryOptimizer, IDisposable
                 PlansConsidered = plans.Count,
                 OptimizationLevel = options.Level
             });
+        }
+        catch (OperationCanceledException)
+        {
+            // Re-throw cancellation exceptions
+            throw;
         }
         catch (Exception ex)
         {

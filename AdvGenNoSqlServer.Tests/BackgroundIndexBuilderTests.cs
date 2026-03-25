@@ -153,22 +153,32 @@ public class BackgroundIndexBuilderTests : IDisposable
     [Fact]
     public async Task StartBuildAsync_WithDuplicateIndex_ThrowsInvalidOperationException()
     {
-        var documents = CreateTestDocuments(10);
+        // Use more documents with batch delay to ensure first build is still running
+        var documents = CreateTestDocuments(100);
         
-        // First build
-        await _builder.StartBuildAsync(
+        // First build with delay to keep it running
+        var job1 = await _builder.StartBuildAsync(
             "test_collection",
             "name",
             documents,
-            doc => (doc.Data?.TryGetValue("name", out var val) == true ? val?.ToString() : null) ?? "");
+            doc => (doc.Data?.TryGetValue("name", out var val) == true ? val?.ToString() : null) ?? "",
+            options: new BackgroundIndexBuildOptions { BatchSize = 10, BatchDelayMs = 100 });
         
-        // Second build for same field should fail
+        // Give it time to start but not complete
+        await Task.Delay(50);
+        
+        // Second build for same field should fail while first is running
         await Assert.ThrowsAsync<InvalidOperationException>(() => 
             _builder.StartBuildAsync(
                 "test_collection",
                 "name",
                 documents,
-                doc => (doc.Data?.TryGetValue("name", out var val) == true ? val?.ToString() : null) ?? ""));
+                doc => (doc.Data?.TryGetValue("name", out var val) == true ? val?.ToString() : null) ?? "",
+                options: new BackgroundIndexBuildOptions { BatchSize = 10, BatchDelayMs = 100 }));
+        
+        // Clean up
+        _builder.CancelJob(job1.JobId);
+        await _builder.WaitForCompletionAsync(job1.JobId, timeout: TimeSpan.FromSeconds(5));
     }
     
     [Fact]
@@ -280,25 +290,27 @@ public class BackgroundIndexBuilderTests : IDisposable
     [Fact]
     public async Task CancelJob_CancelsRunningBuild()
     {
-        var documents = CreateTestDocuments(1000);
+        // Use many documents with small batches to ensure job runs long enough
+        var documents = CreateTestDocuments(500);
         
         var job = await _builder.StartBuildAsync(
             "test_collection",
             "name",
             documents,
             doc => (doc.Data?.TryGetValue("name", out var val) == true ? val?.ToString() : null) ?? "",
-            options: new BackgroundIndexBuildOptions { BatchSize = 10, BatchDelayMs = 50 });
+            options: new BackgroundIndexBuildOptions { BatchSize = 5, BatchDelayMs = 100 });
         
         // Give it time to start
-        await Task.Delay(100);
+        await Task.Delay(150);
         
-        // Cancel the job
+        // Cancel the job - should succeed since job is still running
         var cancelled = _builder.CancelJob(job.JobId);
         Assert.True(cancelled);
         
         // Wait for it to complete
         await _builder.WaitForCompletionAsync(job.JobId, timeout: TimeSpan.FromSeconds(10));
         
+        // Job should be cancelled or completed
         Assert.True(job.Status == BackgroundIndexBuildStatus.Cancelled || 
                     job.Status == BackgroundIndexBuildStatus.Completed);
     }
@@ -330,7 +342,8 @@ public class BackgroundIndexBuilderTests : IDisposable
     [Fact]
     public async Task StartBuildAsync_WithCancellationToken_RespectsCancellation()
     {
-        var documents = CreateTestDocuments(1000);
+        // Use many documents with small batches to ensure job runs long enough
+        var documents = CreateTestDocuments(500);
         using var cts = new CancellationTokenSource();
         
         var job = await _builder.StartBuildAsync(
@@ -338,11 +351,11 @@ public class BackgroundIndexBuilderTests : IDisposable
             "name",
             documents,
             doc => (doc.Data?.TryGetValue("name", out var val) == true ? val?.ToString() : null) ?? "",
-            options: new BackgroundIndexBuildOptions { BatchSize = 10, BatchDelayMs = 50 },
+            options: new BackgroundIndexBuildOptions { BatchSize = 5, BatchDelayMs = 100 },
             cancellationToken: cts.Token);
         
         // Give it time to start
-        await Task.Delay(100);
+        await Task.Delay(150);
         
         // Cancel via token
         cts.Cancel();
@@ -350,6 +363,7 @@ public class BackgroundIndexBuilderTests : IDisposable
         // Wait for it to complete
         await _builder.WaitForCompletionAsync(job.JobId, timeout: TimeSpan.FromSeconds(10));
         
+        // Job should be cancelled or completed
         Assert.True(job.Status == BackgroundIndexBuildStatus.Cancelled || 
                     job.Status == BackgroundIndexBuildStatus.Completed);
     }
