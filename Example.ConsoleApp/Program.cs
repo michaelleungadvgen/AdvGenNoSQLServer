@@ -49,9 +49,12 @@ namespace AdvGenNoSqlServer.Example.ConsoleApp
                 Console.WriteLine("  6. Write Concern Examples (NEW)");
                 Console.WriteLine("     - Write concern levels, Per-collection configuration");
                 Console.WriteLine("     - Batch operations with durability guarantees");
-                Console.WriteLine("  7. Run All Examples");
-                Console.WriteLine("  8. Exit");
-                Console.Write("\nSelect option (1-8): ");
+                Console.WriteLine("  7. Capped Collections Examples (NEW)");
+                Console.WriteLine("     - Fixed-size collections, Automatic document eviction");
+                Console.WriteLine("     - Log storage, Event streaming, Circular buffers");
+                Console.WriteLine("  8. Run All Examples");
+                Console.WriteLine("  9. Exit");
+                Console.Write("\nSelect option (1-9): ");
 
                 var choice = Console.ReadLine();
 
@@ -78,19 +81,23 @@ namespace AdvGenNoSqlServer.Example.ConsoleApp
                             await RunWriteConcernExamples();
                             break;
                         case "7":
+                            await RunCappedCollectionsExamples();
+                            break;
+                        case "8":
                             await RunBasicExamples();
                             await RunMultiDatabaseAndRbacExamples();
                             await RunP2PClusterExamples();
                             await RunSessionExamples();
                             await RunDatabaseManagerExamples();
                             await RunWriteConcernExamples();
+                            await RunCappedCollectionsExamples();
                             break;
-                        case "8":
+                        case "9":
                             Console.WriteLine("\n👋 Goodbye!");
                             return;
                         default:
                             Console.ForegroundColor = ConsoleColor.Yellow;
-                            Console.WriteLine("\n⚠ Invalid option. Please select 1-8.");
+                            Console.WriteLine("\n⚠ Invalid option. Please select 1-9.");
                             Console.ResetColor();
                             break;
                     }
@@ -186,6 +193,19 @@ namespace AdvGenNoSqlServer.Example.ConsoleApp
             Console.WriteLine(new string('═', 60));
 
             await WriteConcernExamples.RunAllExamplesAsync();
+        }
+
+        /// <summary>
+        /// Run Capped Collections examples demonstrating fixed-size collections
+        /// </summary>
+        static async Task RunCappedCollectionsExamples()
+        {
+            Console.WriteLine("\n" + new string('═', 60));
+            Console.WriteLine("  CAPPED COLLECTIONS EXAMPLES (Real Components)");
+            Console.WriteLine(new string('═', 60));
+
+            var examples = new CappedCollectionsExamples("./data/capped_examples");
+            await examples.RunAllExamplesAsync();
         }
 
         #region Basic Examples (Simulated)

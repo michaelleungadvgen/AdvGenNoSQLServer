@@ -4623,7 +4623,7 @@ public async Task Run[CommandName]Example()
 - [x] Slow query logging examples (2 scenarios)
 - [x] Session examples (3 scenarios) ✓ COMPLETED (Agent-89)
 - [x] Write Concern examples (3 scenarios) ✓ COMPLETED (Agent-108)
-- [ ] Capped Collections examples (3 scenarios)
+- [x] Capped Collections examples (3 scenarios) ✓ COMPLETED (Agent-110)
 
 #### P3 Commands
 - [ ] Change Streams examples (4 scenarios)
