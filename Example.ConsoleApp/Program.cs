@@ -40,9 +40,12 @@ namespace AdvGenNoSqlServer.Example.ConsoleApp
                 Console.WriteLine("  3. P2P Cluster Examples (NEW)");
                 Console.WriteLine("     - Cluster join, Node discovery, Leader election");
                 Console.WriteLine("     - Data replication, Read preference, Failover demo");
-                Console.WriteLine("  4. Run All Examples");
-                Console.WriteLine("  5. Exit");
-                Console.Write("\nSelect option (1-5): ");
+                Console.WriteLine("  4. Session/Unit of Work Examples (NEW)");
+                Console.WriteLine("     - Basic session with transaction, Change tracking");
+                Console.WriteLine("     - Unit of Work pattern, Bank transfer demo");
+                Console.WriteLine("  5. Run All Examples");
+                Console.WriteLine("  6. Exit");
+                Console.Write("\nSelect option (1-6): ");
 
                 var choice = Console.ReadLine();
 
@@ -60,16 +63,20 @@ namespace AdvGenNoSqlServer.Example.ConsoleApp
                             await RunP2PClusterExamples();
                             break;
                         case "4":
+                            await RunSessionExamples();
+                            break;
+                        case "5":
                             await RunBasicExamples();
                             await RunMultiDatabaseAndRbacExamples();
                             await RunP2PClusterExamples();
+                            await RunSessionExamples();
                             break;
-                        case "5":
+                        case "6":
                             Console.WriteLine("\n👋 Goodbye!");
                             return;
                         default:
                             Console.ForegroundColor = ConsoleColor.Yellow;
-                            Console.WriteLine("\n⚠ Invalid option. Please select 1-5.");
+                            Console.WriteLine("\n⚠ Invalid option. Please select 1-6.");
                             Console.ResetColor();
                             break;
                     }
@@ -128,6 +135,18 @@ namespace AdvGenNoSqlServer.Example.ConsoleApp
             Console.WriteLine(new string('═', 60));
 
             await P2PClusterExamples.RunAllExamples();
+        }
+
+        /// <summary>
+        /// Run Session/Unit of Work examples demonstrating the session pattern
+        /// </summary>
+        static async Task RunSessionExamples()
+        {
+            Console.WriteLine("\n" + new string('═', 60));
+            Console.WriteLine("  SESSION/UNIT OF WORK EXAMPLES (Real Components)");
+            Console.WriteLine(new string('═', 60));
+
+            await SessionExamples.RunAllExamplesAsync();
         }
 
         #region Basic Examples (Simulated)

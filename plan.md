@@ -4601,7 +4601,7 @@ public async Task Run[CommandName]Example()
 - [ ] Partial Index examples (3 scenarios)
 - [ ] INDEX_STATS examples (2 scenarios)
 - [x] Slow query logging examples (2 scenarios)
-- [ ] Session examples (3 scenarios)
+- [x] Session examples (3 scenarios) ✓ COMPLETED (Agent-89)
 - [ ] Write Concern examples (3 scenarios)
 - [ ] Capped Collections examples (3 scenarios)
 

@@ -2,11 +2,17 @@
 
 **Project**: AdvGenNoSQL Server  
 **Purpose**: Track parallel agent tasks to avoid conflicts  
-**Last Updated**: March 25, 2026 (Agent-82 - Task Status Update)
+**Last Updated**: March 25, 2026 (Agent-89 - Session Examples)
 
 ---
 
 ## Active Tasks
+
+| Agent | Task | Status | Started | Target Completion |
+|-------|------|--------|---------|-------------------|
+| Agent-89 | Session/Unit of Work Examples | Completed | 2026-03-25 | 2026-03-25 |
+
+## Active Tasks (Previous)
 
 | Agent | Task | Status | Started | Target Completion |
 |-------|------|--------|---------|-------------------|
@@ -37,6 +43,48 @@
 | Agent-85 | P2P Cluster Examples (6 scenarios) | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-86 | P2P CLUSTER Commands Implementation | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-87 | P2P Manager Implementation | Completed | 2026-03-25 | 2026-03-25 |
+
+### Agent-89: Session/Unit of Work Examples ✓ COMPLETED
+**Completed**: 2026-03-25
+**Summary**:
+Created comprehensive Session/Unit of Work pattern examples for the Example.ConsoleApp (plan.md line 4604 - Session examples)
+
+**Examples Created**:
+1. **Basic Session with Transaction** (`Example1_BasicSessionWithTransaction`):
+   - Session creation with SessionOptions
+   - CRUD operations (Insert, Get, Update) through session
+   - Transaction management (Commit)
+   - Session state tracking and lifecycle
+
+2. **Change Tracking** (`Example2_ChangeTracking`):
+   - Automatic change tracking with IChangeTracker
+   - Loading documents through session for tracking
+   - SaveChangesAsync to persist tracked modifications
+   - Clearing change tracker
+
+3. **Unit of Work Pattern** (`Example3_UnitOfWorkPattern`):
+   - Bank account transfer scenario (Alice to Bob)
+   - SessionFactory usage for session creation
+   - Multiple operations in a single transaction
+   - Rollback demonstration with insufficient funds
+   - Transaction isolation and error handling
+
+**Files Created**:
+- `Example.ConsoleApp/SessionExamples.cs` (400+ lines, 3 comprehensive examples)
+
+**Files Modified**:
+- `Example.ConsoleApp/Program.cs` - Added menu option 4 for Session Examples, updated Run All to include Session Examples
+
+**Build Status**: ✓ Compiles successfully (0 errors)
+**Test Status**: ✓ All 49 Session tests pass
+**Usage**:
+```powershell
+cd Example.ConsoleApp
+dotnet run
+# Select option 4: Session/Unit of Work Examples
+```
+
+---
 
 ### Agent-88: ConnectionPool IDisposable Implementation ✓ COMPLETED
 **Completed**: 2026-03-25
