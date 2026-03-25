@@ -10,6 +10,7 @@
 
 | Agent | Task | Status | Started | Target Completion |
 |-------|------|--------|---------|-------------------|
+| Agent-105 | Metrics Collection Implementation (Prometheus-Compatible) | In Progress | 2026-03-25 | 2026-03-25 |
 | Agent-104 | Sharding Implementation (Horizontal Scaling) | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-103 | Fix Document Revisions Test Failures | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-102 | Server-side Patches/Scripts Implementation | Completed | 2026-03-25 | 2026-03-25 |
