@@ -4622,15 +4622,15 @@ This section tracks the issues identified in `reviews.md` during the code qualit
 
 | Task ID | Component | File | Description | Status |
 |---------|-----------|------|-------------|--------|
-| SEC-001 | AuthenticationManager | `AuthenticationManager.cs` | Password hashing uses SHA256 instead of PBKDF2/bcrypt/Argon2. SHA256 is too fast and vulnerable to brute-force attacks. Must use key derivation function with minimum 100k iterations. | [ ] |
+| SEC-001 | AuthenticationManager | `AuthenticationManager.cs` | Password hashing uses SHA256 instead of PBKDF2/bcrypt/Argon2. SHA256 is too fast and vulnerable to brute-force attacks. Must use key derivation function with minimum 100k iterations. | [x] FIXED by Agent-84 |
 | SEC-027 | Client | `Client.cs` | Auth payload uses string interpolation `$"{{\"username\":\"{username}\",\"password\":\"{password}\"}}"`. Injection risk if credentials contain special chars. Use JsonSerializer. | [ ] |
 
 ### P1 - High Priority
 
 | Task ID | Component | File | Description | Status |
 |---------|-----------|------|-------------|--------|
-| SEC-002 | AuthenticationManager | `AuthenticationManager.cs` | Password hash comparison uses `!=` operator which is vulnerable to timing attacks. Must use constant-time comparison `CryptographicOperations.FixedTimeEquals()`. | [ ] |
-| SEC-003 | AuthenticationManager | `AuthenticationManager.cs` | `_users` and `_activeSessions` Dictionary objects are not thread-safe. Concurrent access from multiple connections will cause race conditions. Use `ConcurrentDictionary<>`. | [ ] |
+| SEC-002 | AuthenticationManager | `AuthenticationManager.cs` | Password hash comparison uses `!=` operator which is vulnerable to timing attacks. Must use constant-time comparison `CryptographicOperations.FixedTimeEquals()`. | [x] FIXED by Agent-84 |
+| SEC-003 | AuthenticationManager | `AuthenticationManager.cs` | `_users` and `_activeSessions` Dictionary objects are not thread-safe. Concurrent access from multiple connections will cause race conditions. Use `ConcurrentDictionary<>`. | [x] FIXED by Agent-84 |
 | SEC-011 | RoleManager | `RoleManager.cs` | `_roles`, `_userRoles`, and `PermissionRegistry._validPermissions` use non-thread-safe collections. Race conditions under concurrent access. Use `ConcurrentDictionary<>`. | [ ] |
 | PERF-002 | WriteAheadLog | `WriteAheadLog.cs` | `GetAwaiter().GetResult()` in constructor blocks thread. Can cause deadlocks. Use factory pattern or async initialization. | [ ] |
 | PERF-003 | LockManager | `LockManager.cs` | Sync `AcquireLock` uses `GetAwaiter().GetResult()` blocking thread. Remove sync method or use sync-specific implementation. | [ ] |
