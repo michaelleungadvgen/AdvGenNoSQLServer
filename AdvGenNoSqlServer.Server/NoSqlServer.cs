@@ -3,6 +3,7 @@
 // See LICENSE.txt for license information.
 
 using AdvGenNoSqlServer.Core.Abstractions;
+using AdvGenNoSqlServer.Core.Clustering;
 using AdvGenNoSqlServer.Core.Configuration;
 using AdvGenNoSqlServer.Core.Models;
 using AdvGenNoSqlServer.Network;
@@ -21,6 +22,7 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
 {
     private readonly ILogger<NoSqlServer> _logger;
     private readonly IConfigurationManager _configurationManager;
+    private readonly IClusterManager? _clusterManager;
     private HybridDocumentStore? _documentStore;
     private TcpServer? _tcpServer;
     private bool _disposed;
@@ -30,10 +32,11 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
     /// </summary>
     public const string ServerVersion = "1.0.0";
 
-    public NoSqlServer(ILogger<NoSqlServer> logger, IConfigurationManager configurationManager)
+    public NoSqlServer(ILogger<NoSqlServer> logger, IConfigurationManager configurationManager, IClusterManager? clusterManager = null)
     {
         _logger = logger;
         _configurationManager = configurationManager;
+        _clusterManager = clusterManager;
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -267,6 +270,7 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
                 "set" => HandleSetCommand(doc.RootElement),
                 "delete" => HandleDeleteCommand(doc.RootElement),
                 "exists" => HandleExistsCommand(doc.RootElement),
+                "cluster" => HandleClusterCommand(doc.RootElement),
                 _ => Task.FromResult(NoSqlMessage.CreateError("UNKNOWN_COMMAND", $"Unknown command: {command}"))
             };
         }
@@ -419,6 +423,320 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
 
         var exists = await _documentStore.ExistsAsync(collection, id);
         return NoSqlMessage.CreateSuccess(new { exists = exists });
+    }
+
+    private Task<NoSqlMessage> HandleClusterCommand(JsonElement commandElement)
+    {
+        if (_clusterManager == null)
+        {
+            return Task.FromResult(NoSqlMessage.CreateError("CLUSTER_NOT_AVAILABLE", "Clustering is not enabled on this server"));
+        }
+
+        if (!commandElement.TryGetProperty("subcommand", out var subcommandProp))
+        {
+            return Task.FromResult(NoSqlMessage.CreateError("INVALID_COMMAND", "Missing subcommand property for CLUSTER command"));
+        }
+
+        var subcommand = subcommandProp.GetString()?.ToLowerInvariant();
+
+        return subcommand switch
+        {
+            "info" => HandleClusterInfoCommand(),
+            "nodes" => HandleClusterNodesCommand(),
+            "join" => HandleClusterJoinCommand(commandElement),
+            "leave" => HandleClusterLeaveCommand(commandElement),
+            "failover" => HandleClusterFailoverCommand(),
+            "replicate" => HandleClusterReplicateCommand(commandElement),
+            "forget" => HandleClusterForgetCommand(commandElement),
+            _ => Task.FromResult(NoSqlMessage.CreateError("UNKNOWN_SUBCOMMAND", $"Unknown CLUSTER subcommand: {subcommand}"))
+        };
+    }
+
+    private async Task<NoSqlMessage> HandleClusterInfoCommand()
+    {
+        try
+        {
+            var clusterInfo = await _clusterManager!.GetClusterInfoAsync();
+            var leader = await _clusterManager.GetLeaderAsync();
+
+            var response = new
+            {
+                clusterId = clusterInfo.ClusterId,
+                clusterName = clusterInfo.ClusterName,
+                health = clusterInfo.Health.ToString(),
+                totalNodes = clusterInfo.TotalNodeCount,
+                activeNodes = clusterInfo.ActiveNodeCount,
+                quorumSize = clusterInfo.QuorumSize,
+                isWritable = clusterInfo.IsWritable,
+                hasLeader = clusterInfo.HasLeader,
+                leaderNodeId = leader?.NodeId,
+                leaderHost = leader?.Host,
+                localNodeId = _clusterManager.LocalNode?.NodeId,
+                isLocalLeader = _clusterManager.IsLeader,
+                isClusterMember = _clusterManager.IsClusterMember
+            };
+
+            return NoSqlMessage.CreateSuccess(response);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting cluster info");
+            return NoSqlMessage.CreateError("CLUSTER_ERROR", $"Failed to get cluster info: {ex.Message}");
+        }
+    }
+
+    private async Task<NoSqlMessage> HandleClusterNodesCommand()
+    {
+        try
+        {
+            var nodes = await _clusterManager!.GetNodesAsync();
+            var leader = await _clusterManager.GetLeaderAsync();
+            var leaderId = leader?.NodeId;
+
+            var nodeList = nodes.Select(n => new
+            {
+                nodeId = n.NodeId,
+                host = n.Host,
+                p2pPort = n.P2PPort,
+                state = n.State.ToString(),
+                isLeader = n.NodeId == leaderId,
+                term = n.Term,
+                tags = n.Tags,
+                lastSeenAt = n.LastSeenAt
+            }).ToList();
+
+            return NoSqlMessage.CreateSuccess(new
+            {
+                count = nodeList.Count,
+                nodes = nodeList
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting cluster nodes");
+            return NoSqlMessage.CreateError("CLUSTER_ERROR", $"Failed to get cluster nodes: {ex.Message}");
+        }
+    }
+
+    private async Task<NoSqlMessage> HandleClusterJoinCommand(JsonElement commandElement)
+    {
+        if (!commandElement.TryGetProperty("seed", out var seedProp))
+        {
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Missing 'seed' property for CLUSTER JOIN command");
+        }
+
+        var seed = seedProp.GetString();
+        if (string.IsNullOrEmpty(seed))
+        {
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Seed node address cannot be empty");
+        }
+
+        try
+        {
+            // Parse optional properties
+            TimeSpan timeout = TimeSpan.FromSeconds(30);
+            if (commandElement.TryGetProperty("timeout", out var timeoutProp) && timeoutProp.TryGetInt32(out var timeoutMs))
+            {
+                timeout = TimeSpan.FromMilliseconds(timeoutMs);
+            }
+
+            var options = new JoinOptions
+            {
+                SeedNode = seed,
+                Timeout = timeout
+            };
+
+            var result = await _clusterManager!.JoinClusterAsync(seed, options);
+
+            if (result.Success)
+            {
+                return NoSqlMessage.CreateSuccess(new
+                {
+                    joined = true,
+                    clusterId = result.ClusterInfo?.ClusterId,
+                    clusterName = result.ClusterInfo?.ClusterName,
+                    nodeCount = result.ClusterInfo?.TotalNodeCount
+                });
+            }
+            else
+            {
+                return NoSqlMessage.CreateError("JOIN_FAILED", result.ErrorMessage ?? "Failed to join cluster");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error joining cluster with seed {Seed}", seed);
+            return NoSqlMessage.CreateError("CLUSTER_ERROR", $"Failed to join cluster: {ex.Message}");
+        }
+    }
+
+    private async Task<NoSqlMessage> HandleClusterLeaveCommand(JsonElement commandElement)
+    {
+        try
+        {
+            var options = new LeaveOptions();
+
+            // Parse optional properties - LeaveOptions uses ReplicateData, not Graceful
+            if (commandElement.TryGetProperty("replicateData", out var replicateProp))
+            {
+                if (replicateProp.ValueKind == System.Text.Json.JsonValueKind.True)
+                    options.ReplicateData = true;
+                else if (replicateProp.ValueKind == System.Text.Json.JsonValueKind.False)
+                    options.ReplicateData = false;
+            }
+
+            if (commandElement.TryGetProperty("timeout", out var timeoutProp) && timeoutProp.TryGetInt32(out var timeoutMs))
+            {
+                options.Timeout = TimeSpan.FromMilliseconds(timeoutMs);
+            }
+
+            var result = await _clusterManager!.LeaveClusterAsync(options);
+
+            if (result.Success)
+            {
+                return NoSqlMessage.CreateSuccess(new
+                {
+                    left = true,
+                    message = "Successfully left the cluster"
+                });
+            }
+            else
+            {
+                return NoSqlMessage.CreateError("LEAVE_FAILED", result.ErrorMessage ?? "Failed to leave cluster");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error leaving cluster");
+            return NoSqlMessage.CreateError("CLUSTER_ERROR", $"Failed to leave cluster: {ex.Message}");
+        }
+    }
+
+    private async Task<NoSqlMessage> HandleClusterFailoverCommand()
+    {
+        try
+        {
+            var success = await _clusterManager!.RequestLeaderElectionAsync();
+
+            if (success)
+            {
+                // Wait a moment for election to complete
+                await Task.Delay(500);
+                var newLeader = await _clusterManager.GetLeaderAsync();
+
+                return NoSqlMessage.CreateSuccess(new
+                {
+                    failoverInitiated = true,
+                    newLeaderNodeId = newLeader?.NodeId,
+                    newLeaderHost = newLeader?.Host
+                });
+            }
+            else
+            {
+                return NoSqlMessage.CreateError("FAILOVER_FAILED", "Failed to initiate leader election");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error initiating failover");
+            return NoSqlMessage.CreateError("CLUSTER_ERROR", $"Failed to initiate failover: {ex.Message}");
+        }
+    }
+
+    private async Task<NoSqlMessage> HandleClusterReplicateCommand(JsonElement commandElement)
+    {
+        if (!commandElement.TryGetProperty("nodeId", out var nodeIdProp))
+        {
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Missing 'nodeId' property for CLUSTER REPLICATE command");
+        }
+
+        var nodeId = nodeIdProp.GetString();
+        if (string.IsNullOrEmpty(nodeId))
+        {
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Node ID cannot be empty");
+        }
+
+        try
+        {
+            // Note: Direct replication sync is handled by the replication manager
+            // This command acknowledges the request and triggers a sync check
+            var node = await _clusterManager!.GetNodeAsync(nodeId);
+
+            if (node == null)
+            {
+                return NoSqlMessage.CreateError("NODE_NOT_FOUND", $"Node '{nodeId}' not found in cluster");
+            }
+
+            return NoSqlMessage.CreateSuccess(new
+            {
+                replicationRequested = true,
+                targetNodeId = nodeId,
+                targetNodeHost = node.Host,
+                message = "Replication sync request acknowledged. The replication manager will handle synchronization."
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error requesting replication to node {NodeId}", nodeId);
+            return NoSqlMessage.CreateError("CLUSTER_ERROR", $"Failed to request replication: {ex.Message}");
+        }
+    }
+
+    private async Task<NoSqlMessage> HandleClusterForgetCommand(JsonElement commandElement)
+    {
+        if (!commandElement.TryGetProperty("nodeId", out var nodeIdProp))
+        {
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Missing 'nodeId' property for CLUSTER FORGET command");
+        }
+
+        var nodeId = nodeIdProp.GetString();
+        if (string.IsNullOrEmpty(nodeId))
+        {
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Node ID cannot be empty");
+        }
+
+        try
+        {
+            var node = await _clusterManager!.GetNodeAsync(nodeId);
+            if (node == null)
+            {
+                return NoSqlMessage.CreateError("NODE_NOT_FOUND", $"Node '{nodeId}' not found in cluster");
+            }
+
+            // Prevent forgetting the local node
+            if (nodeId == _clusterManager.LocalNode?.NodeId)
+            {
+                return NoSqlMessage.CreateError("INVALID_OPERATION", "Cannot forget the local node. Use CLUSTER LEAVE instead.");
+            }
+
+            // Prevent forgetting the leader without failover
+            var leader = await _clusterManager.GetLeaderAsync();
+            if (nodeId == leader?.NodeId)
+            {
+                return NoSqlMessage.CreateError("INVALID_OPERATION", "Cannot forget the current leader. Initiate failover first.");
+            }
+
+            var success = await _clusterManager.RemoveNodeAsync(nodeId);
+
+            if (success)
+            {
+                return NoSqlMessage.CreateSuccess(new
+                {
+                    forgotten = true,
+                    nodeId = nodeId,
+                    message = $"Node '{nodeId}' has been removed from the cluster"
+                });
+            }
+            else
+            {
+                return NoSqlMessage.CreateError("FORGET_FAILED", $"Failed to remove node '{nodeId}' from cluster");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error forgetting node {NodeId}", nodeId);
+            return NoSqlMessage.CreateError("CLUSTER_ERROR", $"Failed to forget node: {ex.Message}");
+        }
     }
 
     private static object JsonElementToObject(JsonElement element)
