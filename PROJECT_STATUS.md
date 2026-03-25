@@ -718,6 +718,7 @@ dotnet run --configuration Release -- Cache        # Run cache benchmarks only
   - [x] Data Replication ✓ (Agent-70, March 20, 2026)
   - [x] Gossip Protocol ✓ (Agent-68/Agent-72, March 20, 2026)
   - [x] Raft Consensus ✓ (Agent-69, March 20, 2026)
+  - [x] Conflict Resolution ✓ (Agent-83, March 25, 2026)
 
 ---
 

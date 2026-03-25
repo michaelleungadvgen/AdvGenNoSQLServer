@@ -3735,7 +3735,7 @@ public class RaftConfiguration
 - [x] Implement `IReplicationManager` ✓ COMPLETED (Agent-70)
 - [x] WAL-based change streaming to followers ✓ COMPLETED (Agent-70)
 - [x] Write quorum acknowledgement ✓ COMPLETED (Agent-70)
-- [ ] Conflict detection and resolution
+- [x] Conflict detection and resolution ✓ COMPLETED (Agent-83)
 
 **Effort: ~20 hours**
 
