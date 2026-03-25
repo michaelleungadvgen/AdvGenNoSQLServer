@@ -1005,7 +1005,7 @@ Where third-party libraries have restrictive licenses, we implement custom solut
 - ✓ **Document Attachments**: Binary attachments on documents (Agent-92)
 - **Document Revisions**: Track document history with configurable retention
 - ✓ **Map-Reduce**: Classic aggregation pattern for complex analytics (Agent-100)
-- **Server-side Patches/Scripts**: Atomic document modifications with server-side logic
+- ✓ **Server-side Patches/Scripts**: Atomic document modifications with server-side logic (Agent-102)
 
 ### 13.3 Lower Priority (Nice to Have)
 - **GraphQL**: GraphQL query support
