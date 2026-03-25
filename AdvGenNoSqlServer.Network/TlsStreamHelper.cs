@@ -119,6 +119,23 @@ namespace AdvGenNoSqlServer.Network
                         "Please configure your client to use a stronger cipher suite.");
                 }
 
+                // Validate certificate pinning if enabled
+                var pinningOptions = ToPinningOptions(configuration.CertificatePinningConfig);
+                if (pinningOptions.Enabled)
+                {
+                    var remoteCertificate = sslStream.RemoteCertificate;
+                    if (!CertificatePinValidator.ValidateCertificate(remoteCertificate, pinningOptions))
+                    {
+                        sslStream.Dispose();
+                        throw new CertificatePinningException(
+                            "Certificate pinning validation failed. The remote certificate does not match any configured pin.",
+                            remoteCertificate,
+                            remoteCertificate != null ? CertificatePinValidator.ComputeSha256Thumbprint(remoteCertificate) : null,
+                            pinningOptions.Pins.Count,
+                            pinningOptions.EnforceStrict);
+                    }
+                }
+
                 return sslStream;
             }
             catch
@@ -454,6 +471,36 @@ namespace AdvGenNoSqlServer.Network
                 AllowNullEncryption = config.AllowNullEncryption,
                 MinimumCipherStrength = config.MinimumCipherStrength
             };
+        }
+
+        /// <summary>
+        /// Converts CertificatePinningConfiguration from ServerConfiguration to CertificatePinningOptions
+        /// </summary>
+        public static CertificatePinningOptions ToPinningOptions(CertificatePinningConfiguration? config)
+        {
+            if (config == null || !config.Enabled)
+            {
+                return new CertificatePinningOptions { Enabled = false };
+            }
+
+            var options = new CertificatePinningOptions
+            {
+                Enabled = config.Enabled,
+                EnforceStrict = config.EnforceStrict,
+                IgnoreExpiredPins = config.IgnoreExpiredPins
+            };
+
+            foreach (var thumbprint in config.Thumbprints)
+            {
+                DateTime? expiresAt = null;
+                if (config.PinExpirations?.TryGetValue(thumbprint, out var expiration) == true)
+                {
+                    expiresAt = expiration;
+                }
+                options.Pins.Add(new CertificatePin(thumbprint, expiresAt));
+            }
+
+            return options;
         }
     }
 }

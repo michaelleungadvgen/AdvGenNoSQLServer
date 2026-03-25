@@ -272,12 +272,59 @@ public class ServerConfiguration
     /// </summary>
     public CipherSuiteConfiguration? CipherSuiteConfig { get; set; }
 
-    #endregion
+        /// <summary>
+        /// Certificate pinning configuration for enhanced TLS security
+        /// When enabled, only certificates matching the configured pins will be accepted
+        /// </summary>
+        public CertificatePinningConfiguration? CertificatePinningConfig { get; set; }
+
+        #endregion
 }
 
+
 /// <summary>
-/// Configuration for TLS cipher suites
+/// Configuration for certificate pinning
 /// </summary>
+public class CertificatePinningConfiguration
+{
+    /// <summary>
+    /// Whether certificate pinning is enabled (default: false)
+    /// </summary>
+    public bool Enabled { get; set; } = false;
+
+    /// <summary>
+    /// The certificate thumbprints to pin (SHA-256 hashes)
+    /// </summary>
+    public List<string> Thumbprints { get; set; } = new();
+
+    /// <summary>
+    /// Whether to enforce pinning strictly (default: true)
+    /// When false, pinning failures are logged but connections are allowed
+    /// </summary>
+    public bool EnforceStrict { get; set; } = true;
+
+    /// <summary>
+    /// Whether to ignore expired pins (default: false)
+    /// </summary>
+    public bool IgnoreExpiredPins { get; set; } = false;
+
+    /// <summary>
+    /// Pin expiration dates (optional, for certificate rotation)
+    /// Key: thumbprint, Value: expiration date
+    /// </summary>
+    public Dictionary<string, DateTime>? PinExpirations { get; set; }
+
+    /// <summary>
+    /// Validates the configuration
+    /// </summary>
+    public bool Validate()
+    {
+        if (!Enabled)
+            return true;
+
+        return Thumbprints.Count > 0 && Thumbprints.All(t => !string.IsNullOrWhiteSpace(t));
+    }
+}/// </summary>
 public class CipherSuiteConfiguration
 {
     /// <summary>
