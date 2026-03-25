@@ -385,7 +385,8 @@ AdvGenNoSQLServer/
 - [x] Full-Text Search indexes (inverted index with TF-IDF, Porter stemming, 62 tests - Agent-62)
 
 **Remaining**:
-- [ ] Query optimizer integration
+- [x] Query optimizer integration ✓ COMPLETED (Agent-90)
+
 
 ### 🟢 Query Engine (99% Complete)
 **Status**: ✓ COMPLETE
@@ -406,7 +407,8 @@ AdvGenNoSQLServer/
 - [x] 135+ comprehensive unit tests (48 query + 49 aggregation + 19 projection + 19 distinct)
 
 **Remaining**:
-- [ ] Full query optimizer with cost-based plan selection
+- [x] Full query optimizer with cost-based plan selection ✓ COMPLETED (Agent-90)
+
 
 ### 🟢 Transaction Management (100% Complete)
 **Status**: ✓ COMPLETE
