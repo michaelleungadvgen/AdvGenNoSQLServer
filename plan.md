@@ -358,7 +358,7 @@ if (negotiatedProtocol == default)
 | 40 | Certificate pinning | Thumbprint validation | 3h |
 | 41 | ALPN support | Protocol negotiation | 2h |
 | 42 | Certificate hot-reload | Reload certs without restart | 3h |
-| 43 | Cipher suite configuration | Restrict weak ciphers | 2h |
+| 43 | Cipher suite configuration | Restrict weak ciphers | 2h | ✓ COMPLETED (Agent-77 - CipherSuiteOptions, CipherSuiteValidator, 42 tests) |
 
 **Total Transport Security Effort: ~18 hours**
 
@@ -366,13 +366,13 @@ if (negotiatedProtocol == default)
 
 - [x] Enforce TLS 1.3 as minimum (TLS 1.2 fallback optional) ✓ (Agent-76)
 - [x] Reject non-TLS connections when `RequireEncryption=true` ✓ (Agent-76 - RejectNonTlsConnections property)
-- [ ] Disable weak cipher suites (RC4, DES, 3DES, MD5)
+- [x] Disable weak cipher suites (RC4, DES, 3DES, MD5) ✓ (Agent-77 - CipherSuiteValidator with configurable options)
 - [ ] Implement certificate chain validation
 - [ ] Support certificate pinning for sensitive deployments
 - [ ] Implement ALPN for protocol versioning
-- [ ] Support certificate hot-reload
-- [ ] Log TLS handshake failures for debugging
-- [ ] Monitor certificate expiration
+- [x] Support certificate hot-reload ✓ (Agent-73)
+- [x] Log TLS handshake failures for debugging ✓ (existing)
+- [x] Monitor certificate expiration ✓ (Agent-73)
 
 ---
 

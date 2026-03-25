@@ -12,10 +12,48 @@ using System.Security.Cryptography.X509Certificates;
 namespace AdvGenNoSqlServer.Network
 {
     /// <summary>
+    /// Event arguments for cipher suite validation
+    /// </summary>
+    public class CipherValidationEventArgs : EventArgs
+    {
+        /// <summary>
+        /// The negotiated cipher suite
+        /// </summary>
+        public TlsCipherSuite CipherSuite { get; }
+
+        /// <summary>
+        /// Whether the cipher suite is allowed
+        /// </summary>
+        public bool IsAllowed { get; set; }
+
+        /// <summary>
+        /// Reason why the cipher was rejected (null if allowed)
+        /// </summary>
+        public string? RejectionReason { get; set; }
+
+        /// <summary>
+        /// Creates a new instance of CipherValidationEventArgs
+        /// </summary>
+        public CipherValidationEventArgs(TlsCipherSuite cipherSuite, bool isAllowed)
+        {
+            CipherSuite = cipherSuite;
+            IsAllowed = isAllowed;
+        }
+    }
+
+    /// <summary>
+    /// Delegate for cipher suite validation events
+    /// </summary>
+    public delegate void CipherValidationEventHandler(object sender, CipherValidationEventArgs e);
+    /// <summary>
     /// Helper class for SSL/TLS stream operations
     /// </summary>
     public static class TlsStreamHelper
     {
+        /// <summary>
+        /// Event raised when a cipher suite is validated
+        /// </summary>
+        public static event CipherValidationEventHandler? CipherValidated;
         /// <summary>
         /// Creates an SSL server stream and performs the TLS handshake
         /// </summary>
@@ -65,6 +103,20 @@ namespace AdvGenNoSqlServer.Network
                         $"Please upgrade your client to support at least {minimumVersion}.",
                         sslStream.SslProtocol,
                         configuration.MinimumTlsVersion);
+                }
+
+                // Validate the negotiated cipher suite
+                var cipherOptions = ToCipherSuiteOptions(configuration.CipherSuiteConfig);
+                if (!ValidateCipherSuite(sslStream, cipherOptions))
+                {
+                    var cipherSuite = sslStream.NegotiatedCipherSuite;
+                    var reason = CipherSuiteValidator.GetCipherWeaknessReason(cipherSuite);
+                    var cipherName = CipherSuiteValidator.GetTlsCipherSuiteName(cipherSuite);
+                    
+                    sslStream.Dispose();
+                    throw new InvalidOperationException(
+                        $"Cipher suite '{cipherName}' is not allowed. {reason}. " +
+                        "Please configure your client to use a stronger cipher suite.");
                 }
 
                 return sslStream;
@@ -332,6 +384,76 @@ namespace AdvGenNoSqlServer.Network
         {
             return $"Protocol: {sslStream.SslProtocol}, Cipher: {sslStream.NegotiatedCipherSuite}, " +
                    $"KeyExchange: {sslStream.KeyExchangeAlgorithm}, CipherStrength: {sslStream.CipherStrength}";
+        }
+
+        /// <summary>
+        /// Validates the negotiated cipher suite against the configured options
+        /// </summary>
+        /// <param name="sslStream">The SSL stream to validate</param>
+        /// <param name="options">The cipher suite options</param>
+        /// <returns>True if the cipher suite is allowed, false otherwise</returns>
+        public static bool ValidateCipherSuite(SslStream sslStream, CipherSuiteOptions? options)
+        {
+            if (options == null)
+            {
+                // Use default strong options
+                options = new CipherSuiteOptions();
+            }
+
+            var cipherSuite = sslStream.NegotiatedCipherSuite;
+            var isAllowed = CipherSuiteValidator.IsCipherAllowed(cipherSuite, options);
+            var reason = isAllowed ? null : CipherSuiteValidator.GetCipherWeaknessReason(cipherSuite);
+
+            var eventArgs = new CipherValidationEventArgs(cipherSuite, isAllowed)
+            {
+                RejectionReason = reason
+            };
+
+            CipherValidated?.Invoke(null, eventArgs);
+
+            return eventArgs.IsAllowed;
+        }
+
+        /// <summary>
+        /// Validates the negotiated cipher suite after handshake and throws exception if weak
+        /// </summary>
+        /// <param name="sslStream">The SSL stream to validate</param>
+        /// <param name="options">The cipher suite options</param>
+        /// <exception cref="InvalidOperationException">Thrown when cipher suite is not allowed</exception>
+        public static void ValidateAndEnforceCipherSuite(SslStream sslStream, CipherSuiteOptions? options)
+        {
+            if (!ValidateCipherSuite(sslStream, options))
+            {
+                var cipherSuite = sslStream.NegotiatedCipherSuite;
+                var reason = CipherSuiteValidator.GetCipherWeaknessReason(cipherSuite);
+                var cipherName = CipherSuiteValidator.GetTlsCipherSuiteName(cipherSuite);
+                
+                throw new InvalidOperationException(
+                    $"Cipher suite '{cipherName}' is not allowed. {reason}. " +
+                    "Please configure your client to use a stronger cipher suite.");
+            }
+        }
+
+        /// <summary>
+        /// Converts CipherSuiteConfiguration from ServerConfiguration to CipherSuiteOptions
+        /// </summary>
+        public static CipherSuiteOptions ToCipherSuiteOptions(CipherSuiteConfiguration? config)
+        {
+            if (config == null)
+            {
+                return new CipherSuiteOptions();
+            }
+
+            return new CipherSuiteOptions
+            {
+                UseStrongCipherSuitesOnly = config.UseStrongCipherSuitesOnly,
+                AllowRc4 = config.AllowRc4,
+                AllowDes = config.AllowDes,
+                AllowMd5 = config.AllowMd5,
+                AllowSha1 = config.AllowSha1,
+                AllowNullEncryption = config.AllowNullEncryption,
+                MinimumCipherStrength = config.MinimumCipherStrength
+            };
         }
     }
 }

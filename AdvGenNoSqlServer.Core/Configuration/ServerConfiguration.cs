@@ -266,5 +266,53 @@ public class ServerConfiguration
     /// </summary>
     public bool RejectNonTlsConnections { get; set; } = true;
 
+    /// <summary>
+    /// Cipher suite configuration options for TLS connections
+    /// When null, strong cipher suites will be used by default
+    /// </summary>
+    public CipherSuiteConfiguration? CipherSuiteConfig { get; set; }
+
     #endregion
+}
+
+/// <summary>
+/// Configuration for TLS cipher suites
+/// </summary>
+public class CipherSuiteConfiguration
+{
+    /// <summary>
+    /// Whether to use only strong cipher suites and disable weak ones (default: true)
+    /// </summary>
+    public bool UseStrongCipherSuitesOnly { get; set; } = true;
+
+    /// <summary>
+    /// Whether to allow RC4 cipher suites (default: false)
+    /// RC4 is cryptographically broken and should not be used
+    /// </summary>
+    public bool AllowRc4 { get; set; } = false;
+
+    /// <summary>
+    /// Whether to allow DES and 3DES cipher suites (default: false)
+    /// </summary>
+    public bool AllowDes { get; set; } = false;
+
+    /// <summary>
+    /// Whether to allow MD5 hash algorithms (default: false)
+    /// </summary>
+    public bool AllowMd5 { get; set; } = false;
+
+    /// <summary>
+    /// Whether to allow SHA1 hash algorithms (default: false)
+    /// </summary>
+    public bool AllowSha1 { get; set; } = false;
+
+    /// <summary>
+    /// Whether to allow NULL encryption (default: false)
+    /// </summary>
+    public bool AllowNullEncryption { get; set; } = false;
+
+    /// <summary>
+    /// Minimum cipher strength in bits (default: 128)
+    /// </summary>
+    public int MinimumCipherStrength { get; set; } = 128;
 }
