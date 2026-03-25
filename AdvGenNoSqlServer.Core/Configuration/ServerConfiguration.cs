@@ -247,5 +247,24 @@ public class ServerConfiguration
     /// </summary>
     public bool FallbackCertificateOnReloadFailure { get; set; } = true;
 
+    /// <summary>
+    /// The minimum TLS version required for connections (default: TLS 1.2)
+    /// Set to Tls13 to enforce TLS 1.3 only
+    /// </summary>
+    public System.Security.Authentication.SslProtocols MinimumTlsVersion { get; set; } =
+        System.Security.Authentication.SslProtocols.Tls12;
+
+    /// <summary>
+    /// Whether to require the minimum TLS version and reject connections using older versions (default: false)
+    /// When enabled, connections using TLS versions below MinimumTlsVersion will be rejected
+    /// </summary>
+    public bool RequireMinimumTlsVersion { get; set; } = false;
+
+    /// <summary>
+    /// Whether to reject non-TLS connections when SSL is enabled (default: true)
+    /// When enabled and SSL is enabled, plaintext connections will be rejected
+    /// </summary>
+    public bool RejectNonTlsConnections { get; set; } = true;
+
     #endregion
 }

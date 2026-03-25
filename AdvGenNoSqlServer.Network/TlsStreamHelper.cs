@@ -50,6 +50,23 @@ namespace AdvGenNoSqlServer.Network
                     configuration.SslProtocols,
                     configuration.CheckCertificateRevocation);
 
+                // Validate the negotiated TLS version meets minimum requirements
+                if (!TlsVersionValidator.ValidateTlsVersion(
+                    sslStream.SslProtocol,
+                    configuration.MinimumTlsVersion,
+                    configuration.RequireMinimumTlsVersion))
+                {
+                    var negotiatedVersion = TlsVersionValidator.GetTlsVersionName(sslStream.SslProtocol);
+                    var minimumVersion = TlsVersionValidator.GetTlsVersionName(configuration.MinimumTlsVersion);
+                    
+                    sslStream.Dispose();
+                    throw new TlsVersionException(
+                        $"TLS version {negotiatedVersion} is below the minimum required version {minimumVersion}. " +
+                        $"Please upgrade your client to support at least {minimumVersion}.",
+                        sslStream.SslProtocol,
+                        configuration.MinimumTlsVersion);
+                }
+
                 return sslStream;
             }
             catch
@@ -75,6 +92,33 @@ namespace AdvGenNoSqlServer.Network
             bool checkCertificateRevocation = true,
             CancellationToken cancellationToken = default)
         {
+            return await CreateClientSslStreamAsync(
+                client,
+                targetHost,
+                clientCertificate,
+                SslProtocols.Tls12 | SslProtocols.Tls13,
+                checkCertificateRevocation,
+                cancellationToken);
+        }
+
+        /// <summary>
+        /// Creates an SSL client stream with specific TLS protocol versions and performs the TLS handshake
+        /// </summary>
+        /// <param name="client">The TCP client</param>
+        /// <param name="targetHost">The target host name for certificate validation</param>
+        /// <param name="clientCertificate">Optional client certificate for mutual TLS</param>
+        /// <param name="enabledProtocols">The TLS protocol versions to enable</param>
+        /// <param name="checkCertificateRevocation">Whether to check certificate revocation</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>An authenticated SSL stream</returns>
+        public static async Task<SslStream> CreateClientSslStreamAsync(
+            TcpClient client,
+            string targetHost,
+            X509Certificate? clientCertificate,
+            SslProtocols enabledProtocols,
+            bool checkCertificateRevocation,
+            CancellationToken cancellationToken = default)
+        {
             var sslStream = new SslStream(
                 client.GetStream(),
                 false,
@@ -87,7 +131,7 @@ namespace AdvGenNoSqlServer.Network
                 await sslStream.AuthenticateAsClientAsync(
                     targetHost,
                     clientCertificate != null ? new X509CertificateCollection { clientCertificate } : null,
-                    SslProtocols.Tls12 | SslProtocols.Tls13,
+                    enabledProtocols,
                     checkCertificateRevocation);
 
                 return sslStream;

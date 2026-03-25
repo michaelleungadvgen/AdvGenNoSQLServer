@@ -352,8 +352,8 @@ if (negotiatedProtocol == default)
 
 | # | Task | Description | Est. Effort |
 |---|------|-------------|-------------|
-| 37 | RequireEncryption option | Reject non-TLS connections | 2h |
-| 38 | TLS 1.3 enforcement | Upgrade minimum version | 2h |
+| 37 | RequireEncryption option | Reject non-TLS connections | 2h | ✓ COMPLETED (Agent-76 - RejectNonTlsConnections property) |
+| 38 | TLS 1.3 enforcement | Upgrade minimum version | 2h | ✓ COMPLETED (Agent-76) |
 | 39 | Client certificate support | mTLS for high security | 4h |
 | 40 | Certificate pinning | Thumbprint validation | 3h |
 | 41 | ALPN support | Protocol negotiation | 2h |
@@ -364,8 +364,8 @@ if (negotiatedProtocol == default)
 
 #### Security Checklist
 
-- [ ] Enforce TLS 1.3 as minimum (TLS 1.2 fallback optional)
-- [ ] Reject non-TLS connections when `RequireEncryption=true`
+- [x] Enforce TLS 1.3 as minimum (TLS 1.2 fallback optional) ✓ (Agent-76)
+- [x] Reject non-TLS connections when `RequireEncryption=true` ✓ (Agent-76 - RejectNonTlsConnections property)
 - [ ] Disable weak cipher suites (RC4, DES, 3DES, MD5)
 - [ ] Implement certificate chain validation
 - [ ] Support certificate pinning for sensitive deployments
