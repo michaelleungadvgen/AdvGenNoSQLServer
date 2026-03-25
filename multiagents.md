@@ -10,7 +10,51 @@
 
 | Agent | Task | Status | Started | Target Completion |
 |-------|------|--------|---------|-------------------|
-| Agent-89 | Session/Unit of Work Examples | Completed | 2026-03-25 | 2026-03-25 |
+| Agent-90 | Query Optimizer Implementation | In Progress | 2026-03-25 | 2026-03-25 |
+
+### Agent-90: Query Optimizer Implementation
+**Scope**: Implement cost-based query optimizer for efficient query plan selection
+
+**Planned Components**:
+- `IQueryOptimizer` interface - Core optimizer contract with Optimize() method
+- `QueryOptimizer` class - Cost-based query optimizer implementation
+- `QueryPlan` class - Represents an execution plan with cost estimates
+- `QueryPlanNode` class - Individual node in query plan tree (scan, index seek, filter, sort, etc.)
+- `PlanCostEstimator` class - Estimates cost for different plan alternatives
+- `IndexSelector` class - Selects optimal indexes for query filters
+- `OptimizationRule` base class - Base for optimizer transformation rules
+- `FilterPushdownRule` - Push filters closer to data source
+- `IndexSelectionRule` - Replace scans with index seeks where beneficial
+- `SortEliminationRule` - Remove unnecessary sorts
+- `QueryOptimizerOptions` class - Configuration for optimizer behavior
+- `OptimizationResult` class - Result of optimization with selected plan
+- `OptimizationContext` class - Context for optimization decisions
+- Unit tests (40+ tests) - Plan generation, cost estimation, rule application
+
+**Features**:
+- Cost-based plan selection using statistics
+- Index selection for filter operations
+- Filter pushdown optimization
+- Join order optimization (if joins supported)
+- Sort elimination for already-sorted data
+- Statistics-based cardinality estimation
+- Configurable optimization levels (None, Basic, Full)
+- Query plan caching for repeated queries
+- Extensible rule-based optimization framework
+
+**Dependencies**:
+- Query model classes (exists)
+- IndexManager for index metadata (exists)
+- DocumentStore for statistics (exists)
+
+**Notes**:
+- Follow existing code patterns with license headers
+- Use statistics from IndexManager for cost estimation
+- Support both index scans and index seeks
+- Cache compiled query plans for performance
+- Provide detailed plan information for EXPLAIN command
+
+---
 
 ## Active Tasks (Previous)
 
