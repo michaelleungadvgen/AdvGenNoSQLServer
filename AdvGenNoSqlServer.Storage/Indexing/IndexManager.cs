@@ -57,6 +57,33 @@ public class IndexManager
     }
 
     /// <summary>
+    /// Creates a new B-tree index for a collection (async wrapper)
+    /// </summary>
+    public Task<IBTreeIndex<TKey, string>> CreateIndexAsync<TKey>(
+        string collectionName,
+        string fieldName,
+        bool isUnique,
+        Func<Document, TKey> keySelector,
+        int minDegree = 4,
+        CancellationToken cancellationToken = default) where TKey : IComparable<TKey>
+    {
+        return Task.FromResult(CreateIndex(collectionName, fieldName, isUnique, keySelector, minDegree));
+    }
+
+    /// <summary>
+    /// Creates a new string B-tree index for a collection with default key selector
+    /// </summary>
+    public Task<IBTreeIndex<string, string>> CreateIndexAsync(
+        string collectionName,
+        string fieldName,
+        bool isUnique,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(CreateIndex(collectionName, fieldName, isUnique, doc => 
+            doc.Data.TryGetValue(fieldName, out var value) ? value?.ToString() ?? string.Empty : string.Empty));
+    }
+
+    /// <summary>
     /// Creates a new compound (multi-field) B-tree index for a collection
     /// </summary>
     /// <param name="collectionName">The collection name</param>

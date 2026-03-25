@@ -112,6 +112,14 @@ public class QueryFilter
     }
 
     /// <summary>
+    /// Creates a filter from a dictionary of conditions
+    /// </summary>
+    public static QueryFilter Create(Dictionary<string, object> conditions)
+    {
+        return new QueryFilter { Conditions = conditions };
+    }
+
+    /// <summary>
     /// Creates a filter with an "in" condition
     /// </summary>
     public static QueryFilter In(string field, IEnumerable<object> values)

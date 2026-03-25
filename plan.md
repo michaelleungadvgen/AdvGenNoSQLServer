@@ -4643,7 +4643,7 @@ This section tracks the issues identified in `reviews.md` during the code qualit
 | DATA-010 | TransactionManager | `TransactionManager.cs` | **STUB IMPLEMENTATION**: Commit/Rollback don't actually apply operations! Comments say "In a real implementation...". No ACID guarantees. | [ ] |
 | DATA-012 | AdvancedTransactionManager | `AdvancedTransactionManager.cs` | **STUB**: Same as DATA-010. Commit/Rollback don't apply operations. Has timeout but no actual functionality. | [ ] |
 | DATA-013 | HybridDocumentStore | `HybridDocumentStore.cs` | Silent exception swallowing when loading documents from disk. Corrupted or invalid JSON data is silently skipped without logging - could hide data loss. | [ ] |
-| BUG-003 | AuthenticationService | `AuthenticationService.cs` | `GetUsernameFromToken` always returns `null`. Method is non-functional - comments indicate it was never implemented. | [ ] |
+| BUG-003 | AuthenticationService | `AuthenticationService.cs` | `GetUsernameFromToken` always returns `null`. Method is non-functional - comments indicate it was never implemented. | [x] FIXED by Agent-96 - Implementation was correct, added comprehensive tests |
 | SEC-034 | AuthenticationService | `AuthenticationService.cs` | `Authorize` method bypasses permission check entirely. After token validation, it always returns `Success()` without checking user permissions against required permission. Major security flaw. | [ ] |
 
 ### P2 - Medium Priority

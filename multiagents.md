@@ -10,9 +10,37 @@
 
 | Agent | Task | Status | Started | Target Completion |
 |-------|------|--------|---------|-------------------|
+| Agent-96 | Fix GetUsernameFromToken Bug (BUG-003) | In Progress | 2026-03-25 | 2026-03-25 |
 | Agent-95 | Fix MemoryCacheManager.Clear() NotImplementedException (BUG-004) | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-94 | Fix RoleManager Thread-Safety (SEC-011) | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-93 | Memory Profiling and Tuning | Completed | 2026-03-25 | 2026-03-25 |
+
+---
+
+### Agent-96: Fix GetUsernameFromToken Bug (BUG-003) ✓ COMPLETED
+**Completed**: 2026-03-25
+**Summary**: 
+BUG-003 reported that `GetUsernameFromToken` always returns null. Investigation showed the implementation was correct, but lacked test coverage. Added comprehensive tests to verify the functionality.
+
+**Changes Made**:
+1. Added 4 comprehensive unit tests for `GetUsernameFromToken`:
+   - `GetUsernameFromToken_ValidToken_ReturnsUsername` - Verifies correct username returned for valid token
+   - `GetUsernameFromToken_InvalidToken_ReturnsNull` - Verifies null returned for invalid token
+   - `GetUsernameFromToken_RevokedToken_ReturnsNull` - Verifies null returned after token revocation
+   - `GetUsernameFromToken_EmptyTokenId_ReturnsNull` - Verifies null returned for empty token ID
+2. Fixed pre-existing compilation errors in test project:
+   - Added `QueryFilter.Create(Dictionary)` factory method to `QueryFilter` class
+   - Added `Success` convenience property to `OptimizationResult` class
+   - Added `CreateIndexAsync(string, string, bool)` convenience overload to `IndexManager`
+
+**Files Modified**:
+- `AdvGenNoSqlServer.Tests/AuthenticationServiceTests.cs` - Added 4 GetUsernameFromToken tests
+- `AdvGenNoSqlServer.Query/Models/Query.cs` - Added `QueryFilter.Create()` factory method
+- `AdvGenNoSqlServer.Query/Optimization/IQueryOptimizer.cs` - Added `Success` property
+- `AdvGenNoSqlServer.Storage/Indexing/IndexManager.cs` - Added `CreateIndexAsync` overload
+
+**Build Status**: ✓ Compiles successfully (0 errors)
+**Test Status**: ✓ 32/32 AuthenticationService tests pass (4 new + 28 existing)
 
 ---
 

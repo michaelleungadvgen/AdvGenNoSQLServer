@@ -519,7 +519,10 @@ public class OptimizationResult
     /// </summary>
     public OptimizationLevel OptimizationLevel { get; set; }
 
-
+    /// <summary>
+    /// Convenience property for success status (same as IsSuccess)
+    /// </summary>
+    public bool Success => IsSuccess;
 }
 
 /// <summary>

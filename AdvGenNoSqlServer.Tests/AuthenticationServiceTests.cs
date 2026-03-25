@@ -152,6 +152,59 @@ public class AuthenticationServiceTests
 
     #endregion
 
+    #region GetUsernameFromToken Tests
+
+    [Fact]
+    public void GetUsernameFromToken_ValidToken_ReturnsUsername()
+    {
+        // Arrange
+        _authService.RegisterUser("testuser", "password123");
+        var token = _authService.Authenticate("testuser", "password123");
+
+        // Act
+        var username = _authService.GetUsernameFromToken(token!.TokenId);
+
+        // Assert
+        Assert.Equal("testuser", username);
+    }
+
+    [Fact]
+    public void GetUsernameFromToken_InvalidToken_ReturnsNull()
+    {
+        // Act
+        var username = _authService.GetUsernameFromToken("invalid-token-id");
+
+        // Assert
+        Assert.Null(username);
+    }
+
+    [Fact]
+    public void GetUsernameFromToken_RevokedToken_ReturnsNull()
+    {
+        // Arrange
+        _authService.RegisterUser("testuser", "password123");
+        var token = _authService.Authenticate("testuser", "password123");
+        _authService.RevokeToken(token!.TokenId);
+
+        // Act
+        var username = _authService.GetUsernameFromToken(token.TokenId);
+
+        // Assert
+        Assert.Null(username);
+    }
+
+    [Fact]
+    public void GetUsernameFromToken_EmptyTokenId_ReturnsNull()
+    {
+        // Act
+        var username = _authService.GetUsernameFromToken("");
+
+        // Assert
+        Assert.Null(username);
+    }
+
+    #endregion
+
     #region Password Management Tests
 
     [Fact]
