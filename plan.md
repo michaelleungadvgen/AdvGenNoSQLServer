@@ -4685,7 +4685,7 @@ This section tracks the issues identified in `reviews.md` during the code qualit
 | DATA-015 | HybridDocumentStore | `HybridDocumentStore.cs` | Race condition in `InsertAsync` between `ContainsKey` check and `TryAdd`. Concurrent inserts could bypass duplicate detection. | [ ] |
 | AUDIT-001 | AuthenticationService | `AuthenticationService.cs` | Uses `Console.WriteLine` for audit logging instead of existing `IAuditLogger` interface. Audit logs are lost/inconsistent. | [ ] |
 | CONC-007 | AuthenticationService | `AuthenticationService.cs` | Non-atomic `RegisterUser` - if auth registration succeeds but role assignment fails, user exists without a role. Should cleanup on failure. | [ ] |
-| BUG-004 | MemoryCacheManager | `MemoryCacheManager.cs` | `Clear()` throws `NotImplementedException` - breaks ICacheManager interface contract. Callers expecting Clear() to work will crash. | [ ] |
+| BUG-004 | MemoryCacheManager | `MemoryCacheManager.cs` | `Clear()` throws `NotImplementedException` - breaks ICacheManager interface contract. Callers expecting Clear() to work will crash. | [x] FIXED by Agent-95 |
 | ASYNC-002 | TransactionCoordinator | `TransactionCoordinator.cs` | `async void` in event handlers and timer callbacks. Exceptions would crash process if not caught. Methods have try-catch but risky pattern. | [ ] |
 | PERF-012 | TransactionCoordinator | `TransactionCoordinator.cs` | `AbortAsync(...).Wait()` sync-over-async in Dispose. Can cause deadlocks. | [ ] |
 | BUG-005 | TransactionContext | `TransactionContext.cs` | `RollbackToSavepointAsync` resets operation count but doesn't undo operations. WriteSet is not restored - savepoint rollback is incomplete. | [ ] |

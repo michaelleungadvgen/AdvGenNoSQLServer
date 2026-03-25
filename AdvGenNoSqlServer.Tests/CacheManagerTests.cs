@@ -79,13 +79,134 @@ public class CacheManagerTests
     }
 
     [Fact]
-    public void MemoryCacheManager_Clear_ThrowsNotImplementedException()
+    public void MemoryCacheManager_Clear_RemovesAllEntries()
+    {
+        // Arrange
+        var cacheManager = new MemoryCacheManager(_memoryCache);
+        var doc1 = new Document { Id = "id1", Data = new Dictionary<string, object> { { "name", "doc1" } }, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow, Version = 1 };
+        var doc2 = new Document { Id = "id2", Data = new Dictionary<string, object> { { "name", "doc2" } }, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow, Version = 1 };
+        
+        cacheManager.Set("key1", doc1);
+        cacheManager.Set("key2", doc2);
+        
+        // Verify pre-condition
+        Assert.NotNull(cacheManager.Get("key1"));
+        Assert.NotNull(cacheManager.Get("key2"));
+
+        // Act
+        cacheManager.Clear();
+
+        // Assert
+        Assert.Null(cacheManager.Get("key1"));
+        Assert.Null(cacheManager.Get("key2"));
+        Assert.Equal(0, cacheManager.Count);
+    }
+
+    [Fact]
+    public void MemoryCacheManager_Clear_EmptyCache_DoesNotThrow()
     {
         // Arrange
         var cacheManager = new MemoryCacheManager(_memoryCache);
 
         // Act & Assert
-        Assert.Throws<NotImplementedException>(() => cacheManager.Clear());
+        var exception = Record.Exception(() => cacheManager.Clear());
+        Assert.Null(exception);
+        Assert.Equal(0, cacheManager.Count);
+    }
+
+    [Fact]
+    public void MemoryCacheManager_Count_TracksEntries()
+    {
+        // Arrange
+        var cacheManager = new MemoryCacheManager(_memoryCache);
+        var doc1 = new Document { Id = "id1", Data = new Dictionary<string, object>(), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow, Version = 1 };
+        var doc2 = new Document { Id = "id2", Data = new Dictionary<string, object>(), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow, Version = 1 };
+
+        // Act & Assert
+        Assert.Equal(0, cacheManager.Count);
+        
+        cacheManager.Set("key1", doc1);
+        Assert.Equal(1, cacheManager.Count);
+        
+        cacheManager.Set("key2", doc2);
+        Assert.Equal(2, cacheManager.Count);
+        
+        cacheManager.Remove("key1");
+        Assert.Equal(1, cacheManager.Count);
+        
+        cacheManager.Clear();
+        Assert.Equal(0, cacheManager.Count);
+    }
+
+    [Fact]
+    public void MemoryCacheManager_GetKeys_ReturnsTrackedKeys()
+    {
+        // Arrange
+        var cacheManager = new MemoryCacheManager(_memoryCache);
+        var doc1 = new Document { Id = "id1", Data = new Dictionary<string, object>(), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow, Version = 1 };
+        var doc2 = new Document { Id = "id2", Data = new Dictionary<string, object>(), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow, Version = 1 };
+
+        cacheManager.Set("key1", doc1);
+        cacheManager.Set("key2", doc2);
+
+        // Act
+        var keys = cacheManager.GetKeys();
+
+        // Assert
+        Assert.Equal(2, keys.Count);
+        Assert.Contains("key1", keys);
+        Assert.Contains("key2", keys);
+    }
+
+    [Fact]
+    public void MemoryCacheManager_Remove_NonExistentKey_DoesNotThrow()
+    {
+        // Arrange
+        var cacheManager = new MemoryCacheManager(_memoryCache);
+
+        // Act & Assert
+        var exception = Record.Exception(() => cacheManager.Remove("non-existent-key"));
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public void MemoryCacheManager_Get_NullOrEmptyKey_ReturnsNull()
+    {
+        // Arrange
+        var cacheManager = new MemoryCacheManager(_memoryCache);
+
+        // Act & Assert
+        Assert.Null(cacheManager.Get(null));
+        Assert.Null(cacheManager.Get(""));
+    }
+
+    [Fact]
+    public void MemoryCacheManager_Set_NullKey_ThrowsArgumentException()
+    {
+        // Arrange
+        var cacheManager = new MemoryCacheManager(_memoryCache);
+        var document = new Document { Id = "id1", Data = new Dictionary<string, object>(), CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow, Version = 1 };
+
+        // Act & Assert
+        Assert.Throws<ArgumentException>(() => cacheManager.Set(null!, document));
+        Assert.Throws<ArgumentException>(() => cacheManager.Set("", document));
+    }
+
+    [Fact]
+    public void MemoryCacheManager_Set_NullDocument_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var cacheManager = new MemoryCacheManager(_memoryCache);
+
+        // Act & Assert
+        Assert.Throws<ArgumentNullException>(() => cacheManager.Set("key", null!));
+    }
+
+    [Fact]
+    public void MemoryCacheManager_Constructor_NullCache_ThrowsArgumentNullException()
+    {
+        // Act & Assert
+        Assert.Throws<ArgumentNullException>(() => new MemoryCacheManager(null!));
     }
 }
 
