@@ -923,9 +923,9 @@ Where third-party libraries have restrictive licenses, we implement custom solut
 ### Performance
 - [x] Object pooling (buffers, objects)
 - [x] LRU caching with TTL (LruCache<T> with O(1) operations, 44 tests)
-- [ ] Query plan optimization
+- [x] Query plan optimization ✓ COMPLETED (Agent-90)
 - [x] Batch operation support (Agent-30 - 32 tests passing)
-- [ ] Memory profiling and tuning
+- [x] Memory profiling and tuning ✓ COMPLETED (Agent-93)
 
 ### Examples in C# Console
 - [x] Examples with multi db and authentication (Agent-41 - MultiDatabaseAndRbacExamples.cs)
