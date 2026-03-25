@@ -2,18 +2,27 @@
 // Licensed under the MIT License.
 // See LICENSE.txt for license information.
 
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using AdvGenNoSqlServer.Core.Configuration;
 
 namespace AdvGenNoSqlServer.Core.Authentication;
 
+/// <summary>
+/// Manages user authentication with secure password hashing using PBKDF2.
+/// </summary>
 public class AuthenticationManager
 {
-    private readonly Dictionary<string, UserCredentials> _users = new();
-    private readonly Dictionary<string, AuthToken> _activeSessions = new();
+    private readonly ConcurrentDictionary<string, UserCredentials> _users = new();
+    private readonly ConcurrentDictionary<string, AuthToken> _activeSessions = new();
     private readonly TimeSpan _tokenExpiration;
     private readonly ServerConfiguration _configuration;
+
+    // PBKDF2 configuration - OWASP recommends 600k iterations for SHA256 in 2023
+    private const int Pbkdf2Iterations = 100000;
+    private const int SaltSizeBytes = 32;
+    private const int HashSizeBytes = 32;
 
     public AuthenticationManager(ServerConfiguration configuration)
     {
@@ -27,6 +36,9 @@ public class AuthenticationManager
         }
     }
 
+    /// <summary>
+    /// Registers a new user with secure password hashing.
+    /// </summary>
     public bool RegisterUser(string username, string password)
     {
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
@@ -35,8 +47,7 @@ public class AuthenticationManager
         if (_users.ContainsKey(username))
             return false;
 
-        var salt = GenerateSalt();
-        var hashedPassword = HashPassword(password, salt);
+        var (salt, hashedPassword) = HashPassword(password);
 
         _users[username] = new UserCredentials
         {
@@ -49,13 +60,16 @@ public class AuthenticationManager
         return true;
     }
 
+    /// <summary>
+    /// Authenticates a user and returns an auth token if successful.
+    /// </summary>
     public AuthToken? Authenticate(string username, string password)
     {
         if (!_users.TryGetValue(username, out var credentials))
             return null;
 
-        var hashedPassword = HashPassword(password, credentials.Salt);
-        if (hashedPassword != credentials.PasswordHash)
+        // Verify password using constant-time comparison to prevent timing attacks
+        if (!VerifyPassword(password, credentials.Salt, credentials.PasswordHash))
             return null;
 
         var token = new AuthToken
@@ -70,12 +84,18 @@ public class AuthenticationManager
         return token;
     }
 
+    /// <summary>
+    /// Gets a token by its ID.
+    /// </summary>
     public AuthToken? GetToken(string tokenId)
     {
         _activeSessions.TryGetValue(tokenId, out var token);
         return token;
     }
 
+    /// <summary>
+    /// Validates if a token is still active and not expired.
+    /// </summary>
     public bool ValidateToken(string tokenId)
     {
         if (!_activeSessions.TryGetValue(tokenId, out var token))
@@ -83,18 +103,24 @@ public class AuthenticationManager
 
         if (DateTime.UtcNow > token.ExpiresAt)
         {
-            _activeSessions.Remove(tokenId);
+            _activeSessions.TryRemove(tokenId, out _);
             return false;
         }
 
         return true;
     }
 
+    /// <summary>
+    /// Revokes a specific token.
+    /// </summary>
     public void RevokeToken(string tokenId)
     {
-        _activeSessions.Remove(tokenId);
+        _activeSessions.TryRemove(tokenId, out _);
     }
 
+    /// <summary>
+    /// Revokes all tokens for a specific user.
+    /// </summary>
     public void RevokeAllUserTokens(string username)
     {
         var tokensToRemove = _activeSessions
@@ -104,21 +130,22 @@ public class AuthenticationManager
 
         foreach (var tokenId in tokensToRemove)
         {
-            _activeSessions.Remove(tokenId);
+            _activeSessions.TryRemove(tokenId, out _);
         }
     }
 
+    /// <summary>
+    /// Changes a user's password after verifying the old password.
+    /// </summary>
     public bool ChangePassword(string username, string oldPassword, string newPassword)
     {
         if (!_users.TryGetValue(username, out var credentials))
             return false;
 
-        var hashedOldPassword = HashPassword(oldPassword, credentials.Salt);
-        if (hashedOldPassword != credentials.PasswordHash)
+        if (!VerifyPassword(oldPassword, credentials.Salt, credentials.PasswordHash))
             return false;
 
-        var newSalt = GenerateSalt();
-        var hashedNewPassword = HashPassword(newPassword, newSalt);
+        var (newSalt, hashedNewPassword) = HashPassword(newPassword);
 
         credentials.PasswordHash = hashedNewPassword;
         credentials.Salt = newSalt;
@@ -127,40 +154,91 @@ public class AuthenticationManager
         return true;
     }
 
+    /// <summary>
+    /// Removes a user and all their tokens.
+    /// </summary>
     public bool RemoveUser(string username)
     {
-        if (!_users.Remove(username))
+        if (!_users.TryRemove(username, out _))
             return false;
 
         RevokeAllUserTokens(username);
         return true;
     }
 
-    private static string GenerateSalt()
+    /// <summary>
+    /// Gets a copy of all registered users (for testing/admin purposes).
+    /// </summary>
+    public IReadOnlyDictionary<string, UserCredentials> GetUsers()
     {
-        var saltBytes = new byte[32];
+        return new Dictionary<string, UserCredentials>(_users);
+    }
+
+    /// <summary>
+    /// Hashes a password using PBKDF2 with HMAC-SHA256.
+    /// Returns the salt and hashed password as base64 strings.
+    /// </summary>
+    private static (string Salt, string Hash) HashPassword(string password)
+    {
+        // Generate a cryptographically secure random salt
+        var saltBytes = new byte[SaltSizeBytes];
         using (var rng = RandomNumberGenerator.Create())
         {
             rng.GetBytes(saltBytes);
         }
-        return Convert.ToBase64String(saltBytes);
+
+        // Hash the password using PBKDF2
+        var passwordBytes = Encoding.UTF8.GetBytes(password);
+        var hashBytes = Rfc2898DeriveBytes.Pbkdf2(
+            password: passwordBytes,
+            salt: saltBytes,
+            iterations: Pbkdf2Iterations,
+            hashAlgorithm: HashAlgorithmName.SHA256,
+            outputLength: HashSizeBytes);
+
+        // Clear password bytes from memory
+        CryptographicOperations.ZeroMemory(passwordBytes);
+
+        return (Convert.ToBase64String(saltBytes), Convert.ToBase64String(hashBytes));
     }
 
-    private static string HashPassword(string password, string salt)
+    /// <summary>
+    /// Verifies a password against a stored salt and hash using constant-time comparison.
+    /// This prevents timing attacks that could reveal information about the password.
+    /// </summary>
+    private static bool VerifyPassword(string password, string salt, string hash)
     {
-        var saltBytes = Convert.FromBase64String(salt);
-        var passwordBytes = Encoding.UTF8.GetBytes(password);
-        var combined = new byte[saltBytes.Length + passwordBytes.Length];
+        try
+        {
+            var saltBytes = Convert.FromBase64String(salt);
+            var expectedHashBytes = Convert.FromBase64String(hash);
+            var passwordBytes = Encoding.UTF8.GetBytes(password);
 
-        Buffer.BlockCopy(saltBytes, 0, combined, 0, saltBytes.Length);
-        Buffer.BlockCopy(passwordBytes, 0, combined, saltBytes.Length, passwordBytes.Length);
+            // Compute hash of provided password
+            var actualHashBytes = Rfc2898DeriveBytes.Pbkdf2(
+                password: passwordBytes,
+                salt: saltBytes,
+                iterations: Pbkdf2Iterations,
+                hashAlgorithm: HashAlgorithmName.SHA256,
+                outputLength: expectedHashBytes.Length);
 
-        using var sha256 = SHA256.Create();
-        var hash = sha256.ComputeHash(combined);
-        return Convert.ToBase64String(hash);
+            // Clear password bytes from memory
+            CryptographicOperations.ZeroMemory(passwordBytes);
+
+            // Use constant-time comparison to prevent timing attacks
+            return CryptographicOperations.FixedTimeEquals(actualHashBytes, expectedHashBytes);
+        }
+        catch (FormatException)
+        {
+            // Invalid base64 format
+            return false;
+        }
     }
 }
 
+/// <summary>
+/// Represents a user's credentials.
+/// </summary>
 public class UserCredentials
 {
     public required string Username { get; set; }
@@ -169,6 +247,9 @@ public class UserCredentials
     public DateTime CreatedAt { get; set; }
 }
 
+/// <summary>
+/// Represents an authentication token.
+/// </summary>
 public class AuthToken
 {
     public required string TokenId { get; set; }
