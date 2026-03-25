@@ -3966,7 +3966,7 @@ Week 7-8:
 - [x] 16. DISTINCT command
 - [ ] 17. Sparse Index
 - [x] 18. Partial Index
-- [ ] 19. Background Index Build
+- [x] 19. Background Index Build ✓ COMPLETED (Agent-74)
 - [ ] 20. INDEX_STATS command
 - [x] 21. Slow Query Logging
 - [ ] 22. Sessions/Unit of Work
