@@ -10,7 +10,34 @@
 
 | Agent | Task | Status | Started | Target Completion |
 |-------|------|--------|---------|-------------------|
+| Agent-94 | Fix RoleManager Thread-Safety (SEC-011) | In Progress | 2026-03-25 | 2026-03-25 |
 | Agent-93 | Memory Profiling and Tuning | Completed | 2026-03-25 | 2026-03-25 |
+
+### Agent-94: Fix RoleManager Thread-Safety (SEC-011) ✓ COMPLETED
+**Completed**: 2026-03-25
+
+**Summary**:
+Fixed RoleManager to use thread-safe collections to prevent race conditions under concurrent access
+
+**Changes Made**:
+1. Replaced `Dictionary<string, Role>` with `ConcurrentDictionary<string, Role>` for `_roles`
+2. Replaced `Dictionary<string, HashSet<string>>` with `ConcurrentDictionary<string, ConcurrentDictionary<string, byte>>` for `_userRoles`
+3. Changed `Role.Permissions` from `HashSet<string>` to `ConcurrentDictionary<string, byte>`
+4. Changed `PermissionRegistry._validPermissions` from `HashSet<string>` to `ConcurrentDictionary<string, byte>`
+
+**Implementation Details**:
+- Used `ConcurrentDictionary<string, byte>` as a thread-safe set (value is dummy byte=1)
+- Used `TryAdd`, `TryRemove`, `TryGetValue` for atomic operations
+- Used `GetOrAdd` for lazy initialization of user role collections
+- `GetAllRoles()`, `GetRolePermissions()`, `GetUserRoles()`, `GetUserPermissions()` return snapshots via `.ToList()`
+
+**Files Modified**:
+- `AdvGenNoSqlServer.Core/Authentication/RoleManager.cs`
+
+**Build Status**: ✓ Compiles successfully (0 new errors)
+**Test Status**: ✓ 31/31 RoleManager tests pass, 28/28 AuthenticationService tests pass
+
+---
 
 ### Agent-93: Memory Profiling and Tuning ✓ COMPLETED
 **Completed**: 2026-03-25

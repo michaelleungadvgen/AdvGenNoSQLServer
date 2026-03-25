@@ -4633,7 +4633,7 @@ This section tracks the issues identified in `reviews.md` during the code qualit
 |---------|-----------|------|-------------|--------|
 | SEC-002 | AuthenticationManager | `AuthenticationManager.cs` | Password hash comparison uses `!=` operator which is vulnerable to timing attacks. Must use constant-time comparison `CryptographicOperations.FixedTimeEquals()`. | [x] FIXED by Agent-84 |
 | SEC-003 | AuthenticationManager | `AuthenticationManager.cs` | `_users` and `_activeSessions` Dictionary objects are not thread-safe. Concurrent access from multiple connections will cause race conditions. Use `ConcurrentDictionary<>`. | [x] FIXED by Agent-84 |
-| SEC-011 | RoleManager | `RoleManager.cs` | `_roles`, `_userRoles`, and `PermissionRegistry._validPermissions` use non-thread-safe collections. Race conditions under concurrent access. Use `ConcurrentDictionary<>`. | [ ] |
+| SEC-011 | RoleManager | `RoleManager.cs` | `_roles`, `_userRoles`, and `PermissionRegistry._validPermissions` use non-thread-safe collections. Race conditions under concurrent access. Use `ConcurrentDictionary<>`. | [x] FIXED by Agent-94 |
 | PERF-002 | WriteAheadLog | `WriteAheadLog.cs` | `GetAwaiter().GetResult()` in constructor blocks thread. Can cause deadlocks. Use factory pattern or async initialization. | [ ] |
 | PERF-003 | LockManager | `LockManager.cs` | Sync `AcquireLock` uses `GetAwaiter().GetResult()` blocking thread. Remove sync method or use sync-specific implementation. | [ ] |
 | SEC-017 | TlsStreamHelper | `TlsStreamHelper.cs` | Allows localhost certificates with name mismatch - production security risk. Add configuration flag. | [ ] |

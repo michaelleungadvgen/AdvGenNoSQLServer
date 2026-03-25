@@ -2,6 +2,8 @@
 // Licensed under the MIT License.
 // See LICENSE.txt for license information.
 
+using System.Collections.Concurrent;
+
 namespace AdvGenNoSqlServer.Core.Authentication;
 
 /// <summary>
@@ -9,8 +11,8 @@ namespace AdvGenNoSqlServer.Core.Authentication;
 /// </summary>
 public class RoleManager
 {
-    private readonly Dictionary<string, Role> _roles = new();
-    private readonly Dictionary<string, HashSet<string>> _userRoles = new();
+    private readonly ConcurrentDictionary<string, Role> _roles = new();
+    private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, byte>> _userRoles = new();
     private readonly PermissionRegistry _permissionRegistry = new();
 
     public RoleManager()
@@ -29,19 +31,16 @@ public class RoleManager
         if (string.IsNullOrWhiteSpace(roleName))
             throw new ArgumentException("Role name cannot be empty", nameof(roleName));
 
-        if (_roles.ContainsKey(roleName))
-            return false;
-
         var role = new Role
         {
             Name = roleName,
             Description = description,
-            Permissions = new HashSet<string>(permissions ?? Enumerable.Empty<string>()),
+            Permissions = new ConcurrentDictionary<string, byte>(
+                (permissions ?? Enumerable.Empty<string>()).Select(p => new KeyValuePair<string, byte>(p, 1))),
             CreatedAt = DateTime.UtcNow
         };
 
-        _roles[roleName] = role;
-        return true;
+        return _roles.TryAdd(roleName, role);
     }
 
     /// <summary>
@@ -49,13 +48,13 @@ public class RoleManager
     /// </summary>
     public bool DeleteRole(string roleName)
     {
-        if (!_roles.Remove(roleName))
+        if (!_roles.TryRemove(roleName, out _))
             return false;
 
         // Remove role from all users
         foreach (var userRoles in _userRoles.Values)
         {
-            userRoles.Remove(roleName);
+            userRoles.TryRemove(roleName, out _);
         }
 
         return true;
@@ -101,9 +100,10 @@ public class RoleManager
         if (!_permissionRegistry.IsValidPermission(permission))
             throw new ArgumentException($"Invalid permission: {permission}", nameof(permission));
 
-        role.Permissions.Add(permission);
-        role.UpdatedAt = DateTime.UtcNow;
-        return true;
+        var added = role.Permissions.TryAdd(permission, 1);
+        if (added)
+            role.UpdatedAt = DateTime.UtcNow;
+        return added;
     }
 
     /// <summary>
@@ -114,7 +114,7 @@ public class RoleManager
         if (!_roles.TryGetValue(roleName, out var role))
             return false;
 
-        var removed = role.Permissions.Remove(permission);
+        var removed = role.Permissions.TryRemove(permission, out _);
         if (removed)
             role.UpdatedAt = DateTime.UtcNow;
         return removed;
@@ -128,7 +128,7 @@ public class RoleManager
         if (!_roles.TryGetValue(roleName, out var role))
             return Array.Empty<string>();
 
-        return role.Permissions.ToList();
+        return role.Permissions.Keys.ToList();
     }
 
     /// <summary>
@@ -139,7 +139,7 @@ public class RoleManager
         if (!_roles.TryGetValue(roleName, out var role))
             return false;
 
-        return role.Permissions.Contains(permission);
+        return role.Permissions.ContainsKey(permission);
     }
 
     /// <summary>
@@ -162,13 +162,8 @@ public class RoleManager
         if (!_roles.ContainsKey(roleName))
             return false;
 
-        if (!_userRoles.TryGetValue(username, out var roles))
-        {
-            roles = new HashSet<string>();
-            _userRoles[username] = roles;
-        }
-
-        return roles.Add(roleName);
+        var userRoles = _userRoles.GetOrAdd(username, _ => new ConcurrentDictionary<string, byte>());
+        return userRoles.TryAdd(roleName, 1);
     }
 
     /// <summary>
@@ -179,7 +174,7 @@ public class RoleManager
         if (!_userRoles.TryGetValue(username, out var roles))
             return false;
 
-        return roles.Remove(roleName);
+        return roles.TryRemove(roleName, out _);
     }
 
     /// <summary>
@@ -190,7 +185,7 @@ public class RoleManager
         if (!_userRoles.TryGetValue(username, out var roles))
             return Array.Empty<string>();
 
-        return roles.ToList();
+        return roles.Keys.ToList();
     }
 
     /// <summary>
@@ -201,7 +196,7 @@ public class RoleManager
         if (!_userRoles.TryGetValue(username, out var roles))
             return false;
 
-        return roles.Contains(roleName);
+        return roles.ContainsKey(roleName);
     }
 
     /// <summary>
@@ -209,7 +204,7 @@ public class RoleManager
     /// </summary>
     public void ClearUserRoles(string username)
     {
-        _userRoles.Remove(username);
+        _userRoles.TryRemove(username, out _);
     }
 
     #endregion
@@ -224,11 +219,11 @@ public class RoleManager
         if (!_userRoles.TryGetValue(username, out var roles))
             return false;
 
-        foreach (var roleName in roles)
+        foreach (var roleName in roles.Keys)
         {
             if (_roles.TryGetValue(roleName, out var role))
             {
-                if (role.Permissions.Contains(permission))
+                if (role.Permissions.ContainsKey(permission))
                     return true;
             }
         }
@@ -245,11 +240,14 @@ public class RoleManager
             return Array.Empty<string>();
 
         var permissions = new HashSet<string>();
-        foreach (var roleName in roles)
+        foreach (var roleName in roles.Keys)
         {
             if (_roles.TryGetValue(roleName, out var role))
             {
-                permissions.UnionWith(role.Permissions);
+                foreach (var perm in role.Permissions.Keys)
+                {
+                    permissions.Add(perm);
+                }
             }
         }
 
@@ -330,7 +328,7 @@ public class Role
 {
     public required string Name { get; set; }
     public string? Description { get; set; }
-    public HashSet<string> Permissions { get; set; } = new();
+    public ConcurrentDictionary<string, byte> Permissions { get; set; } = new();
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
@@ -381,49 +379,49 @@ public static class Permissions
 /// </summary>
 public class PermissionRegistry
 {
-    private readonly HashSet<string> _validPermissions;
+    private readonly ConcurrentDictionary<string, byte> _validPermissions;
 
     public PermissionRegistry()
     {
-        _validPermissions = new HashSet<string>
+        _validPermissions = new ConcurrentDictionary<string, byte>(new[]
         {
             // Document permissions
-            Permissions.DocumentRead,
-            Permissions.DocumentWrite,
-            Permissions.DocumentDelete,
+            new KeyValuePair<string, byte>(Permissions.DocumentRead, 1),
+            new KeyValuePair<string, byte>(Permissions.DocumentWrite, 1),
+            new KeyValuePair<string, byte>(Permissions.DocumentDelete, 1),
 
             // Collection permissions
-            Permissions.CollectionCreate,
-            Permissions.CollectionDelete,
-            Permissions.CollectionList,
+            new KeyValuePair<string, byte>(Permissions.CollectionCreate, 1),
+            new KeyValuePair<string, byte>(Permissions.CollectionDelete, 1),
+            new KeyValuePair<string, byte>(Permissions.CollectionList, 1),
 
             // Query permissions
-            Permissions.QueryExecute,
-            Permissions.QueryAggregate,
+            new KeyValuePair<string, byte>(Permissions.QueryExecute, 1),
+            new KeyValuePair<string, byte>(Permissions.QueryAggregate, 1),
 
             // Transaction permissions
-            Permissions.TransactionExecute,
+            new KeyValuePair<string, byte>(Permissions.TransactionExecute, 1),
 
             // Admin permissions
-            Permissions.UserManage,
-            Permissions.RoleManage,
-            Permissions.ServerAdmin,
-            Permissions.AuditRead
-        };
+            new KeyValuePair<string, byte>(Permissions.UserManage, 1),
+            new KeyValuePair<string, byte>(Permissions.RoleManage, 1),
+            new KeyValuePair<string, byte>(Permissions.ServerAdmin, 1),
+            new KeyValuePair<string, byte>(Permissions.AuditRead, 1)
+        });
     }
 
     public bool IsValidPermission(string permission)
     {
-        return _validPermissions.Contains(permission);
+        return _validPermissions.ContainsKey(permission);
     }
 
     public IReadOnlyCollection<string> GetAllPermissions()
     {
-        return _validPermissions.ToList();
+        return _validPermissions.Keys.ToList();
     }
 
     public void RegisterCustomPermission(string permission)
     {
-        _validPermissions.Add(permission);
+        _validPermissions.TryAdd(permission, 1);
     }
 }
