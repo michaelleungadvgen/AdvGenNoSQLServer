@@ -18,6 +18,7 @@
 | Agent-69 | Raft Consensus Implementation | Completed | 2026-03-20 | 2026-03-20 |
 | Agent-68 | P2P Gossip Protocol Implementation | In Progress | 2026-03-20 | 2026-03-20 |
 | Agent-67 | P2P Static Seed Discovery | Completed | 2026-03-20 | 2026-03-20 |
+| Agent-75 | Certificate Hot-Reload Tests | Completed | 2026-03-25 | 2026-03-25 |
 
 ### Agent-74: Background Index Build ✓ COMPLETED
 **Completed**: 2026-03-25
@@ -111,6 +112,34 @@ Console.WriteLine($"Indexed {result.DocumentsProcessed} documents in {result.Dur
 - Use Channel<T> for producer-consumer pattern if needed
 - Support both synchronous (blocking) and asynchronous (background) modes
 - Ensure index is marked as "building" until complete
+
+---
+
+### Agent-75: Certificate Hot-Reload Tests ✓ COMPLETED
+**Completed**: 2026-03-25
+**Summary**:
+- Created `CertificateReloaderTests.cs` with comprehensive unit tests (29 tests, all passing)
+- Test coverage includes:
+  - Constructor validation tests (6 tests)
+  - StartAsync/StopAsync lifecycle tests (4 tests)
+  - Manual reload tests (4 tests)
+  - Event notification tests (CertificateReloaded, CertificateReloadFailed)
+  - Statistics tracking tests (6 tests)
+  - Dispose cleanup tests (3 tests)
+  - CertificateReloadOptions tests (2 tests)
+- All tests use temporary certificates to avoid side effects
+- Tests follow existing patterns from SslTlsTests and ConfigurationHotReloadTests
+
+**Files Created**:
+- `AdvGenNoSqlServer.Tests/CertificateReloaderTests.cs` - 29 comprehensive tests (550+ lines)
+
+**Build Status**: ✓ Compiles successfully (0 errors)
+**Test Status**: ✓ 29/29 Certificate Reloader tests pass
+
+---
+
+### Agent-75: Certificate Hot-Reload Tests (Original Plan)
+**Scope**: Implement comprehensive unit tests for Certificate Hot-Reload functionality to ensure certificate rotation works correctly
 
 ### Agent-73: Certificate Hot-Reload 🔄 IN PROGRESS
 **Scope**: Implement certificate hot-reload for SSL/TLS to allow certificate rotation without server restart
