@@ -37,9 +37,12 @@ namespace AdvGenNoSqlServer.Example.ConsoleApp
                 Console.WriteLine("  2. Multi-Database & RBAC Examples (NEW)");
                 Console.WriteLine("     - Multi-database operations, Role-based access control");
                 Console.WriteLine("     - Multi-tenant isolation, Cross-database analytics");
-                Console.WriteLine("  3. Run All Examples");
-                Console.WriteLine("  4. Exit");
-                Console.Write("\nSelect option (1-4): ");
+                Console.WriteLine("  3. P2P Cluster Examples (NEW)");
+                Console.WriteLine("     - Cluster join, Node discovery, Leader election");
+                Console.WriteLine("     - Data replication, Read preference, Failover demo");
+                Console.WriteLine("  4. Run All Examples");
+                Console.WriteLine("  5. Exit");
+                Console.Write("\nSelect option (1-5): ");
 
                 var choice = Console.ReadLine();
 
@@ -54,15 +57,19 @@ namespace AdvGenNoSqlServer.Example.ConsoleApp
                             await RunMultiDatabaseAndRbacExamples();
                             break;
                         case "3":
-                            await RunBasicExamples();
-                            await RunMultiDatabaseAndRbacExamples();
+                            await RunP2PClusterExamples();
                             break;
                         case "4":
+                            await RunBasicExamples();
+                            await RunMultiDatabaseAndRbacExamples();
+                            await RunP2PClusterExamples();
+                            break;
+                        case "5":
                             Console.WriteLine("\n👋 Goodbye!");
                             return;
                         default:
                             Console.ForegroundColor = ConsoleColor.Yellow;
-                            Console.WriteLine("\n⚠ Invalid option. Please select 1-4.");
+                            Console.WriteLine("\n⚠ Invalid option. Please select 1-5.");
                             Console.ResetColor();
                             break;
                     }
@@ -109,6 +116,18 @@ namespace AdvGenNoSqlServer.Example.ConsoleApp
 
             var examples = new MultiDatabaseAndRbacExamples("./data/examples");
             await examples.RunAllExamplesAsync();
+        }
+
+        /// <summary>
+        /// Run P2P cluster examples demonstrating distributed clustering
+        /// </summary>
+        static async Task RunP2PClusterExamples()
+        {
+            Console.WriteLine("\n" + new string('═', 60));
+            Console.WriteLine("  P2P CLUSTER EXAMPLES (Real Components)");
+            Console.WriteLine(new string('═', 60));
+
+            await P2PClusterExamples.RunAllExamples();
         }
 
         #region Basic Examples (Simulated)

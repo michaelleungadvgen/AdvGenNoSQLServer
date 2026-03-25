@@ -28,6 +28,43 @@
 | Agent-82 | Update Task Statuses (Agent-68, Agent-73) | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-83 | P2P Conflict Resolution Implementation | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-84 | Fix Security Vulnerabilities (SEC-001, SEC-002) | Completed | 2026-03-25 | 2026-03-25 |
+| Agent-85 | P2P Cluster Examples (6 scenarios) | Completed | 2026-03-25 | 2026-03-25 |
+
+### Agent-85: P2P Cluster Examples ✓ COMPLETED
+**Scope**: Create comprehensive examples demonstrating P2P clustering features (6 scenarios)
+
+**Completed Examples**:
+1. **Cluster Join** - Demonstrate how to join a cluster using seed nodes
+2. **Node Discovery** - Show automatic node discovery via gossip protocol
+3. **Leader Election** - Demonstrate Raft-based leader election
+4. **Data Replication** - Show write replication across cluster nodes
+5. **Read Preference** - Demonstrate reading from different node types
+6. **Failover Demo** - Show automatic failover when a node goes down
+
+**Files Created**:
+- `Example.ConsoleApp/P2PClusterExamples.cs` - P2P cluster example implementations (30KB+, 6 examples)
+
+**Files Modified**:
+- `Example.ConsoleApp/Program.cs` - Added menu option 3 for P2P examples
+
+**Build Status**: ✓ Compiles successfully (0 errors, 9 warnings)
+**Features Demonstrated**:
+- P2P Configuration with seed nodes and cluster secrets
+- ClusterManager initialization and cluster creation
+- Gossip protocol simulation with node state tracking
+- Raft consensus configuration and leader election simulation
+- ReplicationManager with quorum-based writes
+- ReadPreferenceManager with different read modes
+- Failover scenarios with automatic leader election
+
+**Usage**:
+```powershell
+cd Example.ConsoleApp
+dotnet run
+# Select option 3: P2P Cluster Examples
+```
+
+---
 
 ### Agent-84: Fix Security Vulnerabilities - AuthenticationManager ✓ COMPLETED
 **Completed**: 2026-03-25
