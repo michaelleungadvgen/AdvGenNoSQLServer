@@ -10,9 +10,82 @@
 
 | Agent | Task | Status | Started | Target Completion |
 |-------|------|--------|---------|-------------------|
+| Agent-107 | Health Checks Implementation | In Progress | 2026-03-25 | 2026-03-25 |
 | Agent-106 | Fix P2P Clustering Test Failures | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-105 | Metrics Collection Implementation (Prometheus-Compatible) | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-104 | Sharding Implementation (Horizontal Scaling) | Completed | 2026-03-25 | 2026-03-25 |
+
+---
+
+### Agent-107: Health Checks Implementation ✓ COMPLETED
+**Completed**: 2026-03-25
+**Summary**: Implemented comprehensive Health Checks system for monitoring server health status
+
+**Components Implemented**:
+- `IHealthCheck` interface - Core health check contract with CheckAsync method (350+ lines)
+- `HealthCheckResult` class - Result with status, description, data, exception, and duration
+- `HealthStatus` enum - Healthy, Degraded, Unhealthy states
+- `IHealthCheckRegistry` interface - Registry for managing multiple health checks
+- `HealthCheckRegistry` class - Thread-safe implementation with caching and timeout support
+- `HealthCheckOptions` class - Configuration (name, tags, timeout, caching, failure threshold)
+- `HealthCheckContext` class - Context for health check execution with cancellation token
+- `HealthCheckRegistration` class - Registration entry for health checks
+- `HealthReport` class - Aggregated health report with overall status and statistics
+- `HealthCheckResultChangedEventArgs` class - Event args for status change notifications
+- `HealthCheckService` class - High-level service for liveness/readiness/startup/detailed reports
+- Built-in health checks:
+  - `StorageHealthCheck` - Verifies storage engine accessibility
+  - `MemoryHealthCheck` - Monitors memory usage with configurable thresholds
+  - `DiskHealthCheck` - Checks disk space availability
+  - `NetworkHealthCheck` - Verifies network connectivity
+  - `LivenessHealthCheck` - Simple process liveness check
+  - `CompositeHealthCheck` - Aggregates multiple health checks
+- Extension methods for DI integration (`AddHealthChecks`, `AddLivenessHealthCheck`, etc.)
+
+**Features Implemented**:
+- Liveness probe support - Is the process running?
+- Readiness probe support - Can the server accept traffic?
+- Startup probe support - Is initialization complete?
+- Detailed health report - Full health status with all checks
+- Configurable health check timeouts
+- Tag-based health check categorization and filtering
+- Result caching to prevent excessive load
+- Failure threshold with automatic degradation
+- Event notification on status changes
+- Thread-safe concurrent operations
+- Exception handling with detailed failure information
+- Integration with IMemoryProfiler for memory health data
+
+**Files Created**:
+- `AdvGenNoSqlServer.Core/Health/IHealthCheck.cs` - Interfaces and core types (450+ lines)
+- `AdvGenNoSqlServer.Core/Health/HealthCheckRegistry.cs` - Registry implementation (400+ lines)
+- `AdvGenNoSqlServer.Core/Health/BuiltInHealthChecks.cs` - Built-in health checks (450+ lines)
+- `AdvGenNoSqlServer.Core/Health/HealthCheckExtensions.cs` - DI extensions and service (300+ lines)
+- `AdvGenNoSqlServer.Tests/HealthCheckTests.cs` - 51 comprehensive unit tests (800+ lines)
+
+**Build Status**: ✓ Compiles successfully (0 errors)
+**Test Status**: ✓ 51/51 Health Check tests pass
+
+**Usage Example**:
+```csharp
+// Create registry and register health checks
+var registry = new HealthCheckRegistry();
+registry.AddLivenessHealthCheck();
+registry.AddMemoryHealthCheck();
+registry.AddDiskHealthCheck();
+registry.AddStorageHealthCheck(documentStore);
+
+// Run all health checks
+var report = await registry.RunAllAsync();
+Console.WriteLine($"Overall status: {report.Status}");
+Console.WriteLine($"Healthy: {report.HealthyCount}, Degraded: {report.DegradedCount}, Unhealthy: {report.UnhealthyCount}");
+
+// Use HealthCheckService for probe endpoints
+var healthService = new HealthCheckService(registry);
+var liveness = await healthService.GetLivenessReportAsync();
+var readiness = await healthService.GetReadinessReportAsync();
+var detailed = await healthService.GetDetailedReportAsync();
+```
 
 ---
 
