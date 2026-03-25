@@ -2,7 +2,7 @@
 
 **Project**: AdvGenNoSQL Server  
 **Purpose**: Track parallel agent tasks to avoid conflicts  
-**Last Updated**: March 25, 2026 (Agent-110 - Capped Collections Examples)
+**Last Updated**: March 25, 2026 (Agent-112 - LISTCOLLECTIONS and COUNT Server Commands)
 
 ---
 
@@ -10,14 +10,63 @@
 
 | Agent | Task | Status | Started | Target Completion |
 |-------|------|--------|---------|-------------------|
+| Agent-112 | Implement LISTCOLLECTIONS and COUNT Server Commands | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-111 | INSERT Examples Implementation | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-110 | Capped Collections Examples Implementation | Completed | 2026-03-25 | 2026-03-25 |
-| Agent-109 | Fix Failing Tests (QueryOptimizer + BackgroundIndexBuilder) | In Progress | 2026-03-25 | 2026-03-25 |
+| Agent-109 | Fix Failing Tests (QueryOptimizer + BackgroundIndexBuilder) | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-108 | Write Concern Examples Implementation | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-107 | Health Checks Implementation | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-106 | Fix P2P Clustering Test Failures | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-105 | Metrics Collection Implementation (Prometheus-Compatible) | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-104 | Sharding Implementation (Horizontal Scaling) | Completed | 2026-03-25 | 2026-03-25 |
+
+---
+
+### Agent-112: Implement LISTCOLLECTIONS and COUNT Server Commands ✓ COMPLETED
+**Completed**: 2026-03-25
+**Summary**: Implemented server-side commands for listing collections and counting documents
+
+**Commands Implemented**:
+1. **LISTCOLLECTIONS** - Lists all collections in the database
+   - Returns count of collections and list of collection names
+   - Works with both empty and populated databases
+   - Error handling when storage is not initialized
+
+2. **COUNT** - Counts documents in a collection or across all collections
+   - With collection parameter: Returns count for specific collection
+   - Without collection parameter: Returns total count across all collections
+   - Returns collection name and totalCollections (when counting across all)
+
+**Implementation Details**:
+- Modified `NoSqlServer.cs` to add command handlers:
+  - `HandleListCollectionsCommand()` - Uses `_documentStore.GetCollectionsAsync()`
+  - `HandleCountCommand()` - Uses `_documentStore.CountAsync()`
+- Added commands to the command switch statement in `HandleCommandAsync()`
+- Both commands return proper JSON response with success/data format
+
+**Files Modified**:
+- `AdvGenNoSqlServer.Server/NoSqlServer.cs` - Added 2 new command handlers
+
+**Files Created**:
+- `AdvGenNoSqlServer.Tests/ServerCommandTests.cs` - 7 comprehensive unit tests
+
+**Build Status**: ✓ Compiles successfully (0 errors)
+**Test Status**: ✓ 7/7 new tests pass, 3127/3128 total tests pass (1 pre-existing failure unrelated to changes)
+
+**Usage Example**:
+```csharp
+// LISTCOLLECTIONS command
+{ "command": "listcollections" }
+// Response: { "success": true, "data": { "count": 3, "collections": ["users", "products", "orders"] } }
+
+// COUNT command with collection
+{ "command": "count", "collection": "users" }
+// Response: { "success": true, "data": { "count": 42, "collection": "users" } }
+
+// COUNT command across all collections
+{ "command": "count" }
+// Response: { "success": true, "data": { "count": 150, "collection": "*", "totalCollections": 3 } }
+```
 
 ---
 

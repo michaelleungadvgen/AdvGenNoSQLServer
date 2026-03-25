@@ -889,6 +889,15 @@ Where third-party libraries have restrictive licenses, we implement custom solut
 - [x] Binary protocol implementation
 - [x] Client library with connection pooling
 
+### Server Commands
+- [x] GET command - Retrieve document by ID ✓ COMPLETED (Server)
+- [x] SET command - Insert or update document ✓ COMPLETED (Server)
+- [x] DELETE command - Delete document by ID ✓ COMPLETED (Server)
+- [x] EXISTS command - Check if document exists ✓ COMPLETED (Server)
+- [x] LISTCOLLECTIONS command - List all collections ✓ COMPLETED (Agent-112)
+- [x] COUNT command - Count documents in collection(s) ✓ COMPLETED (Agent-112)
+- [x] CLUSTER commands - Cluster management (info, nodes, join, leave, failover, replicate, forget) ✓ COMPLETED (Agent-86)
+
 ### Security
 - [x] User authentication (username/password)
 - [x] Token generation and validation (JWT)

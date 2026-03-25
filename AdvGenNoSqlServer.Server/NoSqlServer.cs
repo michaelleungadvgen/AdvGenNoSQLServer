@@ -270,6 +270,8 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
                 "set" => HandleSetCommand(doc.RootElement),
                 "delete" => HandleDeleteCommand(doc.RootElement),
                 "exists" => HandleExistsCommand(doc.RootElement),
+                "listcollections" => HandleListCollectionsCommand(doc.RootElement),
+                "count" => HandleCountCommand(doc.RootElement),
                 "cluster" => HandleClusterCommand(doc.RootElement),
                 _ => Task.FromResult(NoSqlMessage.CreateError("UNKNOWN_COMMAND", $"Unknown command: {command}"))
             };
@@ -423,6 +425,72 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
 
         var exists = await _documentStore.ExistsAsync(collection, id);
         return NoSqlMessage.CreateSuccess(new { exists = exists });
+    }
+
+    private async Task<NoSqlMessage> HandleListCollectionsCommand(JsonElement commandElement)
+    {
+        if (_documentStore == null)
+        {
+            return NoSqlMessage.CreateError("STORAGE_ERROR", "Storage not initialized");
+        }
+
+        try
+        {
+            var collections = await _documentStore.GetCollectionsAsync();
+            var collectionList = collections.ToList();
+
+            return NoSqlMessage.CreateSuccess(new
+            {
+                count = collectionList.Count,
+                collections = collectionList
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error listing collections");
+            return NoSqlMessage.CreateError("STORAGE_ERROR", $"Failed to list collections: {ex.Message}");
+        }
+    }
+
+    private async Task<NoSqlMessage> HandleCountCommand(JsonElement commandElement)
+    {
+        if (_documentStore == null)
+        {
+            return NoSqlMessage.CreateError("STORAGE_ERROR", "Storage not initialized");
+        }
+
+        // Collection is optional - if not provided, count across all collections
+        string? collection = null;
+        if (commandElement.TryGetProperty("collection", out var collectionProp))
+        {
+            collection = collectionProp.GetString();
+        }
+
+        try
+        {
+            long count;
+            if (string.IsNullOrEmpty(collection))
+            {
+                // Count across all collections
+                var collections = await _documentStore.GetCollectionsAsync();
+                count = 0;
+                foreach (var coll in collections)
+                {
+                    count += await _documentStore.CountAsync(coll);
+                }
+                return NoSqlMessage.CreateSuccess(new { count = count, collection = "*", totalCollections = collections.Count() });
+            }
+            else
+            {
+                count = await _documentStore.CountAsync(collection);
+                return NoSqlMessage.CreateSuccess(new { count = count, collection = collection });
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error counting documents in collection {Collection}", collection ?? "*");
+            return NoSqlMessage.CreateError("STORAGE_ERROR", $"Failed to count documents: {ex.Message}");
+        }
     }
 
     private Task<NoSqlMessage> HandleClusterCommand(JsonElement commandElement)
