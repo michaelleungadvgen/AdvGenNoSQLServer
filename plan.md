@@ -4637,7 +4637,7 @@ public async Task Run[CommandName]Example()
 #### P3 Commands
 - [ ] Change Streams examples (4 scenarios)
 - [ ] Import/Export examples (6 scenarios)
-- [ ] Full-Text Search examples (4 scenarios)
+- [x] Full-Text Search examples (4 scenarios) ✓ COMPLETED (Agent-113)
 - [ ] Geospatial examples (4 scenarios)
 - [ ] Field encryption examples (3 scenarios)
 - [x] Document Revisions ? COMPLETED (Agent-91) examples (3 scenarios)

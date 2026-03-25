@@ -2,7 +2,7 @@
 
 **Project**: AdvGenNoSQL Server  
 **Purpose**: Track parallel agent tasks to avoid conflicts  
-**Last Updated**: March 25, 2026 (Agent-112 - LISTCOLLECTIONS and COUNT Server Commands)
+**Last Updated**: March 25, 2026 (Agent-113 - Full-Text Search Examples)
 
 ---
 
@@ -10,6 +10,7 @@
 
 | Agent | Task | Status | Started | Target Completion |
 |-------|------|--------|---------|-------------------|
+| Agent-113 | Full-Text Search Examples Implementation | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-112 | Implement LISTCOLLECTIONS and COUNT Server Commands | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-111 | INSERT Examples Implementation | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-110 | Capped Collections Examples Implementation | Completed | 2026-03-25 | 2026-03-25 |
@@ -66,6 +67,56 @@
 // COUNT command across all collections
 { "command": "count" }
 // Response: { "success": true, "data": { "count": 150, "collection": "*", "totalCollections": 3 } }
+```
+
+---
+
+### Agent-113: Full-Text Search Examples Implementation ✓ COMPLETED
+**Completed**: 2026-03-25
+**Summary**: Created comprehensive Full-Text Search examples for the Example.ConsoleApp (plan.md section 48.11 - P3 Commands)
+
+**Examples Created**:
+1. **Basic Text Search** (`Example1_BasicTextSearch`):
+   - Creating full-text indexes on document fields
+   - Using StandardAnalyzer for text processing
+   - Inserting sample articles and performing text searches
+   - Index statistics (document count, unique terms, average length)
+
+2. **Search with Relevance Scoring** (`Example2_SearchWithRelevanceScoring`):
+   - TF-IDF relevance scoring demonstration
+   - Product catalog search with ranked results
+   - Visual relevance bars showing match quality
+   - Term frequency tracking
+   - Minimum score threshold filtering
+
+3. **Multi-Field Search** (`Example3_MultiFieldSearch`):
+   - Creating multiple indexes on different fields (title, content, tags)
+   - Using different analyzers (Standard vs Simple)
+   - Field-specific searches
+   - Cross-field search (all fields)
+
+4. **Advanced Search Options** (`Example4_AdvancedSearchOptions`):
+   - Phrase matching with highlighting
+   - Custom highlight formatting
+   - Result limiting (MaxResults)
+   - AND logic (RequireAllTerms)
+   - OR logic (default)
+   - Fuzzy matching for typo tolerance
+
+**Files Created**:
+- `Example.ConsoleApp/FullTextSearchExamples.cs` - 4 comprehensive examples (600+ lines)
+
+**Files Modified**:
+- `Example.ConsoleApp/Program.cs` - Added menu option 9 for Full-Text Search Examples, updated Run All
+
+**Build Status**: ✓ Compiles successfully (0 new errors)
+**Test Status**: ✓ 62/62 Full-Text Search tests pass
+
+**Usage**:
+```powershell
+cd Example.ConsoleApp
+dotnet run
+# Select option 9: Full-Text Search Examples
 ```
 
 ---
