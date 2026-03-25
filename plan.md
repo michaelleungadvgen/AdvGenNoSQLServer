@@ -415,7 +415,7 @@ if (negotiatedProtocol == default)
 - **Garbage collection** for deleted documents
 - **TTL Indexes**: Auto-expiration of documents at specified time
 - **Capped Collections**: Fixed-size collections with automatic oldest document removal
-- **Document Attachments**: Binary data attached to documents (planned)
+- ✓ **Document Attachments**: Binary data attached to documents (Agent-92)
 
 #### Implementation Details:
 ```csharp
@@ -1001,7 +1001,7 @@ Where third-party libraries have restrictive licenses, we implement custom solut
 
 ### 13.2 Medium Priority (Feature Completeness)
 - **Geospatial Queries**: 2D and 2DSphere indexes for location-based queries
-- **Document Attachments**: Binary attachments on documents (RavenDB-style)
+- ✓ **Document Attachments**: Binary attachments on documents (Agent-92)
 - **Document Revisions**: Track document history with configurable retention
 - **Map-Reduce**: Classic aggregation pattern for complex analytics
 - **Server-side Patches/Scripts**: Atomic document modifications with server-side logic
