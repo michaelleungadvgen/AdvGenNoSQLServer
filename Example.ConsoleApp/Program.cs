@@ -43,9 +43,12 @@ namespace AdvGenNoSqlServer.Example.ConsoleApp
                 Console.WriteLine("  4. Session/Unit of Work Examples (NEW)");
                 Console.WriteLine("     - Basic session with transaction, Change tracking");
                 Console.WriteLine("     - Unit of Work pattern, Bank transfer demo");
-                Console.WriteLine("  5. Run All Examples");
-                Console.WriteLine("  6. Exit");
-                Console.Write("\nSelect option (1-6): ");
+                Console.WriteLine("  5. DatabaseManager Examples (NEW)");
+                Console.WriteLine("     - Database creation/management, Security & access control");
+                Console.WriteLine("     - Multi-tenant isolation, Statistics & monitoring");
+                Console.WriteLine("  6. Run All Examples");
+                Console.WriteLine("  7. Exit");
+                Console.Write("\nSelect option (1-7): ");
 
                 var choice = Console.ReadLine();
 
@@ -66,17 +69,21 @@ namespace AdvGenNoSqlServer.Example.ConsoleApp
                             await RunSessionExamples();
                             break;
                         case "5":
+                            await RunDatabaseManagerExamples();
+                            break;
+                        case "6":
                             await RunBasicExamples();
                             await RunMultiDatabaseAndRbacExamples();
                             await RunP2PClusterExamples();
                             await RunSessionExamples();
+                            await RunDatabaseManagerExamples();
                             break;
-                        case "6":
+                        case "7":
                             Console.WriteLine("\n👋 Goodbye!");
                             return;
                         default:
                             Console.ForegroundColor = ConsoleColor.Yellow;
-                            Console.WriteLine("\n⚠ Invalid option. Please select 1-6.");
+                            Console.WriteLine("\n⚠ Invalid option. Please select 1-7.");
                             Console.ResetColor();
                             break;
                     }
@@ -147,6 +154,19 @@ namespace AdvGenNoSqlServer.Example.ConsoleApp
             Console.WriteLine(new string('═', 60));
 
             await SessionExamples.RunAllExamplesAsync();
+        }
+
+        /// <summary>
+        /// Run DatabaseManager examples demonstrating multi-database support
+        /// </summary>
+        static async Task RunDatabaseManagerExamples()
+        {
+            Console.WriteLine("\n" + new string('═', 60));
+            Console.WriteLine("  DATABASEMANAGER EXAMPLES (Real Components)");
+            Console.WriteLine(new string('═', 60));
+
+            var examples = new DatabaseManagerExamples("./data/databasemanager_examples");
+            await examples.RunAllExamplesAsync();
         }
 
         #region Basic Examples (Simulated)

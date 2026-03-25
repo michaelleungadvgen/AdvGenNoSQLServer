@@ -929,7 +929,8 @@ Where third-party libraries have restrictive licenses, we implement custom solut
 
 ### Examples in C# Console
 - [x] Examples with multi db and authentication (Agent-41 - MultiDatabaseAndRbacExamples.cs)
-- [x] Examples role based (Agent-41 - RBAC permission enforcement, role assignment) 
+- [x] Examples role based (Agent-41 - RBAC permission enforcement, role assignment)
+- [x] DatabaseManager Examples (Agent-98 - using new DatabaseManager with multi-database support) 
 
 ### Advanced Features 
 - [x] Change Streams/Subscriptions ✓ COMPLETED (Agent-50 - Real-time data change notifications with filtering)
