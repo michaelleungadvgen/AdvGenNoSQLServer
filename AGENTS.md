@@ -216,6 +216,8 @@ dotnet test AdvGenNoSqlServer.Tests/AdvGenNoSqlServer.Tests.csproj --filter "Ful
 
 ## Dependencies
 
+See `DEPENDENCIES.md` for complete dependency documentation and license compliance matrix.
+
 ### Allowed (MIT/Apache/BSD)
 - System.* namespaces (Microsoft, MIT)
 - Serilog (Apache 2.0)
@@ -226,6 +228,13 @@ dotnet test AdvGenNoSqlServer.Tests/AdvGenNoSqlServer.Tests.csproj --filter "Ful
 - GPL/AGPL licensed libraries
 - SSPL licensed software
 - Proprietary/closed-source libraries
+
+### Adding New Dependencies
+Before adding any NuGet package:
+1. Check license at: https://licenses.nuget.org/
+2. Verify license compatibility with MIT
+3. Review source code repository
+4. Document in DEPENDENCIES.md
 
 ---
 
@@ -258,5 +267,5 @@ See `PROJECT_STATUS.md` for detailed status.
 
 ---
 
-**Last Updated**: February 7, 2026  
-**Maintainer**: Agent-1
+**Last Updated**: March 25, 2026  
+**Maintainer**: Agent-101
