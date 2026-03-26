@@ -129,6 +129,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
     private TcpServer? _tcpServer;
     private HybridDocumentStore? _documentStore;
     private bool _disposed;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _authenticatedConnections = new();
 
     public NoSqlServerHost(
         ILogger<NoSqlServerHost> logger,
@@ -265,6 +266,8 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
     {
         _logger.LogDebug("Connection closed: {ConnectionId}", e.ConnectionId);
 
+        _authenticatedConnections.TryRemove(e.ConnectionId, out _);
+
         _auditLogger.Log(new AuditEvent
         {
             EventType = AuditEventType.ConnectionClosed,
@@ -386,6 +389,9 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
                     SessionId = connectionId,
                     Timestamp = DateTime.UtcNow
                 });
+
+                _authenticatedConnections[connectionId] = username;
+
                 return Task.FromResult(NoSqlMessage.CreateSuccess(new { authenticated = true, token = result.TokenId, username }));
             }
             else
@@ -418,6 +424,11 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
 
     private async Task<NoSqlMessage> HandleCommandAsync(NoSqlMessage message, string connectionId)
     {
+        if (_configManager.Configuration.RequireAuthentication && !_authenticatedConnections.ContainsKey(connectionId))
+        {
+            return NoSqlMessage.CreateError("AUTH_REQUIRED", "Client is not authenticated");
+        }
+
         if (_documentStore == null)
         {
             return NoSqlMessage.CreateError("NOT_INITIALIZED", "Document store not initialized");
@@ -598,6 +609,11 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
 
     private Task<NoSqlMessage> HandleBulkOperationAsync(NoSqlMessage message, string connectionId)
     {
+        if (_configManager.Configuration.RequireAuthentication && !_authenticatedConnections.ContainsKey(connectionId))
+        {
+            return Task.FromResult(NoSqlMessage.CreateError("AUTH_REQUIRED", "Client is not authenticated"));
+        }
+
         return Task.FromResult(NoSqlMessage.CreateSuccess(new
         {
             success = true,
