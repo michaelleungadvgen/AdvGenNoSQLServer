@@ -138,6 +138,12 @@ public class QueryExecutor : IQueryExecutor
     /// <inheritdoc />
     public async Task<long> CountAsync(Query.Models.Query query, CancellationToken cancellationToken = default)
     {
+        // Optimize for empty filters by delegating directly to the store
+        if (query.Filter == null || query.Filter.Conditions.Count == 0)
+        {
+            return await _documentStore.CountAsync(query.CollectionName, cancellationToken);
+        }
+
         // Get candidate documents using index if available
         var candidateIds = await GetCandidateDocumentIdsAsync(query);
 
@@ -145,22 +151,55 @@ public class QueryExecutor : IQueryExecutor
         IEnumerable<Document> documents;
         if (candidateIds != null)
         {
-            documents = await _documentStore.GetManyAsync(query.CollectionName, candidateIds);
+            documents = await _documentStore.GetManyAsync(query.CollectionName, candidateIds, cancellationToken);
         }
         else
         {
-            documents = await _documentStore.GetAllAsync(query.CollectionName);
+            documents = await _documentStore.GetAllAsync(query.CollectionName, cancellationToken);
         }
 
         // Apply filters and count
-        return _filterEngine.Filter(documents, query.Filter).LongCount();
+        long count = 0;
+        foreach (var _ in _filterEngine.Filter(documents, query.Filter))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            count++;
+        }
+
+        return count;
     }
 
     /// <inheritdoc />
     public async Task<bool> ExistsAsync(Query.Models.Query query, CancellationToken cancellationToken = default)
     {
-        var count = await CountAsync(query, cancellationToken);
-        return count > 0;
+        // Optimize for empty filters by delegating directly to the store
+        if (query.Filter == null || query.Filter.Conditions.Count == 0)
+        {
+            return await _documentStore.CountAsync(query.CollectionName, cancellationToken) > 0;
+        }
+
+        // Get candidate documents using index if available
+        var candidateIds = await GetCandidateDocumentIdsAsync(query);
+
+        // Fetch documents
+        IEnumerable<Document> documents;
+        if (candidateIds != null)
+        {
+            documents = await _documentStore.GetManyAsync(query.CollectionName, candidateIds, cancellationToken);
+        }
+        else
+        {
+            documents = await _documentStore.GetAllAsync(query.CollectionName, cancellationToken);
+        }
+
+        // Short-circuit enumeration on first match
+        foreach (var _ in _filterEngine.Filter(documents, query.Filter))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return true;
+        }
+
+        return false;
     }
 
     /// <inheritdoc />
