@@ -252,8 +252,16 @@ public class FilterEngine : IFilterEngine
             var regexPattern = "^" + System.Text.RegularExpressions.Regex.Escape(patternString)
                 .Replace("\\*", ".*")
                 .Replace("\\?", ".") + "$";
-            return System.Text.RegularExpressions.Regex.IsMatch(fieldString, regexPattern,
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            try
+            {
+                return System.Text.RegularExpressions.Regex.IsMatch(fieldString, regexPattern,
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase,
+                    TimeSpan.FromMilliseconds(100));
+            }
+            catch (System.Text.RegularExpressions.RegexMatchTimeoutException)
+            {
+                return false;
+            }
         }
 
         return fieldString.Contains(patternString, StringComparison.OrdinalIgnoreCase);
