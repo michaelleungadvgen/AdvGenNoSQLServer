@@ -306,8 +306,8 @@ namespace AdvGenNoSqlServer.Network
         /// </summary>
         public async ValueTask SendErrorAsync(string errorCode, string errorMessage, CancellationToken cancellationToken = default)
         {
-            var errorJson = $"{{\"code\":\"{errorCode}\",\"message\":\"{errorMessage}\"}}";
-            var errorBytes = System.Text.Encoding.UTF8.GetBytes(errorJson);
+            var errorPayload = new { code = errorCode, message = errorMessage };
+            var errorBytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(errorPayload);
 
             var errorMsg = new NoSqlMessage
             {
