@@ -1,3 +1,7 @@
 ## 2026-10-23 - Avoid intermediate list allocations for deferred filtering pipelines
 **Learning:** Returning `IEnumerable<T>` and immediately converting it to `.ToList()` inside a basic storage class (e.g. `InMemoryDocumentCollection.GetAll()`) represents a massive performance penalty when the result is directly fed into a `Where` filter anyway (`FilterEngine.Filter(documents).ToList()`). In .NET, `ConcurrentDictionary.Values` acquires locks and allocates an array to provide a moment-in-time snapshot. Iterating the dictionary directly (`foreach (var kvp in _documents) yield return kvp.Value;`) allows for truly zero-allocation lazy evaluation.
 **Action:** Next time you see `.ToList()` or explicit list instantiations with `.Add()` in a data retrieval layer, look at the caller. If the caller enumerates it for filtering or projection, switch the data retrieval layer to return the lazy enumerable or an iterator block (`yield return`) to prevent O(N) memory overhead and garbage collection pressure. Additionally, avoid `.Values` on `ConcurrentDictionary` if true zero-allocation enumeration is desired.
+
+## 2024-05-24 - [ConcurrentDictionary Checks]
+**Learning:** Checking `_entries.Count > 0` on a `ConcurrentDictionary` incurs locking overhead.
+**Action:** Always prefer `!_entries.IsEmpty` for simple emptiness checks on ConcurrentDictionary objects in C# to optimize performance.
