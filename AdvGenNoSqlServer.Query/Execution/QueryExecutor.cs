@@ -159,8 +159,26 @@ public class QueryExecutor : IQueryExecutor
     /// <inheritdoc />
     public async Task<bool> ExistsAsync(Query.Models.Query query, CancellationToken cancellationToken = default)
     {
-        var count = await CountAsync(query, cancellationToken);
-        return count > 0;
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // Get candidate documents using index if available
+        var candidateIds = await GetCandidateDocumentIdsAsync(query);
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // Fetch documents
+        IEnumerable<Document> documents;
+        if (candidateIds != null)
+        {
+            documents = await _documentStore.GetManyAsync(query.CollectionName, candidateIds);
+        }
+        else
+        {
+            documents = await _documentStore.GetAllAsync(query.CollectionName);
+        }
+
+        // Apply filters and check existence (O(1) best case due to lazy evaluation of .Any() vs O(N) for .Count())
+        return _filterEngine.Filter(documents, query.Filter).Any();
     }
 
     /// <inheritdoc />
