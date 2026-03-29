@@ -104,6 +104,13 @@ namespace AdvGenNoSqlServer.Network
         /// Event raised when a client certificate is validated
         /// </summary>
         public static event ClientCertValidationEventHandler? ClientCertValidated;
+
+        /// <summary>
+        /// Gets or sets a value indicating whether development certificates (localhost) are allowed.
+        /// Warning: Setting this to true in production is a significant security risk.
+        /// </summary>
+        public static bool AllowDevelopmentCertificates { get; set; } = false;
+
         /// <summary>
         /// Creates an SSL server stream and performs the TLS handshake
         /// </summary>
@@ -415,7 +422,7 @@ namespace AdvGenNoSqlServer.Network
             Console.WriteLine($"SSL Certificate validation error: {sslPolicyErrors}");
 
             // Allow local development certificates
-            if (sslPolicyErrors == SslPolicyErrors.RemoteCertificateNameMismatch)
+            if (AllowDevelopmentCertificates && sslPolicyErrors == SslPolicyErrors.RemoteCertificateNameMismatch)
             {
                 if (certificate?.Subject.Contains("localhost") == true)
                 {
