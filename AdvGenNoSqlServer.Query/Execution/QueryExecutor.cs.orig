@@ -3,13 +3,9 @@
 // See LICENSE.txt for license information.
 
 using System.Diagnostics;
-using System.Text.Json;
-using AdvGenNoSqlServer.Core.Abstractions;
 using AdvGenNoSqlServer.Core.Models;
 using AdvGenNoSqlServer.Query.Filtering;
 using AdvGenNoSqlServer.Query.Models;
-using AdvGenNoSqlServer.Query.Profiling;
-using AdvGenNoSqlServer.Query.QueryAnalysis;
 using AdvGenNoSqlServer.Storage;
 using AdvGenNoSqlServer.Storage.Indexing;
 
@@ -23,34 +19,21 @@ public class QueryExecutor : IQueryExecutor
     private readonly IDocumentStore _documentStore;
     private readonly IFilterEngine _filterEngine;
     private readonly IndexManager? _indexManager;
-    private readonly IQueryProfiler? _profiler;
 
     /// <summary>
     /// Creates a new QueryExecutor
     /// </summary>
     public QueryExecutor(IDocumentStore documentStore, IFilterEngine filterEngine, IndexManager? indexManager = null)
-        : this(documentStore, filterEngine, indexManager, null)
-    {
-    }
-
-    /// <summary>
-    /// Creates a new QueryExecutor with profiling support
-    /// </summary>
-    public QueryExecutor(IDocumentStore documentStore, IFilterEngine filterEngine, IndexManager? indexManager, IQueryProfiler? profiler)
     {
         _documentStore = documentStore ?? throw new ArgumentNullException(nameof(documentStore));
         _filterEngine = filterEngine ?? throw new ArgumentNullException(nameof(filterEngine));
         _indexManager = indexManager;
-        _profiler = profiler;
     }
 
     /// <inheritdoc />
     public async Task<QueryResult> ExecuteAsync(Query.Models.Query query, CancellationToken cancellationToken = default)
     {
         var stopwatch = Stopwatch.StartNew();
-        long documentsExamined = 0;
-        bool usedIndex = false;
-        string? indexName = null;
 
         try
         {
@@ -63,9 +46,6 @@ public class QueryExecutor : IQueryExecutor
             {
                 // Use index results
                 documents = await _documentStore.GetManyAsync(query.CollectionName, candidateIds);
-                usedIndex = true;
-                var indexInfo = GetIndexUsageInfo(query);
-                indexName = indexInfo.IndexName;
             }
             else
             {
@@ -75,7 +55,6 @@ public class QueryExecutor : IQueryExecutor
 
             // Apply filters
             var filtered = _filterEngine.Filter(documents, query.Filter).ToList();
-            documentsExamined = filtered.Count;
             var totalCount = filtered.Count;
 
             // Apply sorting
@@ -106,7 +85,7 @@ public class QueryExecutor : IQueryExecutor
 
             stopwatch.Stop();
 
-            var result = new QueryResult
+            return new QueryResult
             {
                 Documents = filtered,
                 TotalCount = query.Options?.IncludeTotalCount == true ? totalCount : filtered.Count,
@@ -114,23 +93,12 @@ public class QueryExecutor : IQueryExecutor
                 ExecutionTimeMs = stopwatch.ElapsedMilliseconds,
                 Success = true
             };
-
-            // Record query profile
-            RecordQueryProfile(query, stopwatch.ElapsedMilliseconds, documentsExamined, 
-                filtered.Count, usedIndex, indexName);
-
-            return result;
         }
         catch (Exception ex)
         {
             stopwatch.Stop();
             var failureResult = QueryResult.FailureResult(ex.Message);
             failureResult.ExecutionTimeMs = stopwatch.ElapsedMilliseconds;
-            
-            // Record failed query profile
-            RecordQueryProfile(query, stopwatch.ElapsedMilliseconds, documentsExamined, 
-                0, usedIndex, indexName, ex.Message);
-            
             return failureResult;
         }
     }
@@ -159,20 +127,8 @@ public class QueryExecutor : IQueryExecutor
     /// <inheritdoc />
     public async Task<bool> ExistsAsync(Query.Models.Query query, CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        // Get candidate documents using index if available
-        var candidateIds = await GetCandidateDocumentIdsAsync(query);
-
-        // Fetch documents
-        IEnumerable<Document> documents = candidateIds != null
-            ? await _documentStore.GetManyAsync(query.CollectionName, candidateIds)
-            : await _documentStore.GetAllAsync(query.CollectionName);
-
-        cancellationToken.ThrowIfCancellationRequested();
-
-        // Apply filters and check existence using Any() for short-circuit evaluation
-        return _filterEngine.Filter(documents, query.Filter).Any();
+        var count = await CountAsync(query, cancellationToken);
+        return count > 0;
     }
 
     /// <inheritdoc />
@@ -260,20 +216,6 @@ public class QueryExecutor : IQueryExecutor
                 Details = new Dictionary<string, object>
                 {
                     ["Limit"] = query.Options.Limit.Value
-                }
-            });
-        }
-
-        // Projection stage
-        if (query.Projection != null && query.Projection.Count > 0)
-        {
-            stages.Add(new QueryPlanStage
-            {
-                StageName = "Project",
-                Details = new Dictionary<string, object>
-                {
-                    ["ProjectionFields"] = query.Projection.Keys.ToList(),
-                    ["ProjectionType"] = query.Projection.Values.Any(v => v) ? "Inclusion" : "Exclusion"
                 }
             });
         }
@@ -470,24 +412,12 @@ public class QueryExecutor : IQueryExecutor
             // OPTIMIZATION: Use HashSet for O(1) Contains lookups to drastically improve performance
             // when projecting documents with many properties across large result sets.
             var fieldsToInclude = projection.Where(p => p.Value).Select(p => p.Key).ToHashSet();
-            
-            // Add _id to inclusion by default, unless explicitly excluded (e.g., { _id: false })
-            var idExplicitlyExcluded = projection.TryGetValue("_id", out var idValue) && !idValue;
-            if (!idExplicitlyExcluded)
-            {
-                fieldsToInclude.Add("_id");
-            }
+            fieldsToInclude.Add("_id");
 
             foreach (var doc in documents)
             {
                 if (doc.Data != null)
                 {
-                    // Add _id to data dictionary if it's being included
-                    if (!idExplicitlyExcluded)
-                    {
-                        doc.Data["_id"] = doc.Id;
-                    }
-
                     var keysToRemove = doc.Data.Keys.Where(k => !fieldsToInclude.Contains(k)).ToList();
                     foreach (var key in keysToRemove)
                     {
@@ -498,124 +428,5 @@ public class QueryExecutor : IQueryExecutor
         }
 
         return documents;
-    }
-
-    private void RecordQueryProfile(Query.Models.Query query, long durationMs, long documentsExamined, 
-        long documentsReturned, bool usedIndex, string? indexName, string? errorMessage = null)
-    {
-        if (_profiler == null)
-            return;
-
-        try
-        {
-            // Check if this is a slow query
-            var isSlowQuery = durationMs > _profiler.Options.SlowQueryThresholdMs;
-
-            // Only record if it's a slow query or we're logging all queries
-            if (!isSlowQuery && _profiler.Options.LogOnlySlowQueries)
-                return;
-
-            // Build query filter JSON
-            JsonElement? queryJson = null;
-            if (query.Filter?.Conditions != null)
-            {
-                var json = JsonSerializer.Serialize(query.Filter.Conditions);
-                queryJson = JsonSerializer.Deserialize<JsonElement>(json);
-            }
-
-            // Get query plan if enabled
-            Models.QueryStats? plan = null;
-            if (_profiler.Options.LogQueryPlan)
-            {
-                plan = ExplainAsync(query).GetAwaiter().GetResult();
-            }
-
-            var profile = new QueryProfile
-            {
-                Collection = query.CollectionName,
-                Query = queryJson,
-                Plan = plan,
-                DurationMs = durationMs,
-                DocumentsExamined = documentsExamined,
-                DocumentsReturned = documentsReturned,
-                UsedIndex = usedIndex,
-                IndexUsed = indexName,
-                IsSlowQuery = isSlowQuery,
-                Metadata = errorMessage != null ? new Dictionary<string, object> { ["Error"] = errorMessage } : null
-            };
-
-            _profiler.RecordQuery(profile);
-        }
-        catch
-        {
-            // Silently ignore profiling errors to not affect query execution
-        }
-    }
-
-    /// <inheritdoc />
-    public Task<QueryAnalysisResult> ExplainDetailedAsync(
-        Models.Query query,
-        ExplainVerbosity verbosity = ExplainVerbosity.ExecutionStats,
-        CancellationToken cancellationToken = default)
-    {
-        var analyzer = new QueryPlanAnalyzer(_documentStore, _indexManager);
-        return analyzer.AnalyzeAsync(query, verbosity, cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public async Task<DistinctResult> DistinctAsync(
-        string collectionName,
-        string fieldName,
-        QueryFilter? filter = null,
-        CancellationToken cancellationToken = default)
-    {
-        var stopwatch = Stopwatch.StartNew();
-
-        try
-        {
-            // Check if collection exists
-            var collections = await _documentStore.GetCollectionsAsync();
-            if (!collections.Contains(collectionName))
-            {
-                stopwatch.Stop();
-                return DistinctResult.FailureResult(collectionName, fieldName, $"Collection '{collectionName}' not found");
-            }
-
-            // Get all documents from the collection
-            var documents = await _documentStore.GetAllAsync(collectionName);
-
-            // Apply filter if provided
-            if (filter != null)
-            {
-                documents = _filterEngine.Filter(documents, filter).ToList();
-            }
-
-            // Extract distinct values
-            var distinctValues = new HashSet<object?>();
-
-            foreach (var document in documents)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                var value = _filterEngine.GetFieldValue(document, fieldName);
-                distinctValues.Add(value);
-            }
-
-            stopwatch.Stop();
-
-            // Convert to list, filtering out null if desired (keeping null as a valid distinct value)
-            var valuesList = distinctValues.ToList();
-
-            return DistinctResult.SuccessResult(collectionName, fieldName, valuesList, stopwatch.ElapsedMilliseconds);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            stopwatch.Stop();
-            return DistinctResult.FailureResult(collectionName, fieldName, ex.Message);
-        }
     }
 }
