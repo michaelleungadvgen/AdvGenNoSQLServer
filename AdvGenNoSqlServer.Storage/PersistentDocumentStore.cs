@@ -298,8 +298,15 @@ public class PersistentDocumentStore : IPersistentDocumentStore
     {
         EnsureInitialized();
 
-        var collectionNames = _collections.Keys.ToList();
-        return Task.FromResult<IEnumerable<string>>(collectionNames);
+        return Task.FromResult(GetCollectionsLazy());
+    }
+
+    private IEnumerable<string> GetCollectionsLazy()
+    {
+        foreach (var kvp in _collections)
+        {
+            yield return kvp.Key;
+        }
     }
 
     /// <inheritdoc />
