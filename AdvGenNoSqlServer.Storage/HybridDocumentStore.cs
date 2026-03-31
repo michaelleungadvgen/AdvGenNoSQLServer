@@ -354,7 +354,15 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
     public Task<IEnumerable<string>> GetCollectionsAsync(CancellationToken cancellationToken = default)
     {
         EnsureInitialized();
-        return Task.FromResult<IEnumerable<string>>(_cache.Keys.ToList());
+        return Task.FromResult(GetCollectionsLazy());
+    }
+
+    private IEnumerable<string> GetCollectionsLazy()
+    {
+        foreach (var kvp in _cache)
+        {
+            yield return kvp.Key;
+        }
     }
 
     /// <inheritdoc />
