@@ -235,6 +235,8 @@ public class FilterEngine : IFilterEngine
         return false;
     }
 
+    private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(100);
+
     private bool EvaluateRegexOperator(object? fieldValue, object pattern)
     {
         if (fieldValue == null)
@@ -252,8 +254,17 @@ public class FilterEngine : IFilterEngine
             var regexPattern = "^" + System.Text.RegularExpressions.Regex.Escape(patternString)
                 .Replace("\\*", ".*")
                 .Replace("\\?", ".") + "$";
-            return System.Text.RegularExpressions.Regex.IsMatch(fieldString, regexPattern,
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            try
+            {
+                return System.Text.RegularExpressions.Regex.IsMatch(fieldString, regexPattern,
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase,
+                    RegexTimeout);
+            }
+            catch (System.Text.RegularExpressions.RegexMatchTimeoutException)
+            {
+                throw new FilterEvaluationException("Regex pattern evaluation timed out");
+            }
         }
 
         return fieldString.Contains(patternString, StringComparison.OrdinalIgnoreCase);
