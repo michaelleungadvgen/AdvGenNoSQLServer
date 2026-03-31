@@ -7,3 +7,8 @@
 **Vulnerability:** Authorization Bypass in `AuthenticationService.Authorize`. The method returned `AuthorizationResult.Success()` without actually checking user permissions.
 **Learning:** The method was marked as a "simplified version" and missed crucial logic to retrieve the user's username from the token and validate their permissions against the required ones. This left protected actions exposed to any authenticated user.
 **Prevention:** Ensure all authorization methods perform concrete permission validation instead of relying on placeholder or simplified logic, mapping the token to the user and verifying their specific roles/permissions.
+
+## 2026-02-16 - [Missing Rate Limiting]
+**Vulnerability:** Brute-force authentication attacks due to missing rate limiting.
+**Learning:** When implementing a lockout mechanism using a dictionary to track attempts, removing the user's tracking record immediately upon lockout expiration (before evaluating the current attempt) effectively resets their failure count to zero, defeating the lockout entirely.
+**Prevention:** Only remove the failed attempt tracking record upon a successful authentication, or carefully reset the counter to 1 if the lockout has expired and the current attempt fails.
