@@ -16,8 +16,12 @@ public class AuthenticationManager
 {
     private readonly ConcurrentDictionary<string, UserCredentials> _users = new();
     private readonly ConcurrentDictionary<string, AuthToken> _activeSessions = new();
+    private readonly ConcurrentDictionary<string, (int attempts, DateTime lockoutEnd)> _failedAttempts = new();
     private readonly TimeSpan _tokenExpiration;
     private readonly ServerConfiguration _configuration;
+
+    private const int MaxFailedAttempts = 5;
+    private static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
 
     // PBKDF2 configuration - OWASP recommends 600k iterations for SHA256 in 2023
     private const int Pbkdf2Iterations = 100000;
@@ -65,12 +69,33 @@ public class AuthenticationManager
     /// </summary>
     public AuthToken? Authenticate(string username, string password)
     {
+        if (_failedAttempts.TryGetValue(username, out var info))
+        {
+            if (DateTime.UtcNow < info.lockoutEnd)
+            {
+                return null;
+            }
+
+            // If the lockout has expired, we only remove it if the user successfully authenticates.
+            // If we remove it here, the next failed attempt will start from 1 again instead of
+            // continuing to track failures or triggering a new lockout immediately.
+        }
+
         if (!_users.TryGetValue(username, out var credentials))
+        {
+            TrackFailedAttempt(username);
             return null;
+        }
 
         // Verify password using constant-time comparison to prevent timing attacks
         if (!VerifyPassword(password, credentials.Salt, credentials.PasswordHash))
+        {
+            TrackFailedAttempt(username);
             return null;
+        }
+
+        // Only clear failed attempts on successful login
+        _failedAttempts.TryRemove(username, out _);
 
         var token = new AuthToken
         {
@@ -82,6 +107,25 @@ public class AuthenticationManager
 
         _activeSessions[token.TokenId] = token;
         return token;
+    }
+
+    private void TrackFailedAttempt(string username)
+    {
+        _failedAttempts.AddOrUpdate(
+            username,
+            _ => (1, DateTime.MinValue),
+            (_, info) =>
+            {
+                // Reset counter if they were previously locked out and the lockout expired
+                var newAttempts = (DateTime.UtcNow > info.lockoutEnd && info.lockoutEnd != DateTime.MinValue)
+                    ? 1
+                    : info.attempts + 1;
+
+                var lockoutEnd = newAttempts >= MaxFailedAttempts
+                    ? DateTime.UtcNow.Add(LockoutDuration)
+                    : DateTime.MinValue;
+                return (newAttempts, lockoutEnd);
+            });
     }
 
     /// <summary>
