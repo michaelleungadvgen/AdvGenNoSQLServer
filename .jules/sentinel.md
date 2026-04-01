@@ -1,14 +1,4 @@
-## 2026-03-05 - [Path Traversal in HybridDocumentStore]
-**Vulnerability:** Path Traversal via unvalidated `collectionName` and `documentId` in `HybridDocumentStore.cs` allowing reads/writes outside the intended base directory.
-**Learning:** Even though `collectionName` was partially validated, `documentId` was concatenated directly using `Path.Combine` without checking if the resulting path escaped the base directory. This allowed directory traversal attacks via malicious IDs like `../../sensitive_file`.
-**Prevention:** Always use `PathValidator.GetSafePath` when constructing file paths from user inputs to ensure the resulting path remains within the allowed base directory.
-
-## 2026-03-05 - [Authorization Bypass in AuthenticationService]
-**Vulnerability:** Authorization Bypass in `AuthenticationService.Authorize`. The method returned `AuthorizationResult.Success()` without actually checking user permissions.
-**Learning:** The method was marked as a "simplified version" and missed crucial logic to retrieve the user's username from the token and validate their permissions against the required ones. This left protected actions exposed to any authenticated user.
-**Prevention:** Ensure all authorization methods perform concrete permission validation instead of relying on placeholder or simplified logic, mapping the token to the user and verifying their specific roles/permissions.
-
-## 2026-03-05 - [ReDoS in FilterEngine Regex Evaluation]
-**Vulnerability:** Regular Expression Denial of Service (ReDoS) vulnerability in `AdvGenNoSqlServer.Query/Filtering/FilterEngine.cs` during `$regex` evaluation.
-**Learning:** Evaluating user-supplied or highly variable regex patterns using `Regex.IsMatch` without a timeout leaves the server vulnerable to catastrophic backtracking when complex strings are provided. Additionally, using `RegexOptions.Compiled` for one-off patterns forces compilation to IL and severely degraded server performance.
-**Prevention:** Always supply a `TimeSpan` timeout (e.g. 100ms) to `Regex.IsMatch` and handle `RegexMatchTimeoutException`. Never use `RegexOptions.Compiled` for dynamic patterns generated from user queries.
+## 2026-03-25 - Prevent Path Traversal in DatabaseManager
+**Vulnerability:** The `GetDatabasePath` method in `AdvGenNoSqlServer.Core/Database/DatabaseManager.cs` used `System.IO.Path.Combine(_basePath, name)` without validating if the resulting path stays within `_basePath`. This could allow an attacker to create databases or access directories outside the intended base directory using path traversal characters like `../`.
+**Learning:** Whenever dealing with user-supplied file paths or directory names, `Path.Combine` is insufficient by itself to prevent path traversal because it natively resolves `../` navigation tokens.
+**Prevention:** Always validate combined paths against the intended root directory. Use `AdvGenNoSqlServer.Core.Security.PathValidator.GetSafePath(_basePath, System.IO.Path.Combine(_basePath, name))` to ensure paths cannot escape the base directory boundary.
