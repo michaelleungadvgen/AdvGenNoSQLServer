@@ -116,7 +116,7 @@ public class ShardingDocumentStore : IDocumentStore
         });
 
         var results = await Task.WhenAll(tasks);
-        return results.SelectMany(docs => docs).ToList();
+        return results.SelectMany(docs => docs);
     }
 
     /// <inheritdoc />
@@ -142,7 +142,7 @@ public class ShardingDocumentStore : IDocumentStore
         });
 
         var results = await Task.WhenAll(tasks);
-        return results.SelectMany(docs => docs).ToList();
+        return results.SelectMany(docs => docs);
     }
 
     /// <inheritdoc />
