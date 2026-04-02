@@ -246,6 +246,13 @@ namespace AdvGenNoSqlServer.Network
     /// </summary>
     public class MessageProtocol
     {
+        private readonly int _maxPayloadSize;
+
+        public MessageProtocol(int maxPayloadSize = 10 * 1024 * 1024) // 10MB default
+        {
+            _maxPayloadSize = maxPayloadSize;
+        }
+
         /// <summary>
         /// Serializes a message to a byte array (rented from ArrayPool)
         /// </summary>
@@ -337,7 +344,7 @@ namespace AdvGenNoSqlServer.Network
             if (!Enum.IsDefined(typeof(MessageType), header.MessageType))
                 return false;
 
-            if (header.PayloadLength < 0 || header.PayloadLength > 100 * 1024 * 1024) // Max 100MB
+            if (header.PayloadLength < 0 || header.PayloadLength > _maxPayloadSize) // Configurable Max Payload Size
                 return false;
 
             return true;

@@ -12,3 +12,8 @@
 **Vulnerability:** Regular Expression Denial of Service (ReDoS) vulnerability in `AdvGenNoSqlServer.Query/Filtering/FilterEngine.cs` during `$regex` evaluation.
 **Learning:** Evaluating user-supplied or highly variable regex patterns using `Regex.IsMatch` without a timeout leaves the server vulnerable to catastrophic backtracking when complex strings are provided. Additionally, using `RegexOptions.Compiled` for one-off patterns forces compilation to IL and severely degraded server performance.
 **Prevention:** Always supply a `TimeSpan` timeout (e.g. 100ms) to `Regex.IsMatch` and handle `RegexMatchTimeoutException`. Never use `RegexOptions.Compiled` for dynamic patterns generated from user queries.
+
+## 2026-04-02 - [Memory Exhaustion DoS in Message Protocol]
+**Vulnerability:** MessageProtocol allowed payloads up to 100MB by default without configuration. An attacker could send messages with massive payload sizes, forcing the server to eagerly allocate huge arrays via ArrayPool, leading to a Memory Exhaustion Denial of Service (DoS).
+**Learning:** Hardcoded large boundaries on network protocols act as an easy attack vector for resource exhaustion. The payload size limit should be conservative and configurable, rather than hardcoded to a large value.
+**Prevention:** Implement reasonable, configurable limits on network payload sizes and memory allocations. We reduced the default maximum payload size from 100MB to 10MB, making it configurable via the protocol constructor.
