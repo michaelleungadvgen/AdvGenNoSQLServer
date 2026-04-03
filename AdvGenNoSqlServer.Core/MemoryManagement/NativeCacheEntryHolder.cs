@@ -21,7 +21,12 @@ internal sealed class NativeCacheEntryHolder : IDisposable
     /// Caller must copy the bytes before leaving the call frame.
     /// The span is backed by unmanaged memory owned by this holder.
     /// </summary>
-    public ReadOnlySpan<byte> AsSpan() => _entry.AsSpan();
+    public ReadOnlySpan<byte> AsSpan()
+    {
+        if (_disposed != 0)
+            throw new ObjectDisposedException(nameof(NativeCacheEntryHolder));
+        return _entry.AsSpan();
+    }
 
     public void Dispose()
     {
