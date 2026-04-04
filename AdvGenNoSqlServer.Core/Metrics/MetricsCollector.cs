@@ -233,6 +233,7 @@ namespace AdvGenNoSqlServer.Core.Metrics
         /// <inheritdoc />
         public void RecordCacheStats(MemoryEngineStats stats)
         {
+            if (stats is null) throw new ArgumentNullException(nameof(stats));
             EnsureNotDisposed();
             if (!_options.Enabled) return;
             var label = MetricLabel.Create("plan", stats.Plan);
