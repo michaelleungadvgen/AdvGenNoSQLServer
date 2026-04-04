@@ -34,8 +34,8 @@ public class AdvancedMemoryCacheManager : ICacheManager, IDisposable
 
         try
         {
-            // Use standard deserialization for correctness with Dictionary<string, object?>
-            return JsonSerializer.Deserialize<Document>(span);
+            // Use source-gen context for AOT-safe deserialization
+            return JsonSerializer.Deserialize(span, CacheJsonContext.Default.Document);
         }
         catch (JsonException)
         {
@@ -48,7 +48,7 @@ public class AdvancedMemoryCacheManager : ICacheManager, IDisposable
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(document);
-        var bytes = JsonSerializer.SerializeToUtf8Bytes(document);
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(document, CacheJsonContext.Default.Document);
         TimeSpan? ttl = expirationMinutes > 0 ? TimeSpan.FromMinutes(expirationMinutes) : null;
         _engine.Set(key, bytes, ttl);
     }
