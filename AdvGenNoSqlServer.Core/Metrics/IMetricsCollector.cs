@@ -5,6 +5,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using AdvGenNoSqlServer.Core.MemoryManagement;
 
 namespace AdvGenNoSqlServer.Core.Metrics
 {
@@ -302,5 +303,13 @@ namespace AdvGenNoSqlServer.Core.Metrics
         /// Gets the collector options.
         /// </summary>
         MetricsCollectorOptions Options { get; }
+
+        /// <summary>
+        /// Records a snapshot of cache engine statistics as Prometheus-compatible metrics.
+        /// Writes: cache_used_bytes (gauge), cache_entry_count (gauge),
+        ///         cache_hit_total (counter), cache_miss_total (counter),
+        ///         cache_eviction_total (counter). All labelled plan=&lt;Plan&gt;.
+        /// </summary>
+        void RecordCacheStats(MemoryEngineStats stats);
     }
 }
