@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using AdvGenNoSqlServer.Core.Caching;
+using AdvGenNoSqlServer.Core.MemoryManagement;
+using AdvGenNoSqlServer.Core.Metrics;
 using AdvGenNoSqlServer.Storage.Storage;
 using AdvGenNoSqlServer.Core.Configuration;
 
@@ -31,10 +33,15 @@ public class Program
         {
             var configManager = provider.GetRequiredService<IConfigurationManager>();
             var config = configManager.Configuration;
-            return new AdvancedMemoryCacheManager(
-                maxItemCount: config.MaxCacheItemCount > 0 ? config.MaxCacheItemCount : 10000,
-                maxSizeInBytes: config.MaxCacheSizeInBytes > 0 ? config.MaxCacheSizeInBytes : 104857600,
-                defaultTtlMilliseconds: config.DefaultCacheTtlMilliseconds > 0 ? config.DefaultCacheTtlMilliseconds : 1800000);
+            long maxSizeInBytes = config.MaxCacheSizeInBytes > 0 ? config.MaxCacheSizeInBytes : 104857600;
+            var engineConfig = new MemoryManagementConfiguration
+            {
+                DefaultTtlSeconds = config.DefaultCacheTtlMilliseconds > 0
+                    ? (int)(config.DefaultCacheTtlMilliseconds / 1000)
+                    : 1800
+            };
+            var engine = new ManagedMemoryStorageEngine(engineConfig, maxSizeInBytes);
+            return new AdvancedMemoryCacheManager(engine, new NoOpMetricsCollector());
         });
 
         // Add file storage with configuration
