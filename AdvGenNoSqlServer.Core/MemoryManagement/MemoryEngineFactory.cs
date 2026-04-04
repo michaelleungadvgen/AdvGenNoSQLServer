@@ -11,15 +11,32 @@ public static class MemoryEngineFactory
         this IServiceCollection services,
         MemoryManagementConfiguration config)
     {
+        ArgumentNullException.ThrowIfNull(config);
         ValidateConfig(config);
         long effectiveLimit = ComputeEffectiveLimit(config);
 
-        services.AddSingleton<IMemoryStorageEngine>(sp => config.Plan switch
+        services.AddSingleton<IMemoryStorageEngine>(sp =>
         {
-            "Native"  => (IMemoryStorageEngine)new NativeMemoryStorageEngine(config, effectiveLimit),
-            "Mixed"   => throw new NotImplementedException("Mixed plan not yet implemented."),
-            "Managed" => new ManagedMemoryStorageEngine(config, effectiveLimit),
-            _         => FallbackToManaged(config, effectiveLimit, sp)
+            // Warn once when engine is resolved if percent cap was binding
+            long mbLimit2 = (long)config.MaxMemoryMB * 1_048_576;
+            if (config.MaxMemoryPercent > 0 && effectiveLimit < mbLimit2)
+            {
+                sp.GetService<ILoggerFactory>()
+                  ?.CreateLogger(nameof(MemoryEngineFactory))
+                  ?.LogWarning(
+                      "MemoryEngineFactory: percent cap ({Percent}%) reduced effective limit to {EffectiveMB}MB (MaxMemoryMB={ConfigMB}).",
+                      config.MaxMemoryPercent,
+                      effectiveLimit / 1_048_576,
+                      config.MaxMemoryMB);
+            }
+
+            return config.Plan switch
+            {
+                "Native"  => (IMemoryStorageEngine)new NativeMemoryStorageEngine(config, effectiveLimit),
+                "Mixed"   => throw new NotImplementedException("Mixed plan not yet implemented."),
+                "Managed" => new ManagedMemoryStorageEngine(config, effectiveLimit),
+                _         => FallbackToManaged(config, effectiveLimit, sp)
+            };
         });
 
         return services;

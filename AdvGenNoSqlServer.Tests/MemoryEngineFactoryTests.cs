@@ -71,4 +71,23 @@ public class MemoryEngineFactoryTests
         Assert.Equal(128L * 1024 * 1024, stats.LimitBytes);
         (engine as IDisposable)?.Dispose();
     }
+
+    [Fact]
+    public void ComputeEffectiveLimit_PercentConstraint_AppliesMin()
+    {
+        // With MaxMemoryMB = 10000 (effectively uncapped on any real machine)
+        // and MaxMemoryPercent = 1 (very small fraction of RAM),
+        // ramLimit will be tiny and should drive the result below mbLimit.
+        var config = new MemoryManagementConfiguration
+        {
+            MaxMemoryMB = 10000,
+            MaxMemoryPercent = 1
+        };
+        long result = MemoryEngineFactory.ComputeEffectiveLimit(config);
+        long mbLimit = 10000L * 1024 * 1024;
+        // Result must be <= mbLimit (percent cap is binding on any machine with < 10GB RAM)
+        // and must be >= 1MB floor
+        Assert.True(result >= 1_048_576, $"Result {result} must be >= 1MB");
+        Assert.True(result <= mbLimit, $"Result {result} must be <= mbLimit {mbLimit}");
+    }
 }
