@@ -33,7 +33,10 @@ public static class MemoryEngineFactory
             return config.Plan switch
             {
                 "Native"  => (IMemoryStorageEngine)new NativeMemoryStorageEngine(config, effectiveLimit),
-                "Mixed"   => throw new NotImplementedException("Mixed plan not yet implemented."),
+                "Mixed"   => new MixedMemoryStorageEngine(
+                                 config, effectiveLimit,
+                                 sp.GetRequiredService<AdvGenNoSqlServer.Core.Abstractions.IDocumentStore>(),
+                                 sp.GetService<ILoggerFactory>()?.CreateLogger(nameof(MixedMemoryStorageEngine))),
                 "Managed" => new ManagedMemoryStorageEngine(config, effectiveLimit),
                 _         => FallbackToManaged(config, effectiveLimit, sp)
             };
