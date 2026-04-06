@@ -7,6 +7,7 @@ namespace AdvGenNoSqlServer.Admin.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using AdvGenNoSqlServer.Client;
 using AdvGenNoSqlServer.Core.Models;
@@ -18,6 +19,8 @@ public class ServerConnectionService
 {
     private AdvGenNoSqlClient? _client;
     private string _serverUrl = "localhost:9090";
+    private string? _username;
+    private string? _password;
 
     /// <summary>
     /// Event raised when connection state changes.
@@ -35,13 +38,16 @@ public class ServerConnectionService
     public string ServerUrl => _serverUrl;
 
     /// <summary>
-    /// Connects to the server.
+    /// Connects to the server and authenticates.
     /// </summary>
     public async Task<bool> ConnectAsync(string serverUrl, string? username = null, string? password = null)
     {
         try
         {
             _serverUrl = serverUrl;
+            _username = username;
+            _password = password;
+
             var options = new AdvGenNoSqlClientOptions
             {
                 ConnectionTimeout = 10000,
@@ -49,16 +55,25 @@ public class ServerConnectionService
             };
 
             _client = new AdvGenNoSqlClient(serverUrl, options);
-            
-            // Note: In a real implementation, we would connect here
-            // For now, we simulate the connection
-            await Task.Delay(100);
-            
+            await _client.ConnectAsync();
+
+            if (!string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(password))
+            {
+                var authenticated = await _client.AuthenticateAsync(username, password);
+                if (!authenticated)
+                {
+                    await _client.DisconnectAsync();
+                    _client = null;
+                    return false;
+                }
+            }
+
             ConnectionStateChanged?.Invoke(this, EventArgs.Empty);
             return true;
         }
-        catch (Exception)
+        catch
         {
+            _client = null;
             return false;
         }
     }
@@ -70,139 +85,179 @@ public class ServerConnectionService
     {
         if (_client != null)
         {
-            // await _client.DisconnectAsync();
-            await Task.Delay(50);
+            await _client.DisconnectAsync();
             _client = null;
         }
-        
+
         ConnectionStateChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
-    /// Gets server statistics (simulated for demo).
+    /// Gets real server statistics via the stats command.
     /// </summary>
-    public Task<ServerStats> GetServerStatsAsync()
+    public async Task<ServerStats> GetServerStatsAsync()
     {
-        // In a real implementation, this would call the server API
-        var stats = new ServerStats
-        {
-            TotalDocuments = new Random().Next(1000, 100000),
-            TotalCollections = new Random().Next(5, 50),
-            ActiveConnections = new Random().Next(1, 100),
-            Uptime = TimeSpan.FromHours(new Random().Next(1, 720)),
-            MemoryUsageMB = new Random().Next(50, 500),
-            QueriesPerSecond = new Random().Next(10, 1000),
-            ServerVersion = "1.0.0"
-        };
-        
-        return Task.FromResult(stats);
-    }
+        if (_client == null || !_client.IsConnected)
+            return new ServerStats();
 
-    /// <summary>
-    /// Gets list of collections (simulated for demo).
-    /// </summary>
-    public Task<List<string>> GetCollectionsAsync()
-    {
-        var collections = new List<string>
+        try
         {
-            "users",
-            "products",
-            "orders",
-            "logs",
-            "sessions",
-            "configuration"
-        };
-        
-        return Task.FromResult(collections);
-    }
+            var response = await _client.ExecuteCommandAsync("stats", "");
+            if (!response.Success || response.Data is not JsonElement je)
+                return new ServerStats();
 
-    /// <summary>
-    /// Gets documents from a collection (simulated for demo).
-    /// </summary>
-    public Task<List<Document>> GetDocumentsAsync(string collectionName, int skip = 0, int take = 50)
-    {
-        var documents = new List<Document>();
-        var random = new Random();
-        
-        for (int i = 0; i < take; i++)
-        {
-            var docId = $"doc_{skip + i}_{Guid.NewGuid().ToString()[..8]}";
-            var doc = new Document
+            return new ServerStats
             {
-                Id = docId,
-                Data = new Dictionary<string, object?>
-                {
-                    ["_id"] = docId,
-                    ["name"] = $"Item {skip + i}",
-                    ["createdAt"] = DateTime.UtcNow.AddMinutes(-random.Next(1, 10000)),
-                    ["status"] = random.Next(2) == 0 ? "active" : "inactive",
-                    ["value"] = random.Next(100, 10000)
-                }
+                ServerVersion = je.TryGetProperty("version", out var v) ? v.GetString() ?? "1.0.0" : "1.0.0",
+                Uptime = je.TryGetProperty("uptimeSeconds", out var u)
+                    ? TimeSpan.FromSeconds(u.GetInt64()) : TimeSpan.Zero,
+                MemoryUsageMB = je.TryGetProperty("memoryUsageMB", out var m) ? m.GetInt32() : 0,
+                TotalDocuments = je.TryGetProperty("totalDocuments", out var td) ? (int)td.GetInt64() : 0,
+                TotalCollections = je.TryGetProperty("totalCollections", out var tc) ? tc.GetInt32() : 0,
+                ActiveConnections = je.TryGetProperty("activeConnections", out var ac) ? ac.GetInt32() : 0,
+                QueriesPerSecond = 0   // server doesn't track QPS yet
             };
-            documents.Add(doc);
         }
-        
-        return Task.FromResult(documents);
+        catch
+        {
+            return new ServerStats();
+        }
     }
 
     /// <summary>
-    /// Gets a single document by ID (simulated for demo).
+    /// Gets real list of collections from the server.
     /// </summary>
-    public Task<Document?> GetDocumentAsync(string collectionName, string documentId)
+    public async Task<List<string>> GetCollectionsAsync()
     {
-        var doc = new Document
+        if (_client == null || !_client.IsConnected)
+            return [];
+
+        try
         {
-            Id = documentId,
-            Data = new Dictionary<string, object?>
+            var response = await _client.ExecuteCommandAsync("listcollections", "");
+            if (!response.Success || response.Data is not JsonElement je)
+                return [];
+
+            if (je.TryGetProperty("collections", out var colsEl))
+                return colsEl.EnumerateArray().Select(e => e.GetString() ?? "").Where(s => s != "").ToList();
+
+            return [];
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    /// <summary>
+    /// Gets documents from a collection.
+    /// </summary>
+    public async Task<List<Document>> GetDocumentsAsync(string collectionName, int skip = 0, int take = 50)
+    {
+        if (_client == null || !_client.IsConnected)
+            return [];
+
+        try
+        {
+            var response = await _client.ExecuteCommandAsync("get", collectionName, new { skip, take });
+            if (!response.Success || response.Data is not JsonElement je)
+                return [];
+
+            var docs = new List<Document>();
+            var arr = je.ValueKind == JsonValueKind.Array ? je : je.TryGetProperty("documents", out var d) ? d : default;
+            if (arr.ValueKind == JsonValueKind.Array)
             {
-                ["_id"] = documentId,
-                ["name"] = $"Document {documentId}",
-                ["description"] = "This is a sample document for demonstration purposes.",
-                ["createdAt"] = DateTime.UtcNow.AddDays(-1),
-                ["updatedAt"] = DateTime.UtcNow,
-                ["status"] = "active",
-                ["tags"] = new[] { "sample", "demo", "test" },
-                ["metadata"] = new Dictionary<string, object>
+                foreach (var item in arr.EnumerateArray())
                 {
-                    ["version"] = 1,
-                    ["author"] = "admin"
+                    var doc = new Document
+                    {
+                        Id = item.TryGetProperty("_id", out var id) ? id.GetString() ?? "" : "",
+                        Data = item.Deserialize<Dictionary<string, object?>>() ?? new()
+                    };
+                    docs.Add(doc);
                 }
             }
-        };
-        
-        return Task.FromResult<Document?>(doc);
+            return docs;
+        }
+        catch
+        {
+            return [];
+        }
     }
 
     /// <summary>
-    /// Executes a query (simulated for demo).
+    /// Gets a single document by ID.
     /// </summary>
-    public Task<QueryResult> ExecuteQueryAsync(string query)
+    public async Task<Document?> GetDocumentAsync(string collectionName, string documentId)
     {
-        // Simulate query execution
-        var result = new QueryResult
+        if (_client == null || !_client.IsConnected)
+            return null;
+
+        try
         {
-            Success = true,
-            Documents = new List<Document>(),
-            ExecutionTimeMs = new Random().Next(1, 100),
-            TotalCount = new Random().Next(10, 1000)
-        };
-        
-        var random = new Random();
-        for (int i = 0; i < Math.Min(10, result.TotalCount); i++)
-        {
-            result.Documents.Add(new Document
+            var response = await _client.ExecuteCommandAsync("get", collectionName, new { id = documentId });
+            if (!response.Success || response.Data is not JsonElement je)
+                return null;
+
+            return new Document
             {
-                Id = $"result_{i}",
-                Data = new Dictionary<string, object?>
-                {
-                    ["_id"] = $"result_{i}",
-                    ["matched"] = true,
-                    ["score"] = random.NextDouble()
-                }
-            });
+                Id = documentId,
+                Data = je.Deserialize<Dictionary<string, object?>>() ?? new()
+            };
         }
-        
-        return Task.FromResult(result);
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Executes a raw query.
+    /// </summary>
+    public async Task<QueryResult> ExecuteQueryAsync(string query)
+    {
+        if (_client == null || !_client.IsConnected)
+            return new QueryResult { Success = false, ErrorMessage = "Not connected" };
+
+        try
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var response = await _client.ExecuteQueryAsync(query);
+            sw.Stop();
+
+            if (!response.Success)
+                return new QueryResult { Success = false, ErrorMessage = response.Error?.Message };
+
+            var docs = new List<Document>();
+            if (response.Data is JsonElement je)
+            {
+                var arr = je.ValueKind == JsonValueKind.Array ? je
+                    : je.TryGetProperty("documents", out var d) ? d : default;
+                if (arr.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in arr.EnumerateArray())
+                    {
+                        docs.Add(new Document
+                        {
+                            Id = item.TryGetProperty("_id", out var id) ? id.GetString() ?? "" : "",
+                            Data = item.Deserialize<Dictionary<string, object?>>() ?? new()
+                        });
+                    }
+                }
+            }
+
+            return new QueryResult
+            {
+                Success = true,
+                Documents = docs,
+                TotalCount = docs.Count,
+                ExecutionTimeMs = (int)sw.ElapsedMilliseconds
+            };
+        }
+        catch (Exception ex)
+        {
+            return new QueryResult { Success = false, ErrorMessage = ex.Message };
+        }
     }
 }
 

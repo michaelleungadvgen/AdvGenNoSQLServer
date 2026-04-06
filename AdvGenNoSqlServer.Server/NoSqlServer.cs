@@ -26,6 +26,7 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
     private HybridDocumentStore? _documentStore;
     private TcpServer? _tcpServer;
     private bool _disposed;
+    private readonly DateTime _startTime = DateTime.UtcNow;
 
     /// <summary>
     /// Server version for handshake responses
@@ -277,6 +278,7 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
                 "touch" => HandleTouchCommand(doc.RootElement),
                 "listcollections" => HandleListCollectionsCommand(doc.RootElement),
                 "count" => HandleCountCommand(doc.RootElement),
+                "stats" => HandleStatsCommand(),
                 "cluster" => HandleClusterCommand(doc.RootElement),
                 _ => Task.FromResult(NoSqlMessage.CreateError("UNKNOWN_COMMAND", $"Unknown command: {command}"))
             };
@@ -750,6 +752,44 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
             }
         }
         return true;
+    }
+
+    private async Task<NoSqlMessage> HandleStatsCommand()
+    {
+        try
+        {
+            var uptime = DateTime.UtcNow - _startTime;
+            var memoryBytes = GC.GetTotalMemory(forceFullCollection: false);
+            var memoryMB = (int)(memoryBytes / 1_048_576);
+
+            long totalDocuments = 0;
+            int totalCollections = 0;
+
+            if (_documentStore != null)
+            {
+                var collections = (await _documentStore.GetCollectionsAsync()).ToList();
+                totalCollections = collections.Count;
+                foreach (var coll in collections)
+                    totalDocuments += await _documentStore.CountAsync(coll);
+            }
+
+            int activeConnections = _tcpServer?.ActiveConnectionCount ?? 0;
+
+            return NoSqlMessage.CreateSuccess(new
+            {
+                version = ServerVersion,
+                uptimeSeconds = (long)uptime.TotalSeconds,
+                memoryUsageMB = memoryMB,
+                totalDocuments,
+                totalCollections,
+                activeConnections
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving server stats");
+            return NoSqlMessage.CreateError("STATS_ERROR", $"Failed to retrieve stats: {ex.Message}");
+        }
     }
 
     private async Task<NoSqlMessage> HandleListCollectionsCommand(JsonElement commandElement)
