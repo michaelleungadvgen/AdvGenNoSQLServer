@@ -5,6 +5,8 @@
 using AdvGenNoSqlServer.Core.Caching;
 using AdvGenNoSqlServer.Core.Configuration;
 using AdvGenNoSqlServer.Core.Authentication;
+using AdvGenNoSqlServer.Core.MemoryManagement;
+using AdvGenNoSqlServer.Core.Metrics;
 using AdvGenNoSqlServer.Core.Transactions;
 using AdvGenNoSqlServer.Storage;
 using AdvGenNoSqlServer.Network;
@@ -58,15 +60,25 @@ public class Program
             return new Core.Configuration.ConfigurationManager(configPath, enableHotReload: true);
         });
 
+        // Add metrics collector
+        services.AddMetricsCollector();
+
+        // Add memory storage engine
+        services.AddMemoryEngine(new MemoryManagementConfiguration
+        {
+            Plan = "Managed",
+            MaxMemoryMB = 512,
+            MaxMemoryPercent = 75,
+            EvictionPolicy = "LRU",
+            DefaultTtlSeconds = 1800
+        });
+
         // Add cache manager
         services.AddSingleton<ICacheManager>(provider =>
         {
-            var configManager = provider.GetRequiredService<Core.Configuration.IConfigurationManager>();
-            var config = configManager.Configuration;
-            return new AdvancedMemoryCacheManager(
-                maxItemCount: config.MaxCacheItemCount > 0 ? config.MaxCacheItemCount : 10000,
-                maxSizeInBytes: config.MaxCacheSizeInBytes > 0 ? config.MaxCacheSizeInBytes : 104857600,
-                defaultTtlMilliseconds: config.DefaultCacheTtlMilliseconds > 0 ? config.DefaultCacheTtlMilliseconds : 1800000);
+            var engine = provider.GetRequiredService<IMemoryStorageEngine>();
+            var metrics = provider.GetRequiredService<IMetricsCollector>();
+            return new AdvancedMemoryCacheManager(engine, metrics);
         });
 
         // Add audit logger
