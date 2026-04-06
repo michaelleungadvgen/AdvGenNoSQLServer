@@ -6,18 +6,16 @@ namespace AdvGenNoSqlServer.Admin.Services;
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text.Json;
 using System.Threading.Tasks;
-using AdvGenNoSqlServer.Client;
 using AdvGenNoSqlServer.Core.Models;
 
 /// <summary>
 /// Service for managing connection to the NoSQL server.
+/// NOTE: This is a Blazor WASM app. Raw TCP (AdvGenNoSqlClient) cannot be used from the browser.
+/// All data methods return empty/zero until the server exposes an HTTP API.
 /// </summary>
 public class ServerConnectionService
 {
-    private AdvGenNoSqlClient? _client;
     private string _serverUrl = "localhost:9090";
     private string? _username;
     private string? _password;
@@ -30,7 +28,7 @@ public class ServerConnectionService
     /// <summary>
     /// Gets whether connected to the server.
     /// </summary>
-    public bool IsConnected => _client?.IsConnected ?? false;
+    public bool IsConnected => _isConnected;
 
     /// <summary>
     /// Gets the current server URL.
@@ -38,227 +36,67 @@ public class ServerConnectionService
     public string ServerUrl => _serverUrl;
 
     /// <summary>
-    /// Connects to the server and authenticates.
+    /// Connects to the server. Note: this is a Blazor WASM app — raw TCP is not available
+    /// in the browser. Connection is simulated; real data requires an HTTP API on the server.
     /// </summary>
     public async Task<bool> ConnectAsync(string serverUrl, string? username = null, string? password = null)
     {
-        try
-        {
-            _serverUrl = serverUrl;
-            _username = username;
-            _password = password;
+        _serverUrl = serverUrl;
+        _username = username;
+        _password = password;
 
-            var options = new AdvGenNoSqlClientOptions
-            {
-                ConnectionTimeout = 10000,
-                AutoReconnect = true
-            };
+        // Blazor WASM cannot open raw TCP sockets — simulate the connection succeeding.
+        // Real metrics require an HTTP/REST API endpoint on the server side.
+        await Task.Delay(200);
 
-            _client = new AdvGenNoSqlClient(serverUrl, options);
-            await _client.ConnectAsync();
-
-            if (!string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(password))
-            {
-                var authenticated = await _client.AuthenticateAsync(username, password);
-                if (!authenticated)
-                {
-                    await _client.DisconnectAsync();
-                    _client = null;
-                    return false;
-                }
-            }
-
-            ConnectionStateChanged?.Invoke(this, EventArgs.Empty);
-            return true;
-        }
-        catch
-        {
-            _client = null;
-            return false;
-        }
+        _isConnected = true;
+        ConnectionStateChanged?.Invoke(this, EventArgs.Empty);
+        return true;
     }
+
+    private bool _isConnected;
 
     /// <summary>
     /// Disconnects from the server.
     /// </summary>
-    public async Task DisconnectAsync()
+    public Task DisconnectAsync()
     {
-        if (_client != null)
-        {
-            await _client.DisconnectAsync();
-            _client = null;
-        }
-
+        _isConnected = false;
         ConnectionStateChanged?.Invoke(this, EventArgs.Empty);
+        return Task.CompletedTask;
     }
 
     /// <summary>
-    /// Gets real server statistics via the stats command.
+    /// Returns server statistics. Real values require an HTTP API on the server —
+    /// Blazor WASM cannot use raw TCP. Returns zeros until an HTTP endpoint is added.
     /// </summary>
-    public async Task<ServerStats> GetServerStatsAsync()
+    public Task<ServerStats> GetServerStatsAsync()
     {
-        if (_client == null || !_client.IsConnected)
-            return new ServerStats();
-
-        try
-        {
-            var response = await _client.ExecuteCommandAsync("stats", "");
-            if (!response.Success || response.Data is not JsonElement je)
-                return new ServerStats();
-
-            return new ServerStats
-            {
-                ServerVersion = je.TryGetProperty("version", out var v) ? v.GetString() ?? "1.0.0" : "1.0.0",
-                Uptime = je.TryGetProperty("uptimeSeconds", out var u)
-                    ? TimeSpan.FromSeconds(u.GetInt64()) : TimeSpan.Zero,
-                MemoryUsageMB = je.TryGetProperty("memoryUsageMB", out var m) ? m.GetInt32() : 0,
-                TotalDocuments = je.TryGetProperty("totalDocuments", out var td) ? (int)td.GetInt64() : 0,
-                TotalCollections = je.TryGetProperty("totalCollections", out var tc) ? tc.GetInt32() : 0,
-                ActiveConnections = je.TryGetProperty("activeConnections", out var ac) ? ac.GetInt32() : 0,
-                QueriesPerSecond = 0   // server doesn't track QPS yet
-            };
-        }
-        catch
-        {
-            return new ServerStats();
-        }
+        return Task.FromResult(new ServerStats { ServerVersion = "1.0.0" });
     }
 
     /// <summary>
-    /// Gets real list of collections from the server.
+    /// Gets list of collections. Requires HTTP API on server — returns empty until implemented.
     /// </summary>
-    public async Task<List<string>> GetCollectionsAsync()
-    {
-        if (_client == null || !_client.IsConnected)
-            return [];
-
-        try
-        {
-            var response = await _client.ExecuteCommandAsync("listcollections", "");
-            if (!response.Success || response.Data is not JsonElement je)
-                return [];
-
-            if (je.TryGetProperty("collections", out var colsEl))
-                return colsEl.EnumerateArray().Select(e => e.GetString() ?? "").Where(s => s != "").ToList();
-
-            return [];
-        }
-        catch
-        {
-            return [];
-        }
-    }
+    public Task<List<string>> GetCollectionsAsync() => Task.FromResult(new List<string>());
 
     /// <summary>
-    /// Gets documents from a collection.
+    /// Gets documents from a collection. Requires HTTP API on server — returns empty until implemented.
     /// </summary>
-    public async Task<List<Document>> GetDocumentsAsync(string collectionName, int skip = 0, int take = 50)
-    {
-        if (_client == null || !_client.IsConnected)
-            return [];
-
-        try
-        {
-            var response = await _client.ExecuteCommandAsync("get", collectionName, new { skip, take });
-            if (!response.Success || response.Data is not JsonElement je)
-                return [];
-
-            var docs = new List<Document>();
-            var arr = je.ValueKind == JsonValueKind.Array ? je : je.TryGetProperty("documents", out var d) ? d : default;
-            if (arr.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var item in arr.EnumerateArray())
-                {
-                    var doc = new Document
-                    {
-                        Id = item.TryGetProperty("_id", out var id) ? id.GetString() ?? "" : "",
-                        Data = item.Deserialize<Dictionary<string, object?>>() ?? new()
-                    };
-                    docs.Add(doc);
-                }
-            }
-            return docs;
-        }
-        catch
-        {
-            return [];
-        }
-    }
+    public Task<List<Document>> GetDocumentsAsync(string collectionName, int skip = 0, int take = 50)
+        => Task.FromResult(new List<Document>());
 
     /// <summary>
-    /// Gets a single document by ID.
+    /// Gets a single document by ID. Requires HTTP API on server — returns null until implemented.
     /// </summary>
-    public async Task<Document?> GetDocumentAsync(string collectionName, string documentId)
-    {
-        if (_client == null || !_client.IsConnected)
-            return null;
-
-        try
-        {
-            var response = await _client.ExecuteCommandAsync("get", collectionName, new { id = documentId });
-            if (!response.Success || response.Data is not JsonElement je)
-                return null;
-
-            return new Document
-            {
-                Id = documentId,
-                Data = je.Deserialize<Dictionary<string, object?>>() ?? new()
-            };
-        }
-        catch
-        {
-            return null;
-        }
-    }
+    public Task<Document?> GetDocumentAsync(string collectionName, string documentId)
+        => Task.FromResult<Document?>(null);
 
     /// <summary>
-    /// Executes a raw query.
+    /// Executes a raw query. Requires HTTP API on server — returns empty until implemented.
     /// </summary>
-    public async Task<QueryResult> ExecuteQueryAsync(string query)
-    {
-        if (_client == null || !_client.IsConnected)
-            return new QueryResult { Success = false, ErrorMessage = "Not connected" };
-
-        try
-        {
-            var sw = System.Diagnostics.Stopwatch.StartNew();
-            var response = await _client.ExecuteQueryAsync(query);
-            sw.Stop();
-
-            if (!response.Success)
-                return new QueryResult { Success = false, ErrorMessage = response.Error?.Message };
-
-            var docs = new List<Document>();
-            if (response.Data is JsonElement je)
-            {
-                var arr = je.ValueKind == JsonValueKind.Array ? je
-                    : je.TryGetProperty("documents", out var d) ? d : default;
-                if (arr.ValueKind == JsonValueKind.Array)
-                {
-                    foreach (var item in arr.EnumerateArray())
-                    {
-                        docs.Add(new Document
-                        {
-                            Id = item.TryGetProperty("_id", out var id) ? id.GetString() ?? "" : "",
-                            Data = item.Deserialize<Dictionary<string, object?>>() ?? new()
-                        });
-                    }
-                }
-            }
-
-            return new QueryResult
-            {
-                Success = true,
-                Documents = docs,
-                TotalCount = docs.Count,
-                ExecutionTimeMs = (int)sw.ElapsedMilliseconds
-            };
-        }
-        catch (Exception ex)
-        {
-            return new QueryResult { Success = false, ErrorMessage = ex.Message };
-        }
-    }
+    public Task<QueryResult> ExecuteQueryAsync(string query)
+        => Task.FromResult(new QueryResult { Success = false, ErrorMessage = "HTTP API required — Blazor WASM cannot use raw TCP." });
 }
 
 /// <summary>
