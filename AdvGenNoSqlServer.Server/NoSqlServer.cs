@@ -270,6 +270,11 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
                 "set" => HandleSetCommand(doc.RootElement),
                 "delete" => HandleDeleteCommand(doc.RootElement),
                 "exists" => HandleExistsCommand(doc.RootElement),
+                "insert" => HandleInsertCommand(doc.RootElement),
+                "replace" => HandleReplaceCommand(doc.RootElement),
+                "upsert" => HandleUpsertCommand(doc.RootElement),
+                "find_one" => HandleFindOneCommand(doc.RootElement),
+                "touch" => HandleTouchCommand(doc.RootElement),
                 "listcollections" => HandleListCollectionsCommand(doc.RootElement),
                 "count" => HandleCountCommand(doc.RootElement),
                 "cluster" => HandleClusterCommand(doc.RootElement),
@@ -425,6 +430,326 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
 
         var exists = await _documentStore.ExistsAsync(collection, id);
         return NoSqlMessage.CreateSuccess(new { exists = exists });
+    }
+
+    private async Task<NoSqlMessage> HandleInsertCommand(JsonElement commandElement)
+    {
+        if (_documentStore == null)
+        {
+            return NoSqlMessage.CreateError("STORAGE_ERROR", "Storage not initialized");
+        }
+
+        if (!commandElement.TryGetProperty("collection", out var collectionProp) ||
+            !commandElement.TryGetProperty("document", out var documentProp))
+        {
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Missing collection or document property");
+        }
+
+        var collection = collectionProp.GetString() ?? "default";
+
+        // Extract document ID
+        string? id = null;
+        if (documentProp.TryGetProperty("_id", out var idProp))
+        {
+            id = idProp.GetString();
+        }
+
+        if (string.IsNullOrEmpty(id))
+        {
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Document _id is required for INSERT command");
+        }
+
+        // Check if document already exists
+        var exists = await _documentStore.ExistsAsync(collection, id);
+        if (exists)
+        {
+            return NoSqlMessage.CreateError("DOCUMENT_ALREADY_EXISTS", $"Document with id '{id}' already exists in collection '{collection}'");
+        }
+
+        // Convert JsonElement to Dictionary
+        var data = new Dictionary<string, object>();
+        foreach (var prop in documentProp.EnumerateObject())
+        {
+            if (prop.Name != "_id")
+            {
+                data[prop.Name] = JsonElementToObject(prop.Value);
+            }
+        }
+
+        var document = new Document
+        {
+            Id = id,
+            Data = data
+        };
+
+        try
+        {
+            await _documentStore.InsertAsync(collection, document);
+            _logger.LogDebug("Document inserted: {Collection}/{Id}", collection, id);
+            return NoSqlMessage.CreateSuccess(new { inserted = true, id = id });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Insert failed for {Collection}/{Id}", collection, id);
+            return NoSqlMessage.CreateError("STORAGE_ERROR", ex.Message);
+        }
+    }
+
+    private async Task<NoSqlMessage> HandleReplaceCommand(JsonElement commandElement)
+    {
+        if (_documentStore == null)
+        {
+            return NoSqlMessage.CreateError("STORAGE_ERROR", "Storage not initialized");
+        }
+
+        if (!commandElement.TryGetProperty("collection", out var collectionProp) ||
+            !commandElement.TryGetProperty("document", out var documentProp))
+        {
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Missing collection or document property");
+        }
+
+        var collection = collectionProp.GetString() ?? "default";
+
+        // Extract document ID
+        string? id = null;
+        if (documentProp.TryGetProperty("_id", out var idProp))
+        {
+            id = idProp.GetString();
+        }
+
+        if (string.IsNullOrEmpty(id))
+        {
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Document _id is required for REPLACE command");
+        }
+
+        // Check if document exists
+        var exists = await _documentStore.ExistsAsync(collection, id);
+        if (!exists)
+        {
+            return NoSqlMessage.CreateError("DOCUMENT_NOT_FOUND", $"Document with id '{id}' not found in collection '{collection}'");
+        }
+
+        // Convert JsonElement to Dictionary
+        var data = new Dictionary<string, object>();
+        foreach (var prop in documentProp.EnumerateObject())
+        {
+            if (prop.Name != "_id")
+            {
+                data[prop.Name] = JsonElementToObject(prop.Value);
+            }
+        }
+
+        var document = new Document
+        {
+            Id = id,
+            Data = data
+        };
+
+        try
+        {
+            await _documentStore.UpdateAsync(collection, document);
+            _logger.LogDebug("Document replaced: {Collection}/{Id}", collection, id);
+            return NoSqlMessage.CreateSuccess(new { replaced = true, id = id });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Replace failed for {Collection}/{Id}", collection, id);
+            return NoSqlMessage.CreateError("STORAGE_ERROR", ex.Message);
+        }
+    }
+
+    private async Task<NoSqlMessage> HandleUpsertCommand(JsonElement commandElement)
+    {
+        if (_documentStore == null)
+        {
+            return NoSqlMessage.CreateError("STORAGE_ERROR", "Storage not initialized");
+        }
+
+        if (!commandElement.TryGetProperty("collection", out var collectionProp) ||
+            !commandElement.TryGetProperty("document", out var documentProp))
+        {
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Missing collection or document property");
+        }
+
+        var collection = collectionProp.GetString() ?? "default";
+
+        // Extract document ID
+        string? id = null;
+        if (documentProp.TryGetProperty("_id", out var idProp))
+        {
+            id = idProp.GetString();
+        }
+
+        if (string.IsNullOrEmpty(id))
+        {
+            id = Guid.NewGuid().ToString();
+        }
+
+        // Convert JsonElement to Dictionary
+        var data = new Dictionary<string, object>();
+        foreach (var prop in documentProp.EnumerateObject())
+        {
+            if (prop.Name != "_id")
+            {
+                data[prop.Name] = JsonElementToObject(prop.Value);
+            }
+        }
+
+        var document = new Document
+        {
+            Id = id,
+            Data = data
+        };
+
+        try
+        {
+            // Check if document exists to determine insert vs update
+            var exists = await _documentStore.ExistsAsync(collection, id);
+            if (exists)
+            {
+                await _documentStore.UpdateAsync(collection, document);
+                _logger.LogDebug("Document updated (upsert): {Collection}/{Id}", collection, id);
+                return NoSqlMessage.CreateSuccess(new { upserted = true, id = id, wasInserted = false });
+            }
+            else
+            {
+                await _documentStore.InsertAsync(collection, document);
+                _logger.LogDebug("Document inserted (upsert): {Collection}/{Id}", collection, id);
+                return NoSqlMessage.CreateSuccess(new { upserted = true, id = id, wasInserted = true });
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Upsert failed for {Collection}/{Id}", collection, id);
+            return NoSqlMessage.CreateError("STORAGE_ERROR", ex.Message);
+        }
+    }
+
+    private async Task<NoSqlMessage> HandleFindOneCommand(JsonElement commandElement)
+    {
+        if (_documentStore == null)
+        {
+            return NoSqlMessage.CreateError("STORAGE_ERROR", "Storage not initialized");
+        }
+
+        if (!commandElement.TryGetProperty("collection", out var collectionProp))
+        {
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Missing collection property");
+        }
+
+        var collection = collectionProp.GetString() ?? "default";
+
+        try
+        {
+            // If 'id' is provided, do a direct lookup
+            if (commandElement.TryGetProperty("id", out var idProp))
+            {
+                var id = idProp.GetString();
+                if (!string.IsNullOrEmpty(id))
+                {
+                    var document = await _documentStore.GetAsync(collection, id);
+                    if (document == null)
+                    {
+                        return NoSqlMessage.CreateSuccess(new { found = false, document = (object?)null });
+                    }
+                    return NoSqlMessage.CreateSuccess(new { found = true, document = document });
+                }
+            }
+
+            // If 'filter' is provided, use query to find matching document
+            if (commandElement.TryGetProperty("filter", out var filterProp))
+            {
+                // Get all documents and filter manually
+                var allDocs = await _documentStore.GetAllAsync(collection);
+                Document? matchedDoc = null;
+
+                foreach (var doc in allDocs)
+                {
+                    if (MatchesFilter(doc, filterProp))
+                    {
+                        matchedDoc = doc;
+                        break;
+                    }
+                }
+
+                if (matchedDoc == null)
+                {
+                    return NoSqlMessage.CreateSuccess(new { found = false, document = (object?)null });
+                }
+                return NoSqlMessage.CreateSuccess(new { found = true, document = matchedDoc });
+            }
+
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Missing 'id' or 'filter' property for FIND_ONE command");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error finding document in collection {Collection}", collection);
+            return NoSqlMessage.CreateError("STORAGE_ERROR", $"Failed to find document: {ex.Message}");
+        }
+    }
+
+    private async Task<NoSqlMessage> HandleTouchCommand(JsonElement commandElement)
+    {
+        if (_documentStore == null)
+        {
+            return NoSqlMessage.CreateError("STORAGE_ERROR", "Storage not initialized");
+        }
+
+        if (!commandElement.TryGetProperty("collection", out var collectionProp) ||
+            !commandElement.TryGetProperty("id", out var idProp))
+        {
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Missing collection or id property");
+        }
+
+        var collection = collectionProp.GetString() ?? "default";
+        var id = idProp.GetString();
+
+        if (string.IsNullOrEmpty(id))
+        {
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Document id cannot be empty");
+        }
+
+        try
+        {
+            // Get the document
+            var document = await _documentStore.GetAsync(collection, id);
+            if (document == null)
+            {
+                return NoSqlMessage.CreateError("DOCUMENT_NOT_FOUND", $"Document with id '{id}' not found in collection '{collection}'");
+            }
+
+            // Update the UpdatedAt timestamp
+            document.UpdatedAt = DateTime.UtcNow;
+            document.Version++;
+
+            await _documentStore.UpdateAsync(collection, document);
+            _logger.LogDebug("Document touched: {Collection}/{Id}", collection, id);
+            return NoSqlMessage.CreateSuccess(new { touched = true, id = id, updatedAt = document.UpdatedAt });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error touching document {Collection}/{Id}", collection, id);
+            return NoSqlMessage.CreateError("STORAGE_ERROR", $"Failed to touch document: {ex.Message}");
+        }
+    }
+
+    private bool MatchesFilter(Document document, JsonElement filter)
+    {
+        // Simple filter matching - supports exact equality checks
+        foreach (var prop in filter.EnumerateObject())
+        {
+            if (!document.Data.TryGetValue(prop.Name, out var docValue))
+            {
+                return false;
+            }
+
+            var filterValue = JsonElementToObject(prop.Value);
+            if (!Equals(docValue, filterValue))
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     private async Task<NoSqlMessage> HandleListCollectionsCommand(JsonElement commandElement)

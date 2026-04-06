@@ -10,6 +10,7 @@
 
 | Agent | Task | Status | Started | Target Completion |
 |-------|------|--------|---------|-------------------|
+| Agent-116 | Implement P0 Server Commands (INSERT, REPLACE, UPSERT, FIND_ONE, TOUCH) | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-115 | Geospatial Examples Implementation | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-114 | Fix SEC-027 JSON Injection in Client.cs (P0 Critical) | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-113 | Full-Text Search Examples Implementation | Completed | 2026-03-25 | 2026-03-25 |
@@ -22,6 +23,61 @@
 | Agent-106 | Fix P2P Clustering Test Failures | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-105 | Metrics Collection Implementation (Prometheus-Compatible) | Completed | 2026-03-25 | 2026-03-25 |
 | Agent-104 | Sharding Implementation (Horizontal Scaling) | Completed | 2026-03-25 | 2026-03-25 |
+
+---
+
+### Agent-116: Implement P0 Server Commands ✓ COMPLETED
+**Completed**: 2026-03-25
+**Summary**: Implemented P0 Critical server commands (INSERT, REPLACE, UPSERT, FIND_ONE, TOUCH) in NoSqlServer.cs
+
+**Commands Implemented**:
+1. **INSERT** - Insert a new document (fails if document already exists)
+   - Returns: `{ inserted: true, id: "..." }`
+   - Error: `DOCUMENT_ALREADY_EXISTS` if duplicate
+
+2. **REPLACE** - Replace an existing document completely
+   - Returns: `{ replaced: true, id: "..." }`
+   - Error: `DOCUMENT_NOT_FOUND` if document doesn't exist
+
+3. **UPSERT** - Insert or update a document
+   - Returns: `{ upserted: true, id: "...", wasInserted: true/false }`
+   - Auto-generates ID if not provided
+
+4. **FIND_ONE** - Find a single document by ID or filter
+   - By ID: `{ found: true/false, document: {...} }`
+   - By filter: Returns first matching document
+
+5. **TOUCH** - Update document timestamp (UpdatedAt)
+   - Returns: `{ touched: true, id: "...", updatedAt: "..." }`
+   - Increments version number
+
+**Files Modified**:
+- `AdvGenNoSqlServer.Server/NoSqlServer.cs` - Added 5 command handlers (250+ lines)
+
+**Files Created**:
+- `AdvGenNoSqlServer.Tests/ServerP0CommandTests.cs` - 14 comprehensive unit tests
+
+**Build Status**: ✓ Compiles successfully (0 errors)
+**Test Status**: ✓ 3142/3142 tests pass (33 skipped)
+
+**Usage Examples**:
+```csharp
+// INSERT
+{ "command": "insert", "collection": "users", "document": { "_id": "u1", "name": "John" } }
+
+// REPLACE
+{ "command": "replace", "collection": "users", "document": { "_id": "u1", "name": "Jane" } }
+
+// UPSERT
+{ "command": "upsert", "collection": "users", "document": { "_id": "u1", "name": "Bob" } }
+
+// FIND_ONE
+{ "command": "find_one", "collection": "users", "id": "u1" }
+{ "command": "find_one", "collection": "users", "filter": { "status": "active" } }
+
+// TOUCH
+{ "command": "touch", "collection": "users", "id": "u1" }
+```
 
 ---
 
