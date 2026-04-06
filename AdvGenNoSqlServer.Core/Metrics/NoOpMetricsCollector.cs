@@ -5,6 +5,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using AdvGenNoSqlServer.Core.MemoryManagement;
 
 namespace AdvGenNoSqlServer.Core.Metrics
 {
@@ -68,6 +69,9 @@ namespace AdvGenNoSqlServer.Core.Metrics
 
         /// <inheritdoc />
         public void ClearMetric(string name) { }
+
+        /// <inheritdoc />
+        public void RecordCacheStats(MemoryEngineStats stats) { }
 
         /// <inheritdoc />
         public void Dispose() { }

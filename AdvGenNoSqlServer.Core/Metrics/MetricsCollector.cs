@@ -9,6 +9,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using AdvGenNoSqlServer.Core.MemoryManagement;
 
 namespace AdvGenNoSqlServer.Core.Metrics
 {
@@ -217,7 +218,7 @@ namespace AdvGenNoSqlServer.Core.Metrics
         {
             EnsureNotDisposed();
             var fullName = GetFullMetricName(name);
-            
+
             var keysToRemove = _metrics
                 .Where(kvp => kvp.Value.Name == fullName)
                 .Select(kvp => kvp.Key)
@@ -227,6 +228,20 @@ namespace AdvGenNoSqlServer.Core.Metrics
             {
                 _metrics.TryRemove(key, out _);
             }
+        }
+
+        /// <inheritdoc />
+        public void RecordCacheStats(MemoryEngineStats stats)
+        {
+            if (stats is null) throw new ArgumentNullException(nameof(stats));
+            EnsureNotDisposed();
+            if (!_options.Enabled) return;
+            var label = MetricLabel.Create("plan", stats.Plan);
+            SetGauge("cache_used_bytes",      stats.UsedBytes,      label);
+            SetGauge("cache_entry_count",     stats.EntryCount,     label);
+            SetGauge("cache_hit_total",       stats.HitCount,       label);
+            SetGauge("cache_miss_total",      stats.MissCount,      label);
+            SetGauge("cache_eviction_total",  stats.EvictionCount,  label);
         }
 
         /// <summary>
