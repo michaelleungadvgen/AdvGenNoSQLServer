@@ -146,15 +146,32 @@ public sealed class GeospatialIndex : IGeospatialIndex
     {
         GeoBoundingBox? boundingBox = null;
         
-        if (_entries.Count > 0)
+        if (!_entries.IsEmpty)
         {
-            var locations = _entries.Values.Select(e => e.Location).ToList();
-            boundingBox = new GeoBoundingBox(
-                locations.Min(l => l.Longitude),
-                locations.Min(l => l.Latitude),
-                locations.Max(l => l.Longitude),
-                locations.Max(l => l.Latitude)
-            );
+            // Bolt Performance Optimization:
+            // Avoid calling _entries.Values which copies data and locks the ConcurrentDictionary.
+            // Avoid .Select().ToList() which causes O(N) memory allocations.
+            // Avoid multiple .Min() and .Max() calls which cause multiple O(N) passes.
+            // We do a single pass over the dictionary directly.
+            double minLon = double.MaxValue;
+            double minLat = double.MaxValue;
+            double maxLon = double.MinValue;
+            double maxLat = double.MinValue;
+
+            foreach (var kvp in _entries)
+            {
+                var loc = kvp.Value.Location;
+                if (loc.Longitude < minLon) minLon = loc.Longitude;
+                if (loc.Latitude < minLat) minLat = loc.Latitude;
+                if (loc.Longitude > maxLon) maxLon = loc.Longitude;
+                if (loc.Latitude > maxLat) maxLat = loc.Latitude;
+            }
+
+            // Only create if we actually processed elements
+            if (minLon <= maxLon && minLat <= maxLat)
+            {
+                boundingBox = new GeoBoundingBox(minLon, minLat, maxLon, maxLat);
+            }
         }
 
         return new GeospatialIndexStats
