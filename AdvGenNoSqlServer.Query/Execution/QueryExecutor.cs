@@ -141,16 +141,22 @@ public class QueryExecutor : IQueryExecutor
         // Get candidate documents using index if available
         var candidateIds = await GetCandidateDocumentIdsAsync(query);
 
-        // Fetch documents
-        IEnumerable<Document> documents;
         if (candidateIds != null)
         {
-            documents = await _documentStore.GetManyAsync(query.CollectionName, candidateIds);
+            // Optimization: If an index returned candidate IDs and there are no other filter conditions,
+            // we can short-circuit and simply return candidateIds.Count. This provides an O(1) count
+            // instead of O(N) allocation and DB fetches, significantly improving query performance.
+            if (query.Filter == null || query.Filter.Conditions.Count == 1) // 1 because the indexed condition is the only one
+            {
+                return candidateIds.Count;
+            }
+
+            var documentsFromIndex = await _documentStore.GetManyAsync(query.CollectionName, candidateIds);
+            return _filterEngine.Filter(documentsFromIndex, query.Filter).LongCount();
         }
-        else
-        {
-            documents = await _documentStore.GetAllAsync(query.CollectionName);
-        }
+
+        // Fetch all documents
+        var documents = await _documentStore.GetAllAsync(query.CollectionName);
 
         // Apply filters and count
         return _filterEngine.Filter(documents, query.Filter).LongCount();
@@ -348,6 +354,20 @@ public class QueryExecutor : IQueryExecutor
         try
         {
             var convertedValue = Convert.ChangeType(value, keyType);
+
+            // First, try GetValues for non-unique indexes
+            var getValuesMethod = indexType.GetMethod("GetValues", new[] { keyType });
+            if (getValuesMethod != null)
+            {
+                var values = getValuesMethod.Invoke(index, new[] { convertedValue }) as IEnumerable<string>;
+                if (values != null)
+                {
+                    documentIds.AddRange(values);
+                    return Task.FromResult(documentIds); // if GetValues succeeds we don't need TryGetValue
+                }
+            }
+
+            // If GetValues failed/is absent, fallback to TryGetValue
             var tryGetValueMethod = indexType.GetMethod("TryGetValue", new[] { keyType, typeof(string).MakeByRefType() });
 
             if (tryGetValueMethod != null)
@@ -358,17 +378,6 @@ public class QueryExecutor : IQueryExecutor
                 if (result && parameters[1] != null)
                 {
                     documentIds.Add((string)parameters[1]!);
-                }
-            }
-
-            // Also try GetValues for non-unique indexes
-            var getValuesMethod = indexType.GetMethod("GetValues", new[] { keyType });
-            if (getValuesMethod != null)
-            {
-                var values = getValuesMethod.Invoke(index, new[] { convertedValue }) as IEnumerable<string>;
-                if (values != null)
-                {
-                    documentIds.AddRange(values);
                 }
             }
         }

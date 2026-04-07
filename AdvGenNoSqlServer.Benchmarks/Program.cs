@@ -67,6 +67,10 @@ public class Program
                     BenchmarkRunner.Run<SerializationBenchmarks>(config);
                     break;
 
+                case "nplusone":
+                    BenchmarkRunner.Run<NPlusOneBenchmarks>(config);
+                    break;
+
                 case "all":
                 case "6":
                     BenchmarkRunner.Run(typeof(Program).Assembly, config);
@@ -74,7 +78,7 @@ public class Program
 
                 default:
                     Console.WriteLine($"Unknown benchmark: {args[0]}");
-                    Console.WriteLine("Available options: DocumentStore, QueryEngine, BTreeIndex, Cache, Serialization, All");
+                    Console.WriteLine("Available options: DocumentStore, QueryEngine, BTreeIndex, Cache, Serialization, NPlusOne, All");
                     break;
             }
         }

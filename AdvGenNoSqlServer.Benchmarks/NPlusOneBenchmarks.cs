@@ -14,7 +14,7 @@ using System.Diagnostics;
 
 namespace AdvGenNoSqlServer.Benchmarks;
 
-[SimpleJob(RuntimeMoniker.Net90, launchCount: 1, warmupCount: 2, iterationCount: 3)]
+[SimpleJob(launchCount: 1, warmupCount: 2, iterationCount: 3)]
 [MemoryDiagnoser]
 public class NPlusOneBenchmarks
 {
