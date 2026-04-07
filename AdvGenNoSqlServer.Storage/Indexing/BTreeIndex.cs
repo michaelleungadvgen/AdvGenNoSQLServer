@@ -488,7 +488,8 @@ public class BTreeIndex<TKey, TValue> : IBTreeIndex<TKey, TValue> where TKey : I
                 return Enumerable.Empty<TValue>();
             }
 
-            return values!.AsEnumerable();
+            // Create a snapshot to safely enumerate outside the lock
+            return values!.ToList();
         }
     }
 

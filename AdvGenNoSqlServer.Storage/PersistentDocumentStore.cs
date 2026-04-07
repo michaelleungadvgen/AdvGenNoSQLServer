@@ -134,18 +134,7 @@ public class PersistentDocumentStore : IPersistentDocumentStore
             return Task.FromResult<IEnumerable<Document>>(Enumerable.Empty<Document>());
         }
 
-        var results = new List<Document>();
-        foreach (var id in documentIds)
-        {
-            if (string.IsNullOrWhiteSpace(id)) continue;
-            var doc = collection.Get(id);
-            if (doc != null)
-            {
-                results.Add(doc);
-            }
-        }
-
-        return Task.FromResult<IEnumerable<Document>>((IEnumerable<Document>)results);
+        return Task.FromResult(collection.GetMany(documentIds));
     }
 
     /// <inheritdoc />
