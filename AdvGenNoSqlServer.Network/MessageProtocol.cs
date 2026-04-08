@@ -162,20 +162,16 @@ namespace AdvGenNoSqlServer.Network
         /// </summary>
         public static NoSqlMessage CreateCommand(string command, string collection, object? document = null)
         {
-            var sb = new StringBuilder();
-            sb.Append("{");
-            sb.Append($"\"command\":\"{command}\",");
-            sb.Append($"\"collection\":\"{collection}\"");
-
-            if (document != null)
+            if (document == null)
             {
-                sb.Append(",");
-                sb.Append($"\"document\":{System.Text.Json.JsonSerializer.Serialize(document)}");
+                var payload = new { command, collection };
+                return Create(MessageType.Command, System.Text.Json.JsonSerializer.Serialize(payload));
             }
-
-            sb.Append("}");
-
-            return Create(MessageType.Command, sb.ToString());
+            else
+            {
+                var payload = new { command, collection, document };
+                return Create(MessageType.Command, System.Text.Json.JsonSerializer.Serialize(payload));
+            }
         }
 
         /// <summary>
@@ -183,8 +179,16 @@ namespace AdvGenNoSqlServer.Network
         /// </summary>
         public static NoSqlMessage CreateError(string errorCode, string errorMessage)
         {
-            var json = $"{{\"success\":false,\"error\":{{\"code\":\"{errorCode}\",\"message\":\"{errorMessage}\"}}}}";
-            return Create(MessageType.Error, json);
+            var payload = new
+            {
+                success = false,
+                error = new
+                {
+                    code = errorCode,
+                    message = errorMessage
+                }
+            };
+            return Create(MessageType.Error, System.Text.Json.JsonSerializer.Serialize(payload));
         }
 
         /// <summary>
@@ -192,16 +196,16 @@ namespace AdvGenNoSqlServer.Network
         /// </summary>
         public static NoSqlMessage CreateSuccess(object? data = null)
         {
-            string json;
             if (data != null)
             {
-                json = $"{{\"success\":true,\"data\":{System.Text.Json.JsonSerializer.Serialize(data)}}}";
+                var payload = new { success = true, data };
+                return Create(MessageType.Response, System.Text.Json.JsonSerializer.Serialize(payload));
             }
             else
             {
-                json = "{\"success\":true}";
+                var payload = new { success = true };
+                return Create(MessageType.Response, System.Text.Json.JsonSerializer.Serialize(payload));
             }
-            return Create(MessageType.Response, json);
         }
     }
 
