@@ -20,7 +20,7 @@ builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.
 
 // Add custom services
 builder.Services.AddSingleton<AdminAuthService>();
-builder.Services.AddSingleton<ServerConnectionService>();
+builder.Services.AddHttpClient<ServerConnectionService>();
 builder.Services.AddSingleton<NotificationService>();
 
 await builder.Build().RunAsync();

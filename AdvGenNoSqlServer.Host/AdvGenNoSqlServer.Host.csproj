@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <!--
     Copyright (c) 2026 AdvanGeneration Pty. Ltd.

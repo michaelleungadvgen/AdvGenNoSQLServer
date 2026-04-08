@@ -33,19 +33,104 @@ public class Program
         Console.WriteLine("╚════════════════════════════════════════════════════════════════╝");
         Console.WriteLine();
 
-        var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder(args);
+        var builder = WebApplication.CreateBuilder(args);
 
         // Configure logging
         builder.Logging.SetMinimumLevel(LogLevel.Information);
         builder.Logging.AddConsole();
 
+        // HTTP API port for Blazor WASM admin dashboard
+        builder.WebHost.UseUrls("http://0.0.0.0:9092");
+
+        // CORS for Blazor WASM
+        builder.Services.AddCors();
+
+        // Register ApiDataService (must be before NoSqlServerHost)
+        builder.Services.AddSingleton<ApiDataService>();
+
         // Register all services
         ConfigureServices(builder.Services);
 
-        using var host = builder.Build();
+        var app = builder.Build();
 
-        // Start the host
-        await host.RunAsync();
+        // CORS middleware
+        app.UseCors(policy => policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
+
+        // --- REST API endpoints ---
+
+        app.MapGet("/api/stats", async (ApiDataService data) =>
+        {
+            var uptime = DateTime.UtcNow - data.StartTime;
+            var memMB = (int)(GC.GetTotalMemory(false) / 1_048_576);
+            long totalDocs = 0;
+            int totalCols = 0;
+            if (data.DocumentStore != null)
+            {
+                var cols = (await data.DocumentStore.GetCollectionsAsync()).ToList();
+                totalCols = cols.Count;
+                foreach (var c in cols) totalDocs += await data.DocumentStore.CountAsync(c);
+            }
+            return Results.Ok(new
+            {
+                version = "1.0.0",
+                uptimeSeconds = (long)uptime.TotalSeconds,
+                memoryUsageMB = memMB,
+                totalDocuments = totalDocs,
+                totalCollections = totalCols,
+                activeConnections = data.TcpServer?.ActiveConnectionCount ?? 0
+            });
+        });
+
+        app.MapGet("/api/collections", async (ApiDataService data) =>
+        {
+            if (data.DocumentStore == null) return Results.Ok(Array.Empty<string>());
+            var cols = await data.DocumentStore.GetCollectionsAsync();
+            return Results.Ok(cols);
+        });
+
+        app.MapGet("/api/collections/{name}/count", async (string name, ApiDataService data) =>
+        {
+            if (data.DocumentStore == null) return Results.Ok(new { count = 0L });
+            var count = await data.DocumentStore.CountAsync(name);
+            return Results.Ok(new { count });
+        });
+
+        app.MapGet("/api/collections/{name}/documents", async (string name, int skip, int take, ApiDataService data) =>
+        {
+            if (data.DocumentStore == null) return Results.Ok(Array.Empty<object>());
+            var all = await data.DocumentStore.GetAllAsync(name);
+            var page = all.Skip(skip).Take(take > 0 ? take : 50);
+            return Results.Ok(page);
+        });
+
+        app.MapGet("/api/collections/{name}/documents/{id}", async (string name, string id, ApiDataService data) =>
+        {
+            if (data.DocumentStore == null) return Results.NotFound();
+            var doc = await data.DocumentStore.GetAsync(name, id);
+            return doc == null ? Results.NotFound() : Results.Ok(doc);
+        });
+
+        app.MapPost("/api/query", async (QueryRequest req, ApiDataService data) =>
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var docs = new List<object>();
+            if (data.DocumentStore != null && !string.IsNullOrEmpty(req.Collection))
+            {
+                var all = await data.DocumentStore.GetAllAsync(req.Collection);
+                docs.AddRange(all.Take(100));
+            }
+            sw.Stop();
+            return Results.Ok(new
+            {
+                success = true,
+                documents = docs,
+                executionTimeMs = (int)sw.ElapsedMilliseconds,
+                totalCount = docs.Count
+            });
+        });
+
+        // Start the application (also starts IHostedServices)
+        await app.RunAsync();
     }
 
     /// <summary>
@@ -130,6 +215,11 @@ public class Program
 }
 
 /// <summary>
+/// Request body for POST /api/query.
+/// </summary>
+public record QueryRequest(string Query, string? Collection);
+
+/// <summary>
 /// Hosted service wrapper for the NoSQL server.
 /// </summary>
 internal class NoSqlServerHost : IHostedService, IAsyncDisposable
@@ -138,6 +228,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
     private readonly Core.Configuration.IConfigurationManager _configManager;
     private readonly IAuditLogger _auditLogger;
     private readonly AuthenticationManager _authManager;
+    private readonly ApiDataService _apiData;
     private TcpServer? _tcpServer;
     private HybridDocumentStore? _documentStore;
     private bool _disposed;
@@ -146,12 +237,14 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
         ILogger<NoSqlServerHost> logger,
         Core.Configuration.IConfigurationManager configManager,
         IAuditLogger auditLogger,
-        AuthenticationManager authManager)
+        AuthenticationManager authManager,
+        ApiDataService apiData)
     {
         _logger = logger;
         _configManager = configManager;
         _auditLogger = auditLogger;
         _authManager = authManager;
+        _apiData = apiData;
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -182,6 +275,10 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
         _tcpServer.ConnectionClosed += OnConnectionClosed;
         _tcpServer.MessageReceived += OnMessageReceivedAsync;
 
+        // Expose live references to the HTTP API
+        _apiData.DocumentStore = _documentStore;
+        _apiData.TcpServer = _tcpServer;
+
         // Start the TCP server
         await _tcpServer.StartAsync(cancellationToken);
 
@@ -201,6 +298,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine("═══════════════════════════════════════════════════════════════");
         Console.WriteLine($"  Server is running on {config.Host}:{config.Port}");
+        Console.WriteLine($"  HTTP API is running on http://0.0.0.0:9092");
         Console.WriteLine($"  Press Ctrl+C to stop the server");
         Console.WriteLine("═══════════════════════════════════════════════════════════════");
         Console.ResetColor();
@@ -210,6 +308,10 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Stopping NoSQL Server...");
+
+        // Clear live references so HTTP API returns safe empty data
+        _apiData.DocumentStore = null;
+        _apiData.TcpServer = null;
 
         // Log server stop event
         _auditLogger.Log(new AuditEvent
