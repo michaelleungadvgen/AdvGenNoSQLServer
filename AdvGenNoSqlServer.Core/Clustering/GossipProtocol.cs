@@ -338,9 +338,9 @@ namespace AdvGenNoSqlServer.Core.Clustering
             if (candidates.Count <= count)
                 return candidates;
 
-            var random = new Random();
+                        // Use CSPRNG for target selection to prevent predictability and targeted node isolation
             return candidates
-                .OrderBy(_ => random.Next())
+                .OrderBy(_ => System.Security.Cryptography.RandomNumberGenerator.GetInt32(int.MaxValue))
                 .Take(count)
                 .ToList();
         }

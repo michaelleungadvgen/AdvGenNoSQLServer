@@ -144,8 +144,9 @@ namespace AdvGenNoSqlServer.Core.Clustering
         /// </summary>
         public TimeSpan GetElectionTimeout()
         {
-            var random = new Random();
-            var ms = random.Next(ElectionTimeoutMinMs, ElectionTimeoutMaxMs);
+
+            // Use CSPRNG for unpredictable timeouts to prevent malicious election manipulation
+            var ms = System.Security.Cryptography.RandomNumberGenerator.GetInt32(ElectionTimeoutMinMs, ElectionTimeoutMaxMs);
             return TimeSpan.FromMilliseconds(ms);
         }
     }
