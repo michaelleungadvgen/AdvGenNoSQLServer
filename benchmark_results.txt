@@ -1,0 +1,298 @@
+=== AdvGenNoSQL Server Performance Benchmarks ===
+
+Available benchmark suites:
+  1. DocumentStoreBenchmarks - CRUD operation performance
+  2. QueryEngineBenchmarks - Query parsing and execution performance
+  3. BTreeIndexBenchmarks - Index operation performance
+  4. CacheBenchmarks - Cache hit/miss and eviction performance
+  5. SerializationBenchmarks - JSON and message serialization performance
+  6. All - Run all benchmarks
+
+// Validating benchmarks:
+// Benchmark BTreeIndexBenchmarks.InsertIntKey: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [KeyCount=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark BTreeIndexBenchmarks.InsertStringKey: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [KeyCount=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark BTreeIndexBenchmarks.SearchIntKey: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [KeyCount=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark BTreeIndexBenchmarks.SearchStringKey: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [KeyCount=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark BTreeIndexBenchmarks.RangeQueryInt: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [KeyCount=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark BTreeIndexBenchmarks.RangeQueryString: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [KeyCount=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark BTreeIndexBenchmarks.DeleteIntKey: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [KeyCount=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark BTreeIndexBenchmarks.IterateAllIntKeys: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [KeyCount=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark BTreeIndexBenchmarks.IterateAllStringKeys: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [KeyCount=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark BTreeIndexBenchmarks.InsertIntKey: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [KeyCount=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark BTreeIndexBenchmarks.InsertStringKey: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [KeyCount=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark BTreeIndexBenchmarks.SearchIntKey: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [KeyCount=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark BTreeIndexBenchmarks.SearchStringKey: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [KeyCount=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark BTreeIndexBenchmarks.RangeQueryInt: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [KeyCount=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark BTreeIndexBenchmarks.RangeQueryString: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [KeyCount=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark BTreeIndexBenchmarks.DeleteIntKey: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [KeyCount=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark BTreeIndexBenchmarks.IterateAllIntKeys: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [KeyCount=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark BTreeIndexBenchmarks.IterateAllStringKeys: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [KeyCount=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark BTreeIndexBenchmarks.InsertIntKey: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [KeyCount=10000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark BTreeIndexBenchmarks.InsertStringKey: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [KeyCount=10000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark BTreeIndexBenchmarks.SearchIntKey: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [KeyCount=10000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark BTreeIndexBenchmarks.SearchStringKey: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [KeyCount=10000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark BTreeIndexBenchmarks.RangeQueryInt: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [KeyCount=10000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark BTreeIndexBenchmarks.RangeQueryString: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [KeyCount=10000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark BTreeIndexBenchmarks.DeleteIntKey: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [KeyCount=10000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark BTreeIndexBenchmarks.IterateAllIntKeys: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [KeyCount=10000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark BTreeIndexBenchmarks.IterateAllStringKeys: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [KeyCount=10000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark CacheBenchmarks.CacheGetHit: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark CacheBenchmarks.CacheGetMiss: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark CacheBenchmarks.CacheSet: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark CacheBenchmarks.CacheSetExisting: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark CacheBenchmarks.CacheRemove: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark CacheBenchmarks.CacheEvictionUnderPressure: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark CacheBenchmarks.CacheGetStatistics: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark CacheBenchmarks.CacheGetHit: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark CacheBenchmarks.CacheGetMiss: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark CacheBenchmarks.CacheSet: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark CacheBenchmarks.CacheSetExisting: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark CacheBenchmarks.CacheRemove: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark CacheBenchmarks.CacheEvictionUnderPressure: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark CacheBenchmarks.CacheGetStatistics: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark CacheBenchmarks.CacheGetHit: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=10000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark CacheBenchmarks.CacheGetMiss: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=10000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark CacheBenchmarks.CacheSet: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=10000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark CacheBenchmarks.CacheSetExisting: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=10000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark CacheBenchmarks.CacheRemove: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=10000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark CacheBenchmarks.CacheEvictionUnderPressure: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=10000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark CacheBenchmarks.CacheGetStatistics: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [CacheSize=10000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark DocumentStoreBenchmarks.InsertDocument: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark DocumentStoreBenchmarks.GetDocument: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark DocumentStoreBenchmarks.UpdateDocument: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark DocumentStoreBenchmarks.DeleteDocument: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark DocumentStoreBenchmarks.GetAllDocuments: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark DocumentStoreBenchmarks.CountDocuments: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark DocumentStoreBenchmarks.InsertDocument: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark DocumentStoreBenchmarks.GetDocument: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark DocumentStoreBenchmarks.UpdateDocument: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark DocumentStoreBenchmarks.DeleteDocument: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark DocumentStoreBenchmarks.GetAllDocuments: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark DocumentStoreBenchmarks.CountDocuments: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark NPlusOneBenchmarks.CountWithIndex: Job-GXOYSJ(Runtime=.NET 9.0, IterationCount=3, LaunchCount=1, WarmupCount=2) [DocumentCount=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark NPlusOneBenchmarks.ExecuteWithIndex: Job-GXOYSJ(Runtime=.NET 9.0, IterationCount=3, LaunchCount=1, WarmupCount=2) [DocumentCount=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark NPlusOneBenchmarks.CountWithIndex: Job-GXOYSJ(Runtime=.NET 9.0, IterationCount=3, LaunchCount=1, WarmupCount=2) [DocumentCount=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark NPlusOneBenchmarks.ExecuteWithIndex: Job-GXOYSJ(Runtime=.NET 9.0, IterationCount=3, LaunchCount=1, WarmupCount=2) [DocumentCount=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark QueryEngineBenchmarks.ParseSimpleQuery: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark QueryEngineBenchmarks.ParseComplexQuery: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark QueryEngineBenchmarks.ExecuteSimpleFilter: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark QueryEngineBenchmarks.ExecuteRangeFilter: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark QueryEngineBenchmarks.ExecuteWithSorting: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark QueryEngineBenchmarks.ExecuteWithPagination: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark QueryEngineBenchmarks.FilterEngineSimpleMatch: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark QueryEngineBenchmarks.FilterEngineComplexMatch: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=100]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark QueryEngineBenchmarks.ParseSimpleQuery: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark QueryEngineBenchmarks.ParseComplexQuery: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark QueryEngineBenchmarks.ExecuteSimpleFilter: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark QueryEngineBenchmarks.ExecuteRangeFilter: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark QueryEngineBenchmarks.ExecuteWithSorting: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark QueryEngineBenchmarks.ExecuteWithPagination: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark QueryEngineBenchmarks.FilterEngineSimpleMatch: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark QueryEngineBenchmarks.FilterEngineComplexMatch: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=1000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark QueryEngineBenchmarks.ParseSimpleQuery: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=10000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark QueryEngineBenchmarks.ParseComplexQuery: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=10000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark QueryEngineBenchmarks.ExecuteSimpleFilter: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=10000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark QueryEngineBenchmarks.ExecuteRangeFilter: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=10000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark QueryEngineBenchmarks.ExecuteWithSorting: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=10000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark QueryEngineBenchmarks.ExecuteWithPagination: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=10000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark QueryEngineBenchmarks.FilterEngineSimpleMatch: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=10000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark QueryEngineBenchmarks.FilterEngineComplexMatch: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3) [DocumentCount=10000]
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark SerializationBenchmarks.SerializeSmallDocument: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3)
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark SerializationBenchmarks.SerializeMediumDocument: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3)
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark SerializationBenchmarks.SerializeLargeDocument: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3)
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark SerializationBenchmarks.DeserializeSmallDocument: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3)
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark SerializationBenchmarks.DeserializeMediumDocument: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3)
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark SerializationBenchmarks.DeserializeLargeDocument: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3)
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark SerializationBenchmarks.SerializeMessage: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3)
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
+
+// Benchmark SerializationBenchmarks.DeserializeMessage: Job-GAEYKV(Runtime=.NET 9.0, IterationCount=5, LaunchCount=1, WarmupCount=3)
+//    * The required .NET Core SDK version 9.0 for runtime moniker Net90 is not installed.
