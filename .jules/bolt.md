@@ -5,3 +5,7 @@
 ## 2026-10-23 - Avoid intermediate list allocations for deferred filtering pipelines (Addendum)
 **Learning:** Returning `IEnumerable<T>` and immediately converting it to `.ToList()` inside a basic storage class (e.g. `DocumentStore.GetCollectionsAsync()`) represents a massive performance penalty when the result is directly fed into a `Where` filter anyway. In .NET, `ConcurrentDictionary.Keys` returns a collection that represents a snapshot or is safe to enumerate concurrently, however calling `.ToList()` eagerly allocates memory.
 **Action:** Next time you see `.ToList()` or explicit list instantiations with `.Add()` in a data retrieval layer, look at the caller. Switch the data retrieval layer to return the lazy enumerable or an iterator block (`yield return`) to prevent O(N) memory overhead and garbage collection pressure.
+
+## 2026-10-23 - Optimize FullTextIndex by extracting average document length from loops
+**Learning:** Re-computing aggregate statistics (like average document length over the entire dictionary `_documents.Values.Average`) inside inner loops during BM25 scoring in inverted index search algorithms scales extremely poorly (e.g. O(N * Q * M)).
+**Action:** When implementing or maintaining search algorithms, pre-calculate collection-wide statistics incrementally on writes, and extract invariant computations from the innermost loops to execute only once per query. Use `Interlocked` operations to track integer/long counters accurately.
