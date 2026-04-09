@@ -310,7 +310,7 @@ namespace AdvGenNoSqlServer.Network
                 var rejectionMessage = new NoSqlMessage
                 {
                     MessageType = MessageType.Error,
-                    Payload = System.Text.Encoding.UTF8.GetBytes($"{{\"error\":\"{reason}\"}}")
+                    Payload = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new { error = reason })
                 };
                 await handler.SendAsync(rejectionMessage, CancellationToken.None);
             }
