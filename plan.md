@@ -4782,6 +4782,7 @@ This section tracks the issues identified in `reviews.md` during the code qualit
 | CONC-013 | InMemoryDocumentCollection | `InMemoryDocumentCollection.cs` | Non-atomic `Clear()` - between `_documents.Clear()` and `Interlocked.Exchange`, concurrent Insert can cause Count to be out of sync with actual documents. | [ ] |
 | CONC-014 | GarbageCollectedDocumentStore | `GarbageCollectedDocumentStore.cs` | Race condition in `DeleteAsync` - document version captured at line 53 may be stale by line 57 if another thread modifies document. | [ ] |
 | DATA-018 | TtlDocumentStore | `TtlDocumentStore.cs` | `ClearCollectionAsync` recreates TTL index with hardcoded `"expireAt"` field, losing original configuration. | [ ] |
+| DATA-019 | IndexManager | `IndexManager.cs` | SparseIndexWrapper uses `document.Data.ContainsKey()` without null check. Document.Data is nullable, will throw NullReferenceException if null. | [ ] |
 
 ### P4 - Info / Notes
 
