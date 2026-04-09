@@ -138,6 +138,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
     private readonly Core.Configuration.IConfigurationManager _configManager;
     private readonly IAuditLogger _auditLogger;
     private readonly AuthenticationManager _authManager;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> _authenticatedConnections = new();
     private TcpServer? _tcpServer;
     private HybridDocumentStore? _documentStore;
     private bool _disposed;
@@ -277,6 +278,8 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
     {
         _logger.LogDebug("Connection closed: {ConnectionId}", e.ConnectionId);
 
+        _authenticatedConnections.TryRemove(e.ConnectionId, out _);
+
         _auditLogger.Log(new AuditEvent
         {
             EventType = AuditEventType.ConnectionClosed,
@@ -389,6 +392,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
 
             if (result != null)
             {
+                _authenticatedConnections[connectionId] = true;
                 _auditLogger.Log(new AuditEvent
                 {
                     EventType = AuditEventType.AuthenticationSuccess,
@@ -430,6 +434,14 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
 
     private async Task<NoSqlMessage> HandleCommandAsync(NoSqlMessage message, string connectionId)
     {
+        if (_configManager.Configuration.RequireAuthentication)
+        {
+            if (!_authenticatedConnections.TryGetValue(connectionId, out var isAuthenticated) || !isAuthenticated)
+            {
+                return NoSqlMessage.CreateError("UNAUTHORIZED", "Authentication required");
+            }
+        }
+
         if (_documentStore == null)
         {
             return NoSqlMessage.CreateError("NOT_INITIALIZED", "Document store not initialized");
@@ -610,6 +622,14 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
 
     private Task<NoSqlMessage> HandleBulkOperationAsync(NoSqlMessage message, string connectionId)
     {
+        if (_configManager.Configuration.RequireAuthentication)
+        {
+            if (!_authenticatedConnections.TryGetValue(connectionId, out var isAuthenticated) || !isAuthenticated)
+            {
+                return Task.FromResult(NoSqlMessage.CreateError("UNAUTHORIZED", "Authentication required"));
+            }
+        }
+
         return Task.FromResult(NoSqlMessage.CreateSuccess(new
         {
             success = true,
