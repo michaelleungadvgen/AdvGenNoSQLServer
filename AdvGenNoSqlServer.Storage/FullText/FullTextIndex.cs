@@ -24,6 +24,9 @@ public class FullTextIndex : IFullTextIndex
     // Thread-safe locking for write operations
     private readonly ReaderWriterLockSlim _lock;
 
+    // Incremental counter for total tokens in corpus
+    private long _totalTokenCount;
+
     /// <inheritdoc />
     public string IndexName { get; }
 
@@ -97,6 +100,9 @@ public class FullTextIndex : IFullTextIndex
 
             // Store document info
             _documents[documentId] = new DocumentInfo(tokensWithPositions.Count, text);
+
+            // Track tokens incrementally
+            Interlocked.Add(ref _totalTokenCount, tokensWithPositions.Count);
         }
         finally
         {
@@ -123,8 +129,10 @@ public class FullTextIndex : IFullTextIndex
 
     private bool RemoveDocumentInternal(string documentId)
     {
-        if (!_documents.TryRemove(documentId, out _))
+        if (!_documents.TryRemove(documentId, out var docInfo))
             return false;
+
+        Interlocked.Add(ref _totalTokenCount, -docInfo.TokenCount);
 
         // Remove from inverted index
         foreach (var (term, postings) in _invertedIndex)
@@ -165,6 +173,9 @@ public class FullTextIndex : IFullTextIndex
             var scores = new Dictionary<string, double>();
             var termFrequencies = new Dictionary<string, Dictionary<string, int>>();
 
+            // Calculate invariant score inputs exactly once
+            double avgDocLength = GetAverageDocumentLength();
+
             foreach (var token in queryTokens)
             {
                 if (_invertedIndex.TryGetValue(token, out var postings))
@@ -182,7 +193,6 @@ public class FullTextIndex : IFullTextIndex
                             double docLength = _documents.TryGetValue(posting.DocumentId, out var docInfo) 
                                 ? docInfo.TokenCount 
                                 : 1;
-                            double avgDocLength = GetAverageDocumentLength();
                             
                             // BM25 parameters
                             const double k1 = 1.2;
@@ -337,8 +347,11 @@ public class FullTextIndex : IFullTextIndex
 
     private double GetAverageDocumentLength()
     {
-        if (_documents.IsEmpty) return 1.0;
-        return _documents.Values.Average(d => (double)d.TokenCount);
+        int count = _documents.Count;
+        if (count == 0) return 1.0;
+
+        long total = Interlocked.Read(ref _totalTokenCount);
+        return total / (double)count;
     }
 
     /// <inheritdoc />
@@ -349,6 +362,7 @@ public class FullTextIndex : IFullTextIndex
         {
             _invertedIndex.Clear();
             _documents.Clear();
+            Interlocked.Exchange(ref _totalTokenCount, 0);
         }
         finally
         {
@@ -359,8 +373,8 @@ public class FullTextIndex : IFullTextIndex
     /// <inheritdoc />
     public FullTextIndexStats GetStats()
     {
-        long totalTokens = _documents.Values.Sum(d => (long)d.TokenCount);
-        double avgLength = _documents.IsEmpty ? 0 : _documents.Values.Average(d => (double)d.TokenCount);
+        long totalTokens = Interlocked.Read(ref _totalTokenCount);
+        double avgLength = _documents.Count == 0 ? 0 : GetAverageDocumentLength();
 
         return new FullTextIndexStats(
             IndexName,
