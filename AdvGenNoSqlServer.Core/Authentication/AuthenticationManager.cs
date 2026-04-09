@@ -16,18 +16,27 @@ public class AuthenticationManager
 {
     private readonly ConcurrentDictionary<string, UserCredentials> _users = new();
     private readonly ConcurrentDictionary<string, AuthToken> _activeSessions = new();
+    private readonly ConcurrentDictionary<string, (int attempts, DateTime lockoutEnd)> _failedAttempts = new();
     private readonly TimeSpan _tokenExpiration;
     private readonly ServerConfiguration _configuration;
+    private readonly Timer? _cleanupTimer;
 
     // PBKDF2 configuration - OWASP recommends 600k iterations for SHA256 in 2023
     private const int Pbkdf2Iterations = 100000;
     private const int SaltSizeBytes = 32;
     private const int HashSizeBytes = 32;
 
+    // Brute-force protection
+    private const int MaxFailedAttempts = 5;
+    private static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
+
     public AuthenticationManager(ServerConfiguration configuration)
     {
         _configuration = configuration;
         _tokenExpiration = TimeSpan.FromHours(configuration.TokenExpirationHours);
+
+        // Cleanup expired lockouts periodically to prevent memory leaks from DoS attacks
+        _cleanupTimer = new Timer(CleanupExpiredLockouts, null, TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(30));
 
         // Initialize master admin user if master password is set
         if (!string.IsNullOrEmpty(configuration.MasterPassword))
@@ -65,12 +74,30 @@ public class AuthenticationManager
     /// </summary>
     public AuthToken? Authenticate(string username, string password)
     {
+        // Check for lockout
+        if (_failedAttempts.TryGetValue(username, out var failedAttempt))
+        {
+            if (DateTime.UtcNow < failedAttempt.lockoutEnd)
+            {
+                return null; // Locked out
+            }
+        }
+
         if (!_users.TryGetValue(username, out var credentials))
+        {
+            RecordFailedAttempt(username);
             return null;
+        }
 
         // Verify password using constant-time comparison to prevent timing attacks
         if (!VerifyPassword(password, credentials.Salt, credentials.PasswordHash))
+        {
+            RecordFailedAttempt(username);
             return null;
+        }
+
+        // Authentication successful, clear failed attempts
+        _failedAttempts.TryRemove(username, out _);
 
         var token = new AuthToken
         {
@@ -82,6 +109,48 @@ public class AuthenticationManager
 
         _activeSessions[token.TokenId] = token;
         return token;
+    }
+
+    private void RecordFailedAttempt(string username)
+    {
+        _failedAttempts.AddOrUpdate(
+            username,
+            _ => (1, DateTime.MinValue),
+            (_, current) =>
+            {
+                // If previously locked out and time expired, reset to 1 attempt
+                if (current.lockoutEnd != DateTime.MinValue && DateTime.UtcNow >= current.lockoutEnd)
+                {
+                    return (1, DateTime.MinValue);
+                }
+
+                var newAttempts = current.attempts + 1;
+                var newLockout = newAttempts >= MaxFailedAttempts
+                    ? DateTime.UtcNow.Add(LockoutDuration)
+                    : current.lockoutEnd;
+                return (newAttempts, newLockout);
+            }
+        );
+    }
+
+    private void CleanupExpiredLockouts(object? state)
+    {
+        var now = DateTime.UtcNow;
+        foreach (var kvp in _failedAttempts)
+        {
+            // Remove expired lockouts to prevent memory leaks over time.
+            if (kvp.Value.lockoutEnd != DateTime.MinValue && now >= kvp.Value.lockoutEnd)
+            {
+                _failedAttempts.TryRemove(kvp.Key, out _);
+            }
+        }
+
+        // As a safeguard against DoS by filling memory with non-existent locked-out users,
+        // if the collection gets too large, we clear it entirely.
+        if (_failedAttempts.Count > 100_000)
+        {
+             _failedAttempts.Clear();
+        }
     }
 
     /// <summary>

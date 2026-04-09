@@ -12,3 +12,8 @@
 **Vulnerability:** Regular Expression Denial of Service (ReDoS) vulnerability in `AdvGenNoSqlServer.Query/Filtering/FilterEngine.cs` during `$regex` evaluation.
 **Learning:** Evaluating user-supplied or highly variable regex patterns using `Regex.IsMatch` without a timeout leaves the server vulnerable to catastrophic backtracking when complex strings are provided. Additionally, using `RegexOptions.Compiled` for one-off patterns forces compilation to IL and severely degraded server performance.
 **Prevention:** Always supply a `TimeSpan` timeout (e.g. 100ms) to `Regex.IsMatch` and handle `RegexMatchTimeoutException`. Never use `RegexOptions.Compiled` for dynamic patterns generated from user queries.
+
+## 2026-04-06 - [Missing Rate Limiting in AuthenticationManager]
+**Vulnerability:** No rate limiting for authentication attempts in `AdvGenNoSqlServer.Core/Authentication/AuthenticationManager.cs`, leaving the system vulnerable to brute-force and credential stuffing attacks.
+**Learning:** The authentication logic verified credentials correctly but lacked state to track and throttle rapid, successive failed attempts from the same username. Even though hashing uses PBKDF2, offline or online brute-force attacks remain feasible without a lockout mechanism.
+**Prevention:** Always implement failed attempt tracking (e.g., using `ConcurrentDictionary` for thread-safe state in memory) and enforce a temporary lockout (e.g., 15 minutes) after a configured number of consecutive failures (e.g., 5). Ensure failed attempt records are cleared upon successful login or reset correctly when the lockout period expires. Additionally, record failed attempts even for non-existent users to prevent user enumeration via timing attacks.
