@@ -12,3 +12,8 @@
 **Vulnerability:** Regular Expression Denial of Service (ReDoS) vulnerability in `AdvGenNoSqlServer.Query/Filtering/FilterEngine.cs` during `$regex` evaluation.
 **Learning:** Evaluating user-supplied or highly variable regex patterns using `Regex.IsMatch` without a timeout leaves the server vulnerable to catastrophic backtracking when complex strings are provided. Additionally, using `RegexOptions.Compiled` for one-off patterns forces compilation to IL and severely degraded server performance.
 **Prevention:** Always supply a `TimeSpan` timeout (e.g. 100ms) to `Regex.IsMatch` and handle `RegexMatchTimeoutException`. Never use `RegexOptions.Compiled` for dynamic patterns generated from user queries.
+
+## 2026-03-05 - [Missing Password Complexity]
+**Vulnerability:** Weak or guessable passwords allowed during user registration or password change in `AuthenticationManager.cs`.
+**Learning:** Prior to the change, `RegisterUser` and `ChangePassword` only verified that the password was not whitespace. This allowed trivially guessable passwords to be registered, exposing accounts to brute-forcing.
+**Prevention:** Always enforce a minimum standard of password complexity at the API level before cryptographic operations, such as minimum length and requirements for varied character types.

@@ -173,13 +173,13 @@ public class SecurityPenetrationTests
             RequireAuthentication = true
         };
         var authService = new AuthenticationService(config);
-        authService.RegisterUser("testuser", "correctpassword");
+        authService.RegisterUser("testuser", "C0rrectP@ssword!");
 
         // Act - Attempt multiple wrong passwords
         var failedAttempts = 0;
         for (int i = 0; i < 5; i++)
         {
-            var result = authService.Authenticate("testuser", $"wrongpassword{i}");
+            var result = authService.Authenticate("testuser", $"Wr0ngP@ssword!{i}");
             if (result == null) failedAttempts++;
         }
 
@@ -187,7 +187,7 @@ public class SecurityPenetrationTests
         Assert.Equal(5, failedAttempts);
 
         // Even with correct password after many failed attempts
-        var finalResult = authService.Authenticate("testuser", "correctpassword");
+        var finalResult = authService.Authenticate("testuser", "C0rrectP@ssword!");
         Assert.NotNull(finalResult); // System should still work (no lockout in basic implementation)
     }
 
@@ -196,7 +196,7 @@ public class SecurityPenetrationTests
     {
         // Arrange
         var authService = new AuthenticationService(new ServerConfiguration());
-        var commonPasswords = new[] { "password", "123456", "qwerty", "admin", "letmein" };
+        var commonPasswords = new[] { "W3akP@ssword1!", "W3akP@ssword2!", "W3akP@ssword3!", "W3akP@ssword4!", "W3akP@ssword5!" };
 
         // Act & Assert - Try to register with weak passwords
         foreach (var weakPassword in commonPasswords)
@@ -209,7 +209,7 @@ public class SecurityPenetrationTests
             var authResult = authService.Authenticate(username, weakPassword);
             Assert.NotNull(authResult); // Should authenticate with correct password
 
-            var wrongAuth = authService.Authenticate(username, "wrongpassword");
+            var wrongAuth = authService.Authenticate(username, "Wr0ngP@ssword!");
             Assert.Null(wrongAuth); // Should reject wrong password
         }
     }
@@ -219,17 +219,17 @@ public class SecurityPenetrationTests
     {
         // Arrange
         var authService = new AuthenticationService(new ServerConfiguration());
-        authService.RegisterUser("testuser", "correctpassword");
+        authService.RegisterUser("testuser", "C0rrectP@ssword!");
 
         // Warm up
-        authService.Authenticate("testuser", "correctpassword");
-        authService.Authenticate("testuser", "wrongpassword");
+        authService.Authenticate("testuser", "C0rrectP@ssword!");
+        authService.Authenticate("testuser", "Wr0ngP@ssword!");
 
         // Act - Measure timing for correct password
         var sw = Stopwatch.StartNew();
         for (int i = 0; i < 100; i++)
         {
-            authService.Authenticate("testuser", "correctpassword");
+            authService.Authenticate("testuser", "C0rrectP@ssword!");
         }
         sw.Stop();
         var correctPasswordTime = sw.Elapsed.TotalMilliseconds;
@@ -238,7 +238,7 @@ public class SecurityPenetrationTests
         sw.Restart();
         for (int i = 0; i < 100; i++)
         {
-            authService.Authenticate("testuser", "wrongpassword");
+            authService.Authenticate("testuser", "Wr0ngP@ssword!");
         }
         sw.Stop();
         var wrongPasswordTime = sw.Elapsed.TotalMilliseconds;
@@ -261,8 +261,8 @@ public class SecurityPenetrationTests
         var authService = new AuthenticationService(new ServerConfiguration { RequireAuthentication = true });
 
         // Create admin and regular user
-        authService.RegisterUser("admin", "adminpass", RoleNames.Admin);
-        authService.RegisterUser("user", "userpass", RoleNames.User);
+        authService.RegisterUser("admin", "Adm!nP@ss123", RoleNames.Admin);
+        authService.RegisterUser("user", "Us3rP@ssword!", RoleNames.User);
 
         // Act & Assert - Regular user should not be able to escalate privileges
         var userRoles = authService.GetUserRoles("user");
@@ -434,17 +434,17 @@ public class SecurityPenetrationTests
 
         // Act - Register with a safe username but use malicious input as password
         // (Passwords are hashed, so they can contain any characters safely)
-        var result = authService.RegisterUser(safeUsername, maliciousInput);
+        var result = authService.RegisterUser(safeUsername, "P@ssword1234!" + maliciousInput);
 
         // Assert - Should handle without exception
         Assert.True(result);
 
         // Should be able to authenticate with the same malicious password
-        var authResult = authService.Authenticate(safeUsername, maliciousInput);
+        var authResult = authService.Authenticate(safeUsername, "P@ssword1234!" + maliciousInput);
         Assert.NotNull(authResult);
 
         // Wrong password should still fail
-        var wrongResult = authService.Authenticate(safeUsername, maliciousInput + "wrong");
+        var wrongResult = authService.Authenticate(safeUsername, "P@ssword1234!" + maliciousInput + "wrong");
         Assert.Null(wrongResult);
     }
 
@@ -458,11 +458,11 @@ public class SecurityPenetrationTests
         // Act & Assert - Should handle gracefully (either accept or reject, not crash)
         try
         {
-            var result = authService.RegisterUser(longUsername, "password123");
+            var result = authService.RegisterUser(longUsername, "P@ssword1234!");
             // If accepted, should be able to authenticate
             if (result)
             {
-                var auth = authService.Authenticate(longUsername, "password123");
+                var auth = authService.Authenticate(longUsername, "P@ssword1234!");
                 Assert.NotNull(auth);
             }
         }
@@ -494,10 +494,10 @@ public class SecurityPenetrationTests
         foreach (var username in specialUsernames)
         {
             var uniqueUsername = $"{username}_{Guid.NewGuid():N}";
-            var result = authService.RegisterUser(uniqueUsername, "password123");
+            var result = authService.RegisterUser(uniqueUsername, "P@ssword1234!");
             Assert.True(result, $"Should handle username: {username}");
 
-            var auth = authService.Authenticate(uniqueUsername, "password123");
+            var auth = authService.Authenticate(uniqueUsername, "P@ssword1234!");
             Assert.NotNull(auth);
         }
     }
@@ -513,7 +513,7 @@ public class SecurityPenetrationTests
         // Note: Implementation may vary - some methods throw, others may return false
         try
         {
-            authService.RegisterUser("", "password");
+            authService.RegisterUser("", "P@ssword1234!");
             // If no exception, the call succeeded (implementation accepts empty strings)
         }
         catch (ArgumentException)
@@ -563,13 +563,13 @@ public class SecurityPenetrationTests
     {
         // Arrange
         var authService = new AuthenticationService(new ServerConfiguration());
-        authService.RegisterUser("testuser", "password123");
+        authService.RegisterUser("testuser", "P@ssword1234!");
 
         // Act - Simulate concurrent authentications
         var tokens = new List<AuthToken>();
         Parallel.For(0, 10, _ =>
         {
-            var token = authService.Authenticate("testuser", "password123");
+            var token = authService.Authenticate("testuser", "P@ssword1234!");
             lock (tokens)
             {
                 if (token != null) tokens.Add(token);
@@ -592,11 +592,11 @@ public class SecurityPenetrationTests
         var auditLogger = new AuditLogger(config, "./test_audit_logs", true, 100, 0);
 
         var authService = new AuthenticationService(new ServerConfiguration { RequireAuthentication = true });
-        authService.RegisterUser("testuser", "correctpassword");
+        authService.RegisterUser("testuser", "C0rrectP@ssword!");
 
         // Act
-        authService.Authenticate("testuser", "wrongpassword");
-        authService.Authenticate("testuser", "wrongpassword2");
+        authService.Authenticate("testuser", "Wr0ngP@ssword!");
+        authService.Authenticate("testuser", "Wr0ngP@ssword!2");
 
         // Assert - Audit log should contain failed attempts
         var recentEvents = auditLogger.GetRecentEvents(10);

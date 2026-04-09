@@ -37,11 +37,28 @@ public class AuthenticationManager
     }
 
     /// <summary>
+    /// Validates password complexity requirements.
+    /// </summary>
+    private static bool ValidatePasswordComplexity(string password)
+    {
+        if (string.IsNullOrWhiteSpace(password)) return false;
+        if (password.Length < 12) return false;
+        if (!password.Any(char.IsUpper)) return false;
+        if (!password.Any(char.IsLower)) return false;
+        if (!password.Any(char.IsDigit)) return false;
+        if (!password.Any(c => !char.IsLetterOrDigit(c))) return false;
+        return true;
+    }
+
+    /// <summary>
     /// Registers a new user with secure password hashing.
     /// </summary>
     public bool RegisterUser(string username, string password)
     {
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
+            return false;
+
+        if (!ValidatePasswordComplexity(password))
             return false;
 
         if (_users.ContainsKey(username))
@@ -140,6 +157,9 @@ public class AuthenticationManager
     public bool ChangePassword(string username, string oldPassword, string newPassword)
     {
         if (!_users.TryGetValue(username, out var credentials))
+            return false;
+
+        if (!ValidatePasswordComplexity(newPassword))
             return false;
 
         if (!VerifyPassword(oldPassword, credentials.Salt, credentials.PasswordHash))

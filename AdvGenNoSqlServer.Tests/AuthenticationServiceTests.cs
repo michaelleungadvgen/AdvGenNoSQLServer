@@ -28,7 +28,7 @@ public class AuthenticationServiceTests
     public void RegisterUser_ValidCredentials_ReturnsTrue()
     {
         // Act
-        var result = _authService.RegisterUser("testuser", "password123");
+        var result = _authService.RegisterUser("testuser", "P@ssword1234!");
 
         // Assert
         Assert.True(result);
@@ -38,7 +38,7 @@ public class AuthenticationServiceTests
     public void RegisterUser_WithInitialRole_AssignsRole()
     {
         // Act
-        _authService.RegisterUser("testuser", "password123", RoleNames.Admin);
+        _authService.RegisterUser("testuser", "P@ssword1234!", RoleNames.Admin);
         var roles = _authService.GetUserRoles("testuser");
 
         // Assert
@@ -49,7 +49,7 @@ public class AuthenticationServiceTests
     public void RegisterUser_WithoutInitialRole_AssignsDefaultUserRole()
     {
         // Act
-        _authService.RegisterUser("testuser", "password123");
+        _authService.RegisterUser("testuser", "P@ssword1234!");
         var roles = _authService.GetUserRoles("testuser");
 
         // Assert
@@ -60,10 +60,10 @@ public class AuthenticationServiceTests
     public void RegisterUser_DuplicateUsername_ReturnsFalse()
     {
         // Arrange
-        _authService.RegisterUser("testuser", "password123");
+        _authService.RegisterUser("testuser", "P@ssword1234!");
 
         // Act
-        var result = _authService.RegisterUser("testuser", "password456");
+        var result = _authService.RegisterUser("testuser", "P@ssword4567!");
 
         // Assert
         Assert.False(result);
@@ -77,10 +77,10 @@ public class AuthenticationServiceTests
     public void Authenticate_ValidCredentials_ReturnsToken()
     {
         // Arrange
-        _authService.RegisterUser("testuser", "password123");
+        _authService.RegisterUser("testuser", "P@ssword1234!");
 
         // Act
-        var token = _authService.Authenticate("testuser", "password123");
+        var token = _authService.Authenticate("testuser", "P@ssword1234!");
 
         // Assert
         Assert.NotNull(token);
@@ -92,7 +92,7 @@ public class AuthenticationServiceTests
     public void Authenticate_InvalidUsername_ReturnsNull()
     {
         // Act
-        var token = _authService.Authenticate("nonexistent", "password123");
+        var token = _authService.Authenticate("nonexistent", "P@ssword1234!");
 
         // Assert
         Assert.Null(token);
@@ -102,10 +102,10 @@ public class AuthenticationServiceTests
     public void Authenticate_InvalidPassword_ReturnsNull()
     {
         // Arrange
-        _authService.RegisterUser("testuser", "password123");
+        _authService.RegisterUser("testuser", "P@ssword1234!");
 
         // Act
-        var token = _authService.Authenticate("testuser", "wrongpassword");
+        var token = _authService.Authenticate("testuser", "Wr0ngP@ssword!");
 
         // Assert
         Assert.Null(token);
@@ -115,8 +115,8 @@ public class AuthenticationServiceTests
     public void ValidateToken_ValidToken_ReturnsTrue()
     {
         // Arrange
-        _authService.RegisterUser("testuser", "password123");
-        var token = _authService.Authenticate("testuser", "password123");
+        _authService.RegisterUser("testuser", "P@ssword1234!");
+        var token = _authService.Authenticate("testuser", "P@ssword1234!");
 
         // Act
         var isValid = _authService.ValidateToken(token!.TokenId);
@@ -139,8 +139,8 @@ public class AuthenticationServiceTests
     public void RevokeToken_ValidToken_RemovesToken()
     {
         // Arrange
-        _authService.RegisterUser("testuser", "password123");
-        var token = _authService.Authenticate("testuser", "password123");
+        _authService.RegisterUser("testuser", "P@ssword1234!");
+        var token = _authService.Authenticate("testuser", "P@ssword1234!");
 
         // Act
         _authService.RevokeToken(token!.TokenId);
@@ -158,8 +158,8 @@ public class AuthenticationServiceTests
     public void GetUsernameFromToken_ValidToken_ReturnsUsername()
     {
         // Arrange
-        _authService.RegisterUser("testuser", "password123");
-        var token = _authService.Authenticate("testuser", "password123");
+        _authService.RegisterUser("testuser", "P@ssword1234!");
+        var token = _authService.Authenticate("testuser", "P@ssword1234!");
 
         // Act
         var username = _authService.GetUsernameFromToken(token!.TokenId);
@@ -182,8 +182,8 @@ public class AuthenticationServiceTests
     public void GetUsernameFromToken_RevokedToken_ReturnsNull()
     {
         // Arrange
-        _authService.RegisterUser("testuser", "password123");
-        var token = _authService.Authenticate("testuser", "password123");
+        _authService.RegisterUser("testuser", "P@ssword1234!");
+        var token = _authService.Authenticate("testuser", "P@ssword1234!");
         _authService.RevokeToken(token!.TokenId);
 
         // Act
@@ -211,10 +211,10 @@ public class AuthenticationServiceTests
     public void ChangePassword_ValidOldPassword_ReturnsTrue()
     {
         // Arrange
-        _authService.RegisterUser("testuser", "oldpassword");
+        _authService.RegisterUser("testuser", "0ldP@ssword123!");
 
         // Act
-        var result = _authService.ChangePassword("testuser", "oldpassword", "newpassword");
+        var result = _authService.ChangePassword("testuser", "0ldP@ssword123!", "N3wP@ssword123!");
 
         // Assert
         Assert.True(result);
@@ -224,10 +224,10 @@ public class AuthenticationServiceTests
     public void ChangePassword_InvalidOldPassword_ReturnsFalse()
     {
         // Arrange
-        _authService.RegisterUser("testuser", "oldpassword");
+        _authService.RegisterUser("testuser", "0ldP@ssword123!");
 
         // Act
-        var result = _authService.ChangePassword("testuser", "wrongpassword", "newpassword");
+        var result = _authService.ChangePassword("testuser", "Wr0ngP@ssword!", "N3wP@ssword123!");
 
         // Assert
         Assert.False(result);
@@ -237,11 +237,11 @@ public class AuthenticationServiceTests
     public void ChangePassword_AfterChange_OldPasswordInvalid()
     {
         // Arrange
-        _authService.RegisterUser("testuser", "oldpassword");
-        _authService.ChangePassword("testuser", "oldpassword", "newpassword");
+        _authService.RegisterUser("testuser", "0ldP@ssword123!");
+        _authService.ChangePassword("testuser", "0ldP@ssword123!", "N3wP@ssword123!");
 
         // Act
-        var token = _authService.Authenticate("testuser", "oldpassword");
+        var token = _authService.Authenticate("testuser", "0ldP@ssword123!");
 
         // Assert
         Assert.Null(token);
@@ -251,11 +251,11 @@ public class AuthenticationServiceTests
     public void ChangePassword_AfterChange_NewPasswordWorks()
     {
         // Arrange
-        _authService.RegisterUser("testuser", "oldpassword");
-        _authService.ChangePassword("testuser", "oldpassword", "newpassword");
+        _authService.RegisterUser("testuser", "0ldP@ssword123!");
+        _authService.ChangePassword("testuser", "0ldP@ssword123!", "N3wP@ssword123!");
 
         // Act
-        var token = _authService.Authenticate("testuser", "newpassword");
+        var token = _authService.Authenticate("testuser", "N3wP@ssword123!");
 
         // Assert
         Assert.NotNull(token);
@@ -269,7 +269,7 @@ public class AuthenticationServiceTests
     public void AssignRoleToUser_ValidRole_ReturnsTrue()
     {
         // Arrange
-        _authService.RegisterUser("testuser", "password123");
+        _authService.RegisterUser("testuser", "P@ssword1234!");
 
         // Act
         var result = _authService.AssignRoleToUser("testuser", RoleNames.Admin);
@@ -283,7 +283,7 @@ public class AuthenticationServiceTests
     public void RemoveRoleFromUser_ExistingRole_ReturnsTrue()
     {
         // Arrange
-        _authService.RegisterUser("testuser", "password123", RoleNames.User);
+        _authService.RegisterUser("testuser", "P@ssword1234!", RoleNames.User);
 
         // Act
         var result = _authService.RemoveRoleFromUser("testuser", RoleNames.User);
@@ -297,7 +297,7 @@ public class AuthenticationServiceTests
     public void UserHasPermission_WithRolePermission_ReturnsTrue()
     {
         // Arrange
-        _authService.RegisterUser("testuser", "password123", RoleNames.User);
+        _authService.RegisterUser("testuser", "P@ssword1234!", RoleNames.User);
 
         // Act
         var hasPermission = _authService.UserHasPermission("testuser", Permissions.DocumentRead);
@@ -310,7 +310,7 @@ public class AuthenticationServiceTests
     public void UserHasPermission_WithoutRolePermission_ReturnsFalse()
     {
         // Arrange
-        _authService.RegisterUser("testuser", "password123", RoleNames.ReadOnly);
+        _authService.RegisterUser("testuser", "P@ssword1234!", RoleNames.ReadOnly);
 
         // Act
         var hasPermission = _authService.UserHasPermission("testuser", Permissions.DocumentWrite);
@@ -323,7 +323,7 @@ public class AuthenticationServiceTests
     public void GetUserPermissions_ReturnsAllPermissions()
     {
         // Arrange
-        _authService.RegisterUser("testuser", "password123", RoleNames.User);
+        _authService.RegisterUser("testuser", "P@ssword1234!", RoleNames.User);
 
         // Act
         var permissions = _authService.GetUserPermissions("testuser");
@@ -337,7 +337,7 @@ public class AuthenticationServiceTests
     {
         // Arrange
         _authService.CreateRole("CustomRole", "Custom description", new[] { Permissions.DocumentRead });
-        _authService.RegisterUser("testuser", "password123");
+        _authService.RegisterUser("testuser", "P@ssword1234!");
 
         // Act
         var result = _authService.AssignRoleToUser("testuser", "CustomRole");
@@ -355,7 +355,7 @@ public class AuthenticationServiceTests
     public void RemoveUser_ExistingUser_ReturnsTrue()
     {
         // Arrange
-        _authService.RegisterUser("testuser", "password123");
+        _authService.RegisterUser("testuser", "P@ssword1234!");
 
         // Act
         var result = _authService.RemoveUser("testuser");
@@ -368,7 +368,7 @@ public class AuthenticationServiceTests
     public void RemoveUser_RemovesRoles()
     {
         // Arrange
-        _authService.RegisterUser("testuser", "password123", RoleNames.Admin);
+        _authService.RegisterUser("testuser", "P@ssword1234!", RoleNames.Admin);
 
         // Act
         _authService.RemoveUser("testuser");
@@ -423,8 +423,8 @@ public class AuthenticationServiceTests
     public void Authorize_ValidToken_ReturnsSuccess()
     {
         // Arrange
-        _authService.RegisterUser("testuser", "password123");
-        var token = _authService.Authenticate("testuser", "password123");
+        _authService.RegisterUser("testuser", "P@ssword1234!");
+        var token = _authService.Authenticate("testuser", "P@ssword1234!");
 
         // Act
         var result = _authService.Authorize(token!.TokenId, Permissions.DocumentRead);
