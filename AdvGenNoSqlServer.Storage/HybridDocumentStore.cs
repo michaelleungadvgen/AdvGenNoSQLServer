@@ -322,7 +322,7 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
         _cache.GetOrAdd(collectionName, _ => new ConcurrentDictionary<string, Document>());
 
         // Create directory on disk
-        var collectionPath = Path.Combine(_basePath, collectionName);
+        var collectionPath = AdvGenNoSqlServer.Core.Security.PathValidator.GetSafePath(_basePath, Path.Combine(_basePath, collectionName));
         if (!Directory.Exists(collectionPath))
         {
             Directory.CreateDirectory(collectionPath);
@@ -340,7 +340,7 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
         var removed = _cache.TryRemove(collectionName, out _);
 
         // Remove directory on disk
-        var collectionPath = Path.Combine(_basePath, collectionName);
+        var collectionPath = AdvGenNoSqlServer.Core.Security.PathValidator.GetSafePath(_basePath, Path.Combine(_basePath, collectionName));
         if (Directory.Exists(collectionPath))
         {
             Directory.Delete(collectionPath, true);
@@ -377,7 +377,7 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
         }
 
         // Clear files on disk
-        var collectionPath = Path.Combine(_basePath, collectionName);
+        var collectionPath = AdvGenNoSqlServer.Core.Security.PathValidator.GetSafePath(_basePath, Path.Combine(_basePath, collectionName));
         if (Directory.Exists(collectionPath))
         {
             foreach (var file in Directory.GetFiles(collectionPath, "*.json"))
@@ -408,7 +408,7 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
     {
         foreach (var (collectionName, collection) in _cache)
         {
-            var collectionPath = Path.Combine(_basePath, collectionName);
+            var collectionPath = AdvGenNoSqlServer.Core.Security.PathValidator.GetSafePath(_basePath, Path.Combine(_basePath, collectionName));
             if (!Directory.Exists(collectionPath))
             {
                 Directory.CreateDirectory(collectionPath);
@@ -416,7 +416,7 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
 
             foreach (var (_, document) in collection)
             {
-                var filePath = Path.Combine(collectionPath, $"{document.Id}.json");
+                var filePath = AdvGenNoSqlServer.Core.Security.PathValidator.GetSafePath(collectionPath, Path.Combine(collectionPath, $"{document.Id}.json"));
                 var json = JsonSerializer.Serialize(document, _jsonOptions);
                 await File.WriteAllTextAsync(filePath, json);
             }
@@ -425,7 +425,7 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
 
     private async Task<Document?> LoadFromDiskAsync(string collectionName, string documentId)
     {
-        var filePath = Path.Combine(_basePath, collectionName, $"{documentId}.json");
+        var filePath = AdvGenNoSqlServer.Core.Security.PathValidator.GetSafePath(_basePath, Path.Combine(_basePath, collectionName, $"{documentId}.json"));
 
         if (!File.Exists(filePath))
         {
@@ -493,14 +493,14 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
 
     private async Task ProcessWriteOperationAsync(WriteOperation operation)
     {
-        var collectionPath = Path.Combine(_basePath, operation.CollectionName);
+        var collectionPath = AdvGenNoSqlServer.Core.Security.PathValidator.GetSafePath(_basePath, Path.Combine(_basePath, operation.CollectionName));
 
         if (!Directory.Exists(collectionPath))
         {
             Directory.CreateDirectory(collectionPath);
         }
 
-        var filePath = Path.Combine(collectionPath, $"{operation.Document.Id}.json");
+        var filePath = AdvGenNoSqlServer.Core.Security.PathValidator.GetSafePath(collectionPath, Path.Combine(collectionPath, $"{operation.Document.Id}.json"));
 
         switch (operation.Type)
         {
