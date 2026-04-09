@@ -508,71 +508,46 @@ public class AtomicUpdateDocumentStore : DocumentStore, IAtomicUpdateOperations
 
     private bool TryConvertToDouble(object value, out double result)
     {
-        result = 0;
-
-        if (value is double d)
+        switch (value)
         {
-            result = d;
-            return true;
-        }
-
-        if (value is float f)
-        {
-            result = f;
-            return true;
-        }
-
-        if (value is int i)
-        {
-            result = i;
-            return true;
-        }
-
-        if (value is long l)
-        {
-            result = l;
-            return true;
-        }
-
-        if (value is decimal dec)
-        {
-            result = (double)dec;
-            return true;
-        }
-
-        if (value is short s)
-        {
-            result = s;
-            return true;
-        }
-
-        if (value is byte b)
-        {
-            result = b;
-            return true;
-        }
-
-        // Try parsing as string
-        if (value is string str)
-        {
-            return double.TryParse(str, out result);
-        }
-
-        // Try converting via IConvertible
-        if (value is IConvertible convertible)
-        {
-            try
-            {
-                result = convertible.ToDouble(null);
+            case double d:
+                result = d;
                 return true;
-            }
-            catch
-            {
+            case float f:
+                result = f;
+                return true;
+            case int i:
+                result = i;
+                return true;
+            case long l:
+                result = l;
+                return true;
+            case decimal dec:
+                result = (double)dec;
+                return true;
+            case short s:
+                result = s;
+                return true;
+            case byte b:
+                result = b;
+                return true;
+            case string str:
+                return double.TryParse(str, out result);
+            case IConvertible convertible:
+                try
+                {
+                    result = convertible.ToDouble(null);
+                    return true;
+                }
+                catch
+                {
+                    result = 0;
+                    return false;
+                }
+            default:
+                result = 0;
                 return false;
-            }
         }
-
-        return false;
     }
 
     private bool AreValuesEqual(object? a, object? b)
