@@ -273,7 +273,7 @@ namespace AdvGenNoSqlServer.Core.Database
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Database name cannot be null or empty", nameof(name));
 
-            return System.IO.Path.Combine(_basePath, name);
+            return AdvGenNoSqlServer.Core.Security.PathValidator.GetSafePath(_basePath, System.IO.Path.Combine(_basePath, name));
         }
 
         /// <summary>
