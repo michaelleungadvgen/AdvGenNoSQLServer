@@ -425,7 +425,8 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
 
     private async Task<Document?> LoadFromDiskAsync(string collectionName, string documentId)
     {
-        var filePath = Path.Combine(_basePath, collectionName, $"{documentId}.json");
+        var collectionPath = AdvGenNoSqlServer.Core.Security.PathValidator.GetSafePath(_basePath, Path.Combine(_basePath, collectionName));
+        var filePath = AdvGenNoSqlServer.Core.Security.PathValidator.GetSafePath(collectionPath, Path.Combine(collectionPath, $"{documentId}.json"));
 
         if (!File.Exists(filePath))
         {
@@ -493,14 +494,14 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
 
     private async Task ProcessWriteOperationAsync(WriteOperation operation)
     {
-        var collectionPath = Path.Combine(_basePath, operation.CollectionName);
+        var collectionPath = AdvGenNoSqlServer.Core.Security.PathValidator.GetSafePath(_basePath, Path.Combine(_basePath, operation.CollectionName));
 
         if (!Directory.Exists(collectionPath))
         {
             Directory.CreateDirectory(collectionPath);
         }
 
-        var filePath = Path.Combine(collectionPath, $"{operation.Document.Id}.json");
+        var filePath = AdvGenNoSqlServer.Core.Security.PathValidator.GetSafePath(collectionPath, Path.Combine(collectionPath, $"{operation.Document.Id}.json"));
 
         switch (operation.Type)
         {

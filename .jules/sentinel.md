@@ -12,3 +12,7 @@
 **Vulnerability:** Regular Expression Denial of Service (ReDoS) vulnerability in `AdvGenNoSqlServer.Query/Filtering/FilterEngine.cs` during `$regex` evaluation.
 **Learning:** Evaluating user-supplied or highly variable regex patterns using `Regex.IsMatch` without a timeout leaves the server vulnerable to catastrophic backtracking when complex strings are provided. Additionally, using `RegexOptions.Compiled` for one-off patterns forces compilation to IL and severely degraded server performance.
 **Prevention:** Always supply a `TimeSpan` timeout (e.g. 100ms) to `Regex.IsMatch` and handle `RegexMatchTimeoutException`. Never use `RegexOptions.Compiled` for dynamic patterns generated from user queries.
+## 2026-03-05 - [Arbitrary Directory Creation via Path Traversal]
+**Vulnerability:** Path Traversal allowing arbitrary directory creation in `HybridDocumentStore.cs` via `collectionName`.
+**Learning:** Using `Directory.CreateDirectory` before path validation allows attackers to bypass validation logic and create directories outside the intended base directory.
+**Prevention:** When mitigating path traversal vulnerabilities, ensure that `PathValidator.GetSafePath` is called to validate paths before executing any preliminary filesystem operations, such as `Directory.Exists` or `Directory.CreateDirectory`.
