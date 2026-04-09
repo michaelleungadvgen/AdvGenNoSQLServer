@@ -134,18 +134,20 @@ public class PersistentDocumentStore : IPersistentDocumentStore
             return Task.FromResult<IEnumerable<Document>>(Enumerable.Empty<Document>());
         }
 
-        var results = new List<Document>();
+        return Task.FromResult<IEnumerable<Document>>(GetManyLazy(collection, documentIds));
+    }
+
+    private IEnumerable<Document> GetManyLazy(InMemoryDocumentCollection collection, IEnumerable<string> documentIds)
+    {
         foreach (var id in documentIds)
         {
             if (string.IsNullOrWhiteSpace(id)) continue;
             var doc = collection.Get(id);
             if (doc != null)
             {
-                results.Add(doc);
+                yield return doc;
             }
         }
-
-        return Task.FromResult<IEnumerable<Document>>((IEnumerable<Document>)results);
     }
 
     /// <inheritdoc />
