@@ -12,3 +12,8 @@
 **Vulnerability:** Regular Expression Denial of Service (ReDoS) vulnerability in `AdvGenNoSqlServer.Query/Filtering/FilterEngine.cs` during `$regex` evaluation.
 **Learning:** Evaluating user-supplied or highly variable regex patterns using `Regex.IsMatch` without a timeout leaves the server vulnerable to catastrophic backtracking when complex strings are provided. Additionally, using `RegexOptions.Compiled` for one-off patterns forces compilation to IL and severely degraded server performance.
 **Prevention:** Always supply a `TimeSpan` timeout (e.g. 100ms) to `Regex.IsMatch` and handle `RegexMatchTimeoutException`. Never use `RegexOptions.Compiled` for dynamic patterns generated from user queries.
+
+## 2026-03-05 - [JSON Injection Vulnerability in Error Responses]
+**Vulnerability:** JSON Injection via string interpolation in error response generation (`SendConnectionRejectedAsync` in `TcpServer.cs` and `SendErrorAsync` in `ConnectionHandler.cs`).
+**Learning:** Constructing JSON payloads using string interpolation like `$"{{\"error\":\"{reason}\"}}"` is highly vulnerable if the user-supplied input (e.g. `reason`) contains quotes or JSON-breaking characters. This allows an attacker to inject arbitrary JSON keys or modify the response structure, potentially leading to client-side injection attacks or DoS on the parsing side.
+**Prevention:** Always use a JSON serialization library (e.g., `JsonSerializer.SerializeToUtf8Bytes(new { error = reason })`) to build JSON objects dynamically. This safely escapes any special characters and ensures the output is always well-formed JSON.
