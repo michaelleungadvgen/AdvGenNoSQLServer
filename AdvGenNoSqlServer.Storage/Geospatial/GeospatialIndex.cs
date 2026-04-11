@@ -47,31 +47,34 @@ public sealed class GeospatialIndex : IGeospatialIndex
     public IEnumerable<GeospatialQueryResult> FindNear(GeoPoint center, double maxDistance, GeospatialQueryOptions? options = null)
     {
         options ??= GeospatialQueryOptions.Default;
-        
-        var results = new List<GeospatialQueryResult>();
 
-        foreach (var entry in _entries.Values)
+        IEnumerable<GeospatialQueryResult> EvaluateFindNear()
         {
-            var distance = center.DistanceTo(entry.Location, options.DistanceUnit);
-            
-            // Check min distance
-            if (options.MinDistance.HasValue && distance < options.MinDistance.Value)
-                continue;
-
-            if (distance <= maxDistance)
+            foreach (var kvp in _entries)
             {
-                results.Add(new GeospatialQueryResult(
-                    entry.DocumentId, 
-                    entry.Location, 
-                    options.IncludeDistance ? distance : 0,
-                    entry.Metadata));
+                var entry = kvp.Value;
+                var distance = center.DistanceTo(entry.Location, options.DistanceUnit);
+
+                if (options.MinDistance.HasValue && distance < options.MinDistance.Value)
+                    continue;
+
+                if (distance <= maxDistance)
+                {
+                    yield return new GeospatialQueryResult(
+                        entry.DocumentId,
+                        entry.Location,
+                        options.IncludeDistance ? distance : 0,
+                        entry.Metadata);
+                }
             }
         }
+
+        var results = EvaluateFindNear();
 
         // Sort by distance if requested
         if (options.SortByDistance)
         {
-            results = results.OrderBy(r => r.Distance).ToList();
+            results = results.OrderBy(r => r.Distance);
         }
 
         // Apply skip and limit
@@ -82,9 +85,8 @@ public sealed class GeospatialIndex : IGeospatialIndex
     {
         options ??= GeospatialQueryOptions.Default;
 
-        var results = _entries.Values
-            .Where(e => box.Contains(e.Location))
-            .ToList();
+        var results = _entries.Select(kvp => kvp.Value)
+            .Where(e => box.Contains(e.Location));
 
         return ApplyPagination(results, options);
     }
@@ -92,26 +94,30 @@ public sealed class GeospatialIndex : IGeospatialIndex
     public IEnumerable<GeospatialQueryResult> FindWithinCircle(GeoCircle circle, GeospatialQueryOptions? options = null)
     {
         options ??= GeospatialQueryOptions.Default;
-        
-        var results = new List<GeospatialQueryResult>();
 
-        foreach (var entry in _entries.Values)
+        IEnumerable<GeospatialQueryResult> EvaluateFindWithinCircle()
         {
-            var distance = circle.Center.DistanceTo(entry.Location, circle.Unit);
-            
-            if (distance <= circle.Radius)
+            foreach (var kvp in _entries)
             {
-                results.Add(new GeospatialQueryResult(
-                    entry.DocumentId,
-                    entry.Location,
-                    options.IncludeDistance ? distance : 0,
-                    entry.Metadata));
+                var entry = kvp.Value;
+                var distance = circle.Center.DistanceTo(entry.Location, circle.Unit);
+
+                if (distance <= circle.Radius)
+                {
+                    yield return new GeospatialQueryResult(
+                        entry.DocumentId,
+                        entry.Location,
+                        options.IncludeDistance ? distance : 0,
+                        entry.Metadata);
+                }
             }
         }
 
+        var results = EvaluateFindWithinCircle();
+
         if (options.SortByDistance)
         {
-            results = results.OrderBy(r => r.Distance).ToList();
+            results = results.OrderBy(r => r.Distance);
         }
 
         return ApplyPagination(results, options);
@@ -121,9 +127,8 @@ public sealed class GeospatialIndex : IGeospatialIndex
     {
         options ??= GeospatialQueryOptions.Default;
         
-        var results = _entries.Values
-            .Where(e => polygon.Contains(e.Location))
-            .ToList();
+        var results = _entries.Select(kvp => kvp.Value)
+            .Where(e => polygon.Contains(e.Location));
 
         return ApplyPagination(results, options);
     }
@@ -184,16 +189,16 @@ public sealed class GeospatialIndex : IGeospatialIndex
         };
     }
 
-    private static IEnumerable<T> ApplyPagination<T>(List<T> results, GeospatialQueryOptions options)
+    private static IEnumerable<T> ApplyPagination<T>(IEnumerable<T> results, GeospatialQueryOptions options)
     {
         if (options.Skip > 0)
         {
-            results = results.Skip(options.Skip).ToList();
+            results = results.Skip(options.Skip);
         }
 
         if (options.Limit > 0)
         {
-            results = results.Take(options.Limit).ToList();
+            results = results.Take(options.Limit);
         }
 
         return results;
