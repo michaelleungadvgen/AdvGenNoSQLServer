@@ -116,7 +116,7 @@ public class QueryExecutor : IQueryExecutor
             };
 
             // Record query profile
-            RecordQueryProfile(query, stopwatch.ElapsedMilliseconds, documentsExamined, 
+            RecordQueryProfile(query, stopwatch.ElapsedMilliseconds, documentsExamined,
                 filtered.Count, usedIndex, indexName);
 
             return result;
@@ -126,11 +126,11 @@ public class QueryExecutor : IQueryExecutor
             stopwatch.Stop();
             var failureResult = QueryResult.FailureResult(ex.Message);
             failureResult.ExecutionTimeMs = stopwatch.ElapsedMilliseconds;
-            
+
             // Record failed query profile
-            RecordQueryProfile(query, stopwatch.ElapsedMilliseconds, documentsExamined, 
+            RecordQueryProfile(query, stopwatch.ElapsedMilliseconds, documentsExamined,
                 0, usedIndex, indexName, ex.Message);
-            
+
             return failureResult;
         }
     }
@@ -138,8 +138,18 @@ public class QueryExecutor : IQueryExecutor
     /// <inheritdoc />
     public async Task<long> CountAsync(Query.Models.Query query, CancellationToken cancellationToken = default)
     {
+        if (query.Filter == null || query.Filter.Conditions.Count == 0)
+        {
+            return await _documentStore.CountAsync(query.CollectionName, cancellationToken);
+        }
+
         // Get candidate documents using index if available
         var candidateIds = await GetCandidateDocumentIdsAsync(query);
+
+        if (candidateIds != null && query.Filter.Conditions.Count == 1)
+        {
+            return candidateIds.Count;
+        }
 
         // Fetch documents
         IEnumerable<Document> documents;
@@ -153,14 +163,46 @@ public class QueryExecutor : IQueryExecutor
         }
 
         // Apply filters and count
-        return _filterEngine.Filter(documents, query.Filter).LongCount();
+        long count = 0;
+        foreach (var _ in _filterEngine.Filter(documents, query.Filter))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            count++;
+        }
+        return count;
     }
 
     /// <inheritdoc />
     public async Task<bool> ExistsAsync(Query.Models.Query query, CancellationToken cancellationToken = default)
     {
-        var count = await CountAsync(query, cancellationToken);
-        return count > 0;
+        if (query.Filter == null || query.Filter.Conditions.Count == 0)
+        {
+            return await _documentStore.CountAsync(query.CollectionName, cancellationToken) > 0;
+        }
+
+        var candidateIds = await GetCandidateDocumentIdsAsync(query);
+        if (candidateIds != null && query.Filter.Conditions.Count == 1)
+        {
+            return candidateIds.Count > 0;
+        }
+
+        IEnumerable<Document> documents;
+        if (candidateIds != null)
+        {
+            documents = await _documentStore.GetManyAsync(query.CollectionName, candidateIds, cancellationToken);
+        }
+        else
+        {
+            documents = await _documentStore.GetAllAsync(query.CollectionName, cancellationToken);
+        }
+
+        foreach (var _ in _filterEngine.Filter(documents, query.Filter))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return true;
+        }
+
+        return false;
     }
 
     /// <inheritdoc />
@@ -458,7 +500,7 @@ public class QueryExecutor : IQueryExecutor
             // OPTIMIZATION: Use HashSet for O(1) Contains lookups to drastically improve performance
             // when projecting documents with many properties across large result sets.
             var fieldsToInclude = projection.Where(p => p.Value).Select(p => p.Key).ToHashSet();
-            
+
             // Add _id to inclusion by default, unless explicitly excluded (e.g., { _id: false })
             var idExplicitlyExcluded = projection.TryGetValue("_id", out var idValue) && !idValue;
             if (!idExplicitlyExcluded)
@@ -488,7 +530,7 @@ public class QueryExecutor : IQueryExecutor
         return documents;
     }
 
-    private void RecordQueryProfile(Query.Models.Query query, long durationMs, long documentsExamined, 
+    private void RecordQueryProfile(Query.Models.Query query, long durationMs, long documentsExamined,
         long documentsReturned, bool usedIndex, string? indexName, string? errorMessage = null)
     {
         if (_profiler == null)

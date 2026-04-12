@@ -51,7 +51,7 @@ public class QueryOptimizer : IQueryOptimizer, IDisposable
     {
         // Check for cancellation first
         cancellationToken.ThrowIfCancellationRequested();
-        
+
         var stopwatch = Stopwatch.StartNew();
         options ??= DefaultOptions;
 
@@ -94,7 +94,7 @@ public class QueryOptimizer : IQueryOptimizer, IDisposable
 
             // Generate optimized plans
             var plans = GeneratePlans(query, options, cancellationToken);
-            
+
             if (plans.Count == 0)
             {
                 return Task.FromResult(new OptimizationResult
@@ -182,7 +182,7 @@ public class QueryOptimizer : IQueryOptimizer, IDisposable
 
         var totalQueries = Interlocked.Read(ref _totalQueriesOptimized);
         var totalTime = Interlocked.Read(ref _totalOptimizationTimeMs);
-        
+
         var stats = new OptimizerStatistics
         {
             TotalQueriesOptimized = totalQueries,
@@ -191,7 +191,7 @@ public class QueryOptimizer : IQueryOptimizer, IDisposable
             AverageOptimizationTimeMs = totalQueries > 0 ? (double)totalTime / totalQueries : 0,
             CachedPlanCount = cachedCount
         };
-        
+
         return Task.FromResult(stats);
     }
 
@@ -288,10 +288,10 @@ public class QueryOptimizer : IQueryOptimizer, IDisposable
         {
             var sortNode = new SortNode
             {
-                SortFields = query.Sort.Select(s => new SortFieldNode 
-                { 
-                    FieldName = s.FieldName, 
-                    Direction = s.Direction 
+                SortFields = query.Sort.Select(s => new SortFieldNode
+                {
+                    FieldName = s.FieldName,
+                    Direction = s.Direction
                 }).ToList(),
                 EstimatedCost = 200,
                 EstimatedOutputCardinality = rootNode.EstimatedOutputCardinality
@@ -479,7 +479,7 @@ public class QueryOptimizer : IQueryOptimizer, IDisposable
 
         // Check if we can use an index to provide sorted results
         var sortField = query.Sort[0].FieldName;
-        
+
         if (_indexManager.HasIndex(query.CollectionName, sortField))
         {
             // Create a variant of the index plan without sort
@@ -531,13 +531,13 @@ public class QueryOptimizer : IQueryOptimizer, IDisposable
     private SortNode CreateSortNode(List<SortField> sortFields, long inputCardinality, bool usesIndex = false)
     {
         var sortCost = usesIndex ? 0 : inputCardinality * Math.Log(inputCardinality + 1) * 0.01;
-        
+
         return new SortNode
         {
-            SortFields = sortFields.Select(s => new SortFieldNode 
-            { 
-                FieldName = s.FieldName, 
-                Direction = s.Direction 
+            SortFields = sortFields.Select(s => new SortFieldNode
+            {
+                FieldName = s.FieldName,
+                Direction = s.Direction
             }).ToList(),
             UsesIndex = usesIndex,
             Algorithm = usesIndex ? "IndexOrder" : "InMemory QuickSort",
@@ -701,7 +701,7 @@ public class QueryOptimizer : IQueryOptimizer, IDisposable
     private OptimizedQueryPlan? GetCachedPlan(Query.Models.Query query)
     {
         var key = GetPlanCacheKey(query);
-        
+
         _cacheLock.EnterReadLock();
         try
         {
