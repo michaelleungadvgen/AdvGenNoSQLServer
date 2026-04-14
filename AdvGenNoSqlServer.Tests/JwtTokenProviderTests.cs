@@ -461,18 +461,18 @@ public class JwtTokenProviderTests
     }
 
     [Fact]
-    public void ExtractUsername_DoesNotValidateSignature()
+    public void ExtractUsername_WithInvalidSignature_ReturnsNull()
     {
         var provider = CreateProvider();
         var token = provider.GenerateToken("testuser", new[] { "User" }, new[] { "read" });
 
-        // Modify signature but extraction should still work
+        // Modify signature - extraction should fail and return null
         var parts = token.Split('.');
         var modifiedToken = $"{parts[0]}.{parts[1]}.invalid";
 
         var username = provider.ExtractUsername(modifiedToken);
 
-        Assert.Equal("testuser", username);
+        Assert.Null(username);
     }
 
     #endregion
@@ -507,6 +507,21 @@ public class JwtTokenProviderTests
     {
         var provider = CreateProvider();
         var expiration = provider.GetExpirationTime("");
+
+        Assert.Null(expiration);
+    }
+
+    [Fact]
+    public void GetExpirationTime_WithInvalidSignature_ReturnsNull()
+    {
+        var provider = CreateProvider();
+        var token = provider.GenerateToken("testuser", new[] { "User" }, new[] { "read" });
+
+        // Modify signature - extraction should fail and return null
+        var parts = token.Split('.');
+        var modifiedToken = $"{parts[0]}.{parts[1]}.invalid";
+
+        var expiration = provider.GetExpirationTime(modifiedToken);
 
         Assert.Null(expiration);
     }
