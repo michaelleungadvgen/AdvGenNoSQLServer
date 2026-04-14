@@ -130,11 +130,7 @@ public class JwtTokenProvider : IJwtTokenProvider
             var encodedSignature = parts[2];
 
             // Verify signature
-            var signingInput = $"{encodedHeader}.{encodedPayload}";
-            var expectedSignature = ComputeHmacSha256Signature(signingInput, _secretKey);
-            var actualSignature = Base64UrlDecode(encodedSignature);
-
-            if (!CryptographicOperations.FixedTimeEquals(expectedSignature, actualSignature))
+            if (!VerifySignature(encodedHeader, encodedPayload, encodedSignature))
                 return TokenValidationResult.Failed("Invalid token signature");
 
             // Decode and parse payload
@@ -216,6 +212,9 @@ public class JwtTokenProvider : IJwtTokenProvider
             if (parts.Length != 3)
                 return null;
 
+            if (!VerifySignature(parts[0], parts[1], parts[2]))
+                return null;
+
             var payloadJson = Encoding.UTF8.GetString(Base64UrlDecode(parts[1]));
             var payload = JsonSerializer.Deserialize<JwtPayload>(payloadJson, _jsonOptions);
 
@@ -239,6 +238,9 @@ public class JwtTokenProvider : IJwtTokenProvider
             if (parts.Length != 3)
                 return null;
 
+            if (!VerifySignature(parts[0], parts[1], parts[2]))
+                return null;
+
             var payloadJson = Encoding.UTF8.GetString(Base64UrlDecode(parts[1]));
             var payload = JsonSerializer.Deserialize<JwtPayload>(payloadJson, _jsonOptions);
 
@@ -254,6 +256,18 @@ public class JwtTokenProvider : IJwtTokenProvider
     }
 
     #region Private Helper Methods
+
+    /// <summary>
+    /// Verifies the token signature using constant-time comparison
+    /// </summary>
+    private bool VerifySignature(string encodedHeader, string encodedPayload, string encodedSignature)
+    {
+        var signingInput = $"{encodedHeader}.{encodedPayload}";
+        var expectedSignature = ComputeHmacSha256Signature(signingInput, _secretKey);
+        var actualSignature = Base64UrlDecode(encodedSignature);
+
+        return CryptographicOperations.FixedTimeEquals(expectedSignature, actualSignature);
+    }
 
     /// <summary>
     /// Generates a secure random secret key
