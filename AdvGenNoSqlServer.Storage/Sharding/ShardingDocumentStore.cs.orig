@@ -48,7 +48,7 @@ public class ShardingDocumentStore : IDocumentStore
         var store = GetStoreForShard(shard.ShardId);
 
         var result = await store.InsertAsync(collectionName, document, cancellationToken);
-        
+
         // Update statistics
         if (_shardingManager is ShardingManager sm)
         {
@@ -68,7 +68,7 @@ public class ShardingDocumentStore : IDocumentStore
         var store = GetStoreForShard(shard.ShardId);
 
         var doc = await store.GetAsync(collectionName, documentId, cancellationToken);
-        
+
         // Update statistics
         if (_shardingManager is ShardingManager sm)
         {
@@ -80,18 +80,20 @@ public class ShardingDocumentStore : IDocumentStore
 
     /// <inheritdoc />
     public async Task<IEnumerable<Document>> GetManyAsync(
-        string collectionName, 
-        IEnumerable<string> documentIds, 
+        string collectionName,
+        IEnumerable<string> documentIds,
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
         if (documentIds == null) throw new ArgumentNullException(nameof(documentIds));
 
+        var idList = documentIds.ToList();
+        if (idList.Count == 0) return new List<Document>();
+
         // Group IDs by shard
         var shardGroups = new Dictionary<string, List<string>>();
-        foreach (var id in documentIds)
+        foreach (var id in idList)
         {
-            if (string.IsNullOrWhiteSpace(id)) continue;
             var shard = _shardingManager.GetShardForDocument(collectionName, id);
             if (!shardGroups.ContainsKey(shard.ShardId))
                 shardGroups[shard.ShardId] = new List<string>();
@@ -103,18 +105,17 @@ public class ShardingDocumentStore : IDocumentStore
         {
             var store = GetStoreForShard(kvp.Key);
             var docs = await store.GetManyAsync(collectionName, kvp.Value, cancellationToken);
-            
+
             // Update statistics
             if (_shardingManager is ShardingManager sm)
             {
                 sm.UpdateShardStatistics(kvp.Key, s => s.TotalRequests += kvp.Value.Count);
             }
-            
+
             return docs;
         });
 
         var results = await Task.WhenAll(tasks);
-        // Bolt Optimization: Avoid .ToList() to prevent O(N) memory allocation, returning a deferred enumerable
         return results.SelectMany(docs => docs);
     }
 
@@ -130,18 +131,17 @@ public class ShardingDocumentStore : IDocumentStore
         {
             var store = GetStoreForShard(shard.ShardId);
             var docs = await store.GetAllAsync(collectionName, cancellationToken);
-            
+
             // Update statistics
             if (_shardingManager is ShardingManager sm)
             {
                 sm.UpdateShardStatistics(shard.ShardId, s => s.TotalRequests++);
             }
-            
+
             return docs;
         });
 
         var results = await Task.WhenAll(tasks);
-        // Bolt Optimization: Avoid .ToList() to prevent O(N) memory allocation, returning a deferred enumerable
         return results.SelectMany(docs => docs);
     }
 
@@ -155,7 +155,7 @@ public class ShardingDocumentStore : IDocumentStore
         var store = GetStoreForShard(shard.ShardId);
 
         var result = await store.UpdateAsync(collectionName, document, cancellationToken);
-        
+
         // Update statistics
         if (_shardingManager is ShardingManager sm)
         {
@@ -175,7 +175,7 @@ public class ShardingDocumentStore : IDocumentStore
         var store = GetStoreForShard(shard.ShardId);
 
         var result = await store.DeleteAsync(collectionName, documentId, cancellationToken);
-        
+
         // Update statistics
         if (result && _shardingManager is ShardingManager sm)
         {
@@ -199,7 +199,7 @@ public class ShardingDocumentStore : IDocumentStore
         var store = GetStoreForShard(shard.ShardId);
 
         var result = await store.ExistsAsync(collectionName, documentId, cancellationToken);
-        
+
         // Update statistics
         if (_shardingManager is ShardingManager sm)
         {
@@ -221,13 +221,13 @@ public class ShardingDocumentStore : IDocumentStore
         {
             var store = GetStoreForShard(shard.ShardId);
             var count = await store.CountAsync(collectionName, cancellationToken);
-            
+
             // Update statistics
             if (_shardingManager is ShardingManager sm)
             {
                 sm.UpdateShardStatistics(shard.ShardId, s => s.TotalRequests++);
             }
-            
+
             return count;
         });
 
@@ -311,7 +311,7 @@ public class ShardingDocumentStore : IDocumentStore
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A dictionary mapping shard IDs to document counts.</returns>
     public async Task<Dictionary<string, long>> GetShardDocumentCountsAsync(
-        string collectionName, 
+        string collectionName,
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();

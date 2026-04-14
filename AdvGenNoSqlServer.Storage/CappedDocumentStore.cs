@@ -287,15 +287,15 @@ public class CappedDocumentStore : IDocumentStore
     /// <inheritdoc />
     public async Task<IEnumerable<string>> GetCollectionsAsync(CancellationToken cancellationToken = default)
     {
-        var collections = (await _underlyingStore.GetCollectionsAsync(cancellationToken)).ToList();
+        var collections = (await _underlyingStore.GetCollectionsAsync(cancellationToken));
         
         // Add any capped collections that might not be in the underlying store
-        foreach (var cappedCollectionName in _cappedCollections.Keys)
+        var cappedKeys = _cappedCollections.Keys;
+        if (cappedKeys.Count > 0)
         {
-            if (!collections.Contains(cappedCollectionName))
-            {
-                collections.Add(cappedCollectionName);
-            }
+            // Use Concat and Distinct to avoid materializing into a List just to add elements
+            // collections is an IEnumerable, so .Contains and .Add are not strictly available or efficient
+            return collections.Concat(cappedKeys).Distinct();
         }
 
         return collections;

@@ -1,0 +1,17 @@
+--- AdvGenNoSqlServer.Storage/Sharding/ShardingDocumentStore.cs
++++ AdvGenNoSqlServer.Storage/Sharding/ShardingDocumentStore.cs
+@@ -115,7 +115,8 @@
+         });
+
+         var results = await Task.WhenAll(tasks);
++        // Bolt Optimization: Avoid .ToList() to prevent O(N) memory allocation, returning a deferred enumerable
+         return results.SelectMany(docs => docs);
+     }
+
+@@ -141,7 +142,8 @@
+         });
+
+         var results = await Task.WhenAll(tasks);
++        // Bolt Optimization: Avoid .ToList() to prevent O(N) memory allocation, returning a deferred enumerable
+         return results.SelectMany(docs => docs);
+     }
