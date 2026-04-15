@@ -5,3 +5,7 @@
 ## 2026-10-23 - Avoid intermediate list allocations for deferred filtering pipelines (Addendum)
 **Learning:** Returning `IEnumerable<T>` and immediately converting it to `.ToList()` inside a basic storage class (e.g. `DocumentStore.GetCollectionsAsync()`) represents a massive performance penalty when the result is directly fed into a `Where` filter anyway. In .NET, `ConcurrentDictionary.Keys` returns a collection that represents a snapshot or is safe to enumerate concurrently, however calling `.ToList()` eagerly allocates memory.
 **Action:** Next time you see `.ToList()` or explicit list instantiations with `.Add()` in a data retrieval layer, look at the caller. Switch the data retrieval layer to return the lazy enumerable or an iterator block (`yield return`) to prevent O(N) memory overhead and garbage collection pressure.
+
+## 2026-10-23 - Avoid O(N) linear scans and nested loop allocations on ConcurrentDictionary.Values
+**Learning:** For aggregations or statistics (e.g., calculating averages or sums) on a `ConcurrentDictionary`, avoid using `.Values.Average()` or `.Values.Sum()` inside hot paths or loops, as `.Values` acquires locks across all buckets and eagerly allocates memory.
+**Action:** Next time you need aggregate metrics across a `ConcurrentDictionary`, track the state incrementally on insert/delete (e.g., via `Interlocked.Add`) to maintain O(1) retrieval instead of computing O(N) aggregates repeatedly. Furthermore, hoist static calculations out of nested iterations to prevent severe CPU/memory bottlenecks.
