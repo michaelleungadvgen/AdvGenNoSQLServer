@@ -141,6 +141,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
     private TcpServer? _tcpServer;
     private HybridDocumentStore? _documentStore;
     private bool _disposed;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> _authenticatedConnections = new();
 
     public NoSqlServerHost(
         ILogger<NoSqlServerHost> logger,
@@ -276,6 +277,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
     private void OnConnectionClosed(object? sender, ConnectionEventArgs e)
     {
         _logger.LogDebug("Connection closed: {ConnectionId}", e.ConnectionId);
+        _authenticatedConnections.TryRemove(e.ConnectionId, out _);
 
         _auditLogger.Log(new AuditEvent
         {
@@ -303,6 +305,15 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
 
     private Task<NoSqlMessage> ProcessMessageAsync(NoSqlMessage message, string connectionId)
     {
+        if (_configManager.Configuration.RequireAuthentication &&
+            (message.MessageType == MessageType.Command || message.MessageType == MessageType.BulkOperation))
+        {
+            if (!_authenticatedConnections.ContainsKey(connectionId))
+            {
+                return Task.FromResult(NoSqlMessage.CreateError("UNAUTHORIZED", "Authentication required before sending commands"));
+            }
+        }
+
         return message.MessageType switch
         {
             MessageType.Handshake => HandleHandshakeAsync(message, connectionId),
@@ -389,6 +400,8 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
 
             if (result != null)
             {
+                _authenticatedConnections.TryAdd(connectionId, true);
+
                 _auditLogger.Log(new AuditEvent
                 {
                     EventType = AuditEventType.AuthenticationSuccess,

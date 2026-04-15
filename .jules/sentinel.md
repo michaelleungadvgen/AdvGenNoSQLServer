@@ -12,3 +12,8 @@
 **Vulnerability:** Regular Expression Denial of Service (ReDoS) vulnerability in `AdvGenNoSqlServer.Query/Filtering/FilterEngine.cs` during `$regex` evaluation.
 **Learning:** Evaluating user-supplied or highly variable regex patterns using `Regex.IsMatch` without a timeout leaves the server vulnerable to catastrophic backtracking when complex strings are provided. Additionally, using `RegexOptions.Compiled` for one-off patterns forces compilation to IL and severely degraded server performance.
 **Prevention:** Always supply a `TimeSpan` timeout (e.g. 100ms) to `Regex.IsMatch` and handle `RegexMatchTimeoutException`. Never use `RegexOptions.Compiled` for dynamic patterns generated from user queries.
+
+## 2026-04-15 - [Unauthenticated Access to Database Commands in Stateless Server]
+**Vulnerability:** The `NoSqlServerHost` class handled TCP connections statelessly without verifying if a given connection had previously authenticated. This allowed clients to skip the authentication handshake and directly issue `Command` or `BulkOperation` messages, bypassing all access controls.
+**Learning:** In connection-oriented protocols (like TCP or WebSockets) where authentication is a distinct message type, the authentication state MUST be persisted for the lifetime of that connection. A stateless handler architecture fails securely only if every single message payload carries a verifiable auth token, otherwise connection-level state tracking is mandatory.
+**Prevention:** Track authenticated connection IDs using a thread-safe structure (like `ConcurrentDictionary`) upon successful login, verify presence in this structure before processing protected commands, and ensure proper cleanup when the connection closes to prevent memory leaks.
