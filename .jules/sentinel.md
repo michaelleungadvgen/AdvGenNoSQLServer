@@ -12,3 +12,7 @@
 **Vulnerability:** Regular Expression Denial of Service (ReDoS) vulnerability in `AdvGenNoSqlServer.Query/Filtering/FilterEngine.cs` during `$regex` evaluation.
 **Learning:** Evaluating user-supplied or highly variable regex patterns using `Regex.IsMatch` without a timeout leaves the server vulnerable to catastrophic backtracking when complex strings are provided. Additionally, using `RegexOptions.Compiled` for one-off patterns forces compilation to IL and severely degraded server performance.
 **Prevention:** Always supply a `TimeSpan` timeout (e.g. 100ms) to `Regex.IsMatch` and handle `RegexMatchTimeoutException`. Never use `RegexOptions.Compiled` for dynamic patterns generated from user queries.
+## 2026-03-05 - [Exportable Certificates in TlsStreamHelper]
+**Vulnerability:** Loading certificates from PFX files using `X509KeyStorageFlags.Exportable`.
+**Learning:** In production environments, private keys of server certificates should not be exportable from memory to prevent extraction if the application memory is dumped or compromised.
+**Prevention:** Use `X509KeyStorageFlags.MachineKeySet | X509KeyStorageFlags.PersistKeySet` instead of `X509KeyStorageFlags.Exportable` when loading certificates for server use.
