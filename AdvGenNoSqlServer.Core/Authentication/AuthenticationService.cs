@@ -32,18 +32,26 @@ public class AuthenticationService
         if (!_authManager.RegisterUser(username, password))
             return false;
 
+        bool roleAssigned = false;
+
         // Assign initial role if provided and exists
         if (!string.IsNullOrEmpty(initialRole))
         {
             if (_roleManager.RoleExists(initialRole))
             {
-                _roleManager.AssignRoleToUser(username, initialRole);
+                roleAssigned = _roleManager.AssignRoleToUser(username, initialRole);
             }
         }
         else
         {
             // Assign default User role
-            _roleManager.AssignRoleToUser(username, RoleNames.User);
+            roleAssigned = _roleManager.AssignRoleToUser(username, RoleNames.User);
+        }
+
+        if (!roleAssigned)
+        {
+            _authManager.RemoveUser(username);
+            return false;
         }
 
         return true;
