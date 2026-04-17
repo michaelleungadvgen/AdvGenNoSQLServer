@@ -12,3 +12,8 @@
 **Vulnerability:** Regular Expression Denial of Service (ReDoS) vulnerability in `AdvGenNoSqlServer.Query/Filtering/FilterEngine.cs` during `$regex` evaluation.
 **Learning:** Evaluating user-supplied or highly variable regex patterns using `Regex.IsMatch` without a timeout leaves the server vulnerable to catastrophic backtracking when complex strings are provided. Additionally, using `RegexOptions.Compiled` for one-off patterns forces compilation to IL and severely degraded server performance.
 **Prevention:** Always supply a `TimeSpan` timeout (e.g. 100ms) to `Regex.IsMatch` and handle `RegexMatchTimeoutException`. Never use `RegexOptions.Compiled` for dynamic patterns generated from user queries.
+
+## 2026-03-05 - [Atomic User Registration in AuthenticationService]
+**Vulnerability:** Non-atomic user registration in `AuthenticationService.RegisterUser` (CONC-007) allowed users to exist without any roles if the authentication registration succeeded but the subsequent role assignment failed.
+**Learning:** If sequential multi-system provisions (e.g. Identity + RBAC) are not bound by a transaction, partial failures result in inconsistent system states that can cause later authorization crashes or unintended access behaviors.
+**Prevention:** Always implement manual rollback/cleanup routines or use distributed transactions when performing multi-step provisioning operations that cannot natively share a transactional context.
