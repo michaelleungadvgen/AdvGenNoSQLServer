@@ -138,8 +138,20 @@ public class QueryExecutor : IQueryExecutor
     /// <inheritdoc />
     public async Task<long> CountAsync(Query.Models.Query query, CancellationToken cancellationToken = default)
     {
+        // Fast path for empty filters
+        if (query.Filter == null || query.Filter.Conditions.Count == 0)
+        {
+            return await _documentStore.CountAsync(query.CollectionName, cancellationToken);
+        }
+
         // Get candidate documents using index if available
         var candidateIds = await GetCandidateDocumentIdsAsync(query);
+
+        // Fast path for queries fully satisfied by a single index
+        if (candidateIds != null && query.Filter.Conditions.Count == 1)
+        {
+            return candidateIds.Count;
+        }
 
         // Fetch documents
         IEnumerable<Document> documents;
@@ -152,15 +164,53 @@ public class QueryExecutor : IQueryExecutor
             documents = await _documentStore.GetAllAsync(query.CollectionName);
         }
 
-        // Apply filters and count
-        return _filterEngine.Filter(documents, query.Filter).LongCount();
+        // Apply filters and count incrementally to allow cancellation
+        long count = 0;
+        foreach (var _ in _filterEngine.Filter(documents, query.Filter))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            count++;
+        }
+        return count;
     }
 
     /// <inheritdoc />
     public async Task<bool> ExistsAsync(Query.Models.Query query, CancellationToken cancellationToken = default)
     {
-        var count = await CountAsync(query, cancellationToken);
-        return count > 0;
+        // Fast path for empty filters
+        if (query.Filter == null || query.Filter.Conditions.Count == 0)
+        {
+            return await _documentStore.CountAsync(query.CollectionName, cancellationToken) > 0;
+        }
+
+        // Get candidate documents using index if available
+        var candidateIds = await GetCandidateDocumentIdsAsync(query);
+
+        // Fast path for queries fully satisfied by a single index
+        if (candidateIds != null && query.Filter.Conditions.Count == 1)
+        {
+            return candidateIds.Count > 0;
+        }
+
+        // Fetch documents
+        IEnumerable<Document> documents;
+        if (candidateIds != null)
+        {
+            documents = await _documentStore.GetManyAsync(query.CollectionName, candidateIds);
+        }
+        else
+        {
+            documents = await _documentStore.GetAllAsync(query.CollectionName);
+        }
+
+        // Apply filters and evaluate lazily (O(1) best case)
+        foreach (var _ in _filterEngine.Filter(documents, query.Filter))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return true;
+        }
+
+        return false;
     }
 
     /// <inheritdoc />
