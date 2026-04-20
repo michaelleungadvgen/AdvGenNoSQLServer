@@ -5,3 +5,7 @@
 ## 2026-10-23 - Avoid intermediate list allocations for deferred filtering pipelines (Addendum)
 **Learning:** Returning `IEnumerable<T>` and immediately converting it to `.ToList()` inside a basic storage class (e.g. `DocumentStore.GetCollectionsAsync()`) represents a massive performance penalty when the result is directly fed into a `Where` filter anyway. In .NET, `ConcurrentDictionary.Keys` returns a collection that represents a snapshot or is safe to enumerate concurrently, however calling `.ToList()` eagerly allocates memory.
 **Action:** Next time you see `.ToList()` or explicit list instantiations with `.Add()` in a data retrieval layer, look at the caller. Switch the data retrieval layer to return the lazy enumerable or an iterator block (`yield return`) to prevent O(N) memory overhead and garbage collection pressure.
+
+## 2026-10-23 - Prevent Redundant Regex IL Compilation
+**Learning:** Instantiating a `Regex` object with `RegexOptions.Compiled` inside a local method body is a significant performance anti-pattern in .NET. It forces the regex engine to parse and compile the pattern into Intermediate Language (IL) on every single method invocation, adding massive overhead (e.g., 1.5ms vs 3.5μs).
+**Action:** When a regular expression pattern is static and unchanging, always define it as a `private static readonly Regex` field at the class level. This ensures the expensive compilation step happens exactly once during application startup.

@@ -24,6 +24,8 @@ public class FullTextIndex : IFullTextIndex
     // Thread-safe locking for write operations
     private readonly ReaderWriterLockSlim _lock;
 
+    private static readonly Regex TokenPattern = new(@"[a-zA-Z0-9]+", RegexOptions.Compiled);
+
     /// <inheritdoc />
     public string IndexName { get; }
 
@@ -325,8 +327,7 @@ public class FullTextIndex : IFullTextIndex
     {
         // This is a simplified implementation
         // In a real implementation, we'd track character positions during tokenization
-        var tokenPattern = new Regex(@"[a-zA-Z0-9]+", RegexOptions.Compiled);
-        var matches = tokenPattern.Matches(text);
+        var matches = TokenPattern.Matches(text);
         
         if (tokenIndex < matches.Count)
         {
