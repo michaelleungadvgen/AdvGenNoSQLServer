@@ -88,6 +88,14 @@ public interface ICursor : IAsyncDisposable
 /// </summary>
 public class ResumeToken
 {
+    private static readonly byte[] _secretKey;
+
+    static ResumeToken()
+    {
+        _secretKey = new byte[32];
+        System.Security.Cryptography.RandomNumberGenerator.Fill(_secretKey);
+    }
+
     /// <summary>
     /// The cursor ID
     /// </summary>
@@ -114,12 +122,30 @@ public class ResumeToken
     public string? SortJson { get; set; }
 
     /// <summary>
+    /// HMAC-SHA256 signature to prevent tampering
+    /// </summary>
+    public string? Signature { get; set; }
+
+    /// <summary>
     /// Serializes the resume token to a string
     /// </summary>
     public string ToTokenString()
     {
+        // First serialize without signature
+        this.Signature = null;
         var json = System.Text.Json.JsonSerializer.Serialize(this);
-        return Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
+        var base64Payload = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
+
+        // Calculate signature over the base64 payload to avoid JSON round-trip precision issues
+        using (var hmac = new System.Security.Cryptography.HMACSHA256(_secretKey))
+        {
+            var signatureBytes = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(base64Payload));
+            this.Signature = Convert.ToBase64String(signatureBytes);
+        }
+
+        // Return final serialized object
+        var finalJson = System.Text.Json.JsonSerializer.Serialize(this);
+        return Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(finalJson));
     }
 
     /// <summary>
@@ -130,7 +156,35 @@ public class ResumeToken
         try
         {
             var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(tokenString));
-            return System.Text.Json.JsonSerializer.Deserialize<ResumeToken>(json);
+            var token = System.Text.Json.JsonSerializer.Deserialize<ResumeToken>(json);
+
+            if (token == null || string.IsNullOrEmpty(token.Signature))
+            {
+                return null;
+            }
+
+            var providedSignature = token.Signature;
+            token.Signature = null; // Clear to calculate expected payload
+
+            var payloadJson = System.Text.Json.JsonSerializer.Serialize(token);
+            var base64Payload = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(payloadJson));
+
+            byte[] expectedSignatureBytes;
+            using (var hmac = new System.Security.Cryptography.HMACSHA256(_secretKey))
+            {
+                expectedSignatureBytes = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(base64Payload));
+            }
+
+            var actualSignatureBytes = Convert.FromBase64String(providedSignature);
+
+            if (!System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(expectedSignatureBytes, actualSignatureBytes))
+            {
+                return null;
+            }
+
+            // Restore signature for callers if they inspect it
+            token.Signature = providedSignature;
+            return token;
         }
         catch
         {
