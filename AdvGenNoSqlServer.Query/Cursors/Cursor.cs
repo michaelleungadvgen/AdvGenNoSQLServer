@@ -113,13 +113,29 @@ public class ResumeToken
     /// </summary>
     public string? SortJson { get; set; }
 
+    // Static key initialized once per process for signing resume tokens
+    private static readonly byte[] _hmacKey = new byte[32];
+
+    static ResumeToken()
+    {
+        using var rng = System.Security.Cryptography.RandomNumberGenerator.Create();
+        rng.GetBytes(_hmacKey);
+    }
+
     /// <summary>
     /// Serializes the resume token to a string
     /// </summary>
     public string ToTokenString()
     {
         var json = System.Text.Json.JsonSerializer.Serialize(this);
-        return Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
+        var payloadBytes = System.Text.Encoding.UTF8.GetBytes(json);
+        var payloadBase64 = Convert.ToBase64String(payloadBytes);
+
+        using var hmac = new System.Security.Cryptography.HMACSHA256(_hmacKey);
+        var signatureBytes = hmac.ComputeHash(payloadBytes);
+        var signatureBase64 = Convert.ToBase64String(signatureBytes);
+
+        return $"{payloadBase64}.{signatureBase64}";
     }
 
     /// <summary>
@@ -129,7 +145,23 @@ public class ResumeToken
     {
         try
         {
-            var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(tokenString));
+            if (string.IsNullOrWhiteSpace(tokenString))
+                return null;
+
+            var parts = tokenString.Split('.');
+            if (parts.Length != 2)
+                return null;
+
+            var payloadBytes = Convert.FromBase64String(parts[0]);
+            var signatureBytes = Convert.FromBase64String(parts[1]);
+
+            using var hmac = new System.Security.Cryptography.HMACSHA256(_hmacKey);
+            var expectedSignature = hmac.ComputeHash(payloadBytes);
+
+            if (!System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(expectedSignature, signatureBytes))
+                return null;
+
+            var json = System.Text.Encoding.UTF8.GetString(payloadBytes);
             return System.Text.Json.JsonSerializer.Deserialize<ResumeToken>(json);
         }
         catch
