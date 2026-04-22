@@ -5,3 +5,7 @@
 ## 2026-10-23 - Avoid intermediate list allocations for deferred filtering pipelines (Addendum)
 **Learning:** Returning `IEnumerable<T>` and immediately converting it to `.ToList()` inside a basic storage class (e.g. `DocumentStore.GetCollectionsAsync()`) represents a massive performance penalty when the result is directly fed into a `Where` filter anyway. In .NET, `ConcurrentDictionary.Keys` returns a collection that represents a snapshot or is safe to enumerate concurrently, however calling `.ToList()` eagerly allocates memory.
 **Action:** Next time you see `.ToList()` or explicit list instantiations with `.Add()` in a data retrieval layer, look at the caller. Switch the data retrieval layer to return the lazy enumerable or an iterator block (`yield return`) to prevent O(N) memory overhead and garbage collection pressure.
+
+## 2026-10-23 - Avoid intermediate list allocations for deferred filtering pipelines (Addendum 2)
+**Learning:** Returning `IEnumerable<T>` and immediately converting it to `.ToList()` inside a basic storage class (e.g. `GarbageCollector.GetTombstones()`) represents a massive performance penalty. In .NET, `ConcurrentDictionary.Values` returns a snapshot or allocates memory. Calling `.ToList()` eagerly allocates even more memory.
+**Action:** Next time you see `.ToList()` or explicit list instantiations with `.Add()` in a data retrieval layer, look at the caller. Switch the data retrieval layer to return the lazy enumerable or an iterator block (`yield return`) to prevent O(N) memory overhead and garbage collection pressure.
