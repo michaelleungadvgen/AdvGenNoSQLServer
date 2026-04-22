@@ -341,18 +341,25 @@ public class GarbageCollector : IGarbageCollector, IDisposable
     /// <inheritdoc />
     public IEnumerable<Tombstone> GetTombstones()
     {
-        return _tombstones.Values.ToList();
+        foreach (var kvp in _tombstones)
+        {
+            yield return kvp.Value;
+        }
     }
 
     /// <inheritdoc />
     public IEnumerable<Tombstone> GetTombstones(string collectionName)
     {
         if (string.IsNullOrWhiteSpace(collectionName))
-            return Enumerable.Empty<Tombstone>();
+            yield break;
 
-        return _tombstones.Values
-            .Where(t => t.CollectionName.Equals(collectionName, StringComparison.OrdinalIgnoreCase))
-            .ToList();
+        foreach (var kvp in _tombstones)
+        {
+            if (kvp.Value.CollectionName.Equals(collectionName, StringComparison.OrdinalIgnoreCase))
+            {
+                yield return kvp.Value;
+            }
+        }
     }
 
     /// <inheritdoc />
