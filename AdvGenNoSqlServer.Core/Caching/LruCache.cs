@@ -384,15 +384,37 @@ public class LruCache<TValue> : IDisposable
 
     private void CleanupExpiredItems(object? state)
     {
+        var nowTicks = Stopwatch.GetTimestamp();
+        var expiredKeys = new List<string>();
+
+        _lock.EnterReadLock();
+        try
+        {
+            // Enumerate using read lock to allow concurrent readers, avoiding write lock block
+            foreach (var kvp in _cache)
+            {
+                if (nowTicks > kvp.Value.ExpirationTicks)
+                {
+                    expiredKeys.Add(kvp.Key);
+                }
+            }
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
+
+        if (expiredKeys.Count == 0) return;
+
         _lock.EnterWriteLock();
         try
         {
-            var nowTicks = Stopwatch.GetTimestamp();
-            var expiredEntries = _cache.Values.Where(e => nowTicks > e.ExpirationTicks).ToList();
-
-            foreach (var entry in expiredEntries)
+            foreach (var key in expiredKeys)
             {
-                RemoveEntry(entry);
+                if (_cache.TryGetValue(key, out var entry) && nowTicks > entry.ExpirationTicks)
+                {
+                    RemoveEntry(entry);
+                }
             }
         }
         finally
