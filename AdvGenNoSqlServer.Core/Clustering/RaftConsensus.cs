@@ -144,8 +144,7 @@ namespace AdvGenNoSqlServer.Core.Clustering
         /// </summary>
         public TimeSpan GetElectionTimeout()
         {
-            var random = new Random();
-            var ms = random.Next(ElectionTimeoutMinMs, ElectionTimeoutMaxMs);
+            var ms = System.Security.Cryptography.RandomNumberGenerator.GetInt32(ElectionTimeoutMinMs, ElectionTimeoutMaxMs);
             return TimeSpan.FromMilliseconds(ms);
         }
     }
@@ -568,7 +567,6 @@ namespace AdvGenNoSqlServer.Core.Clustering
         private Timer? _electionTimer;
         private Timer? _heartbeatTimer;
         private CancellationTokenSource? _cts;
-        private readonly Random _random = new();
 
         // Statistics
         private DateTime _startTime = DateTime.UtcNow;

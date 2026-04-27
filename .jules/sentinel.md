@@ -12,3 +12,7 @@
 **Vulnerability:** Regular Expression Denial of Service (ReDoS) vulnerability in `AdvGenNoSqlServer.Query/Filtering/FilterEngine.cs` during `$regex` evaluation.
 **Learning:** Evaluating user-supplied or highly variable regex patterns using `Regex.IsMatch` without a timeout leaves the server vulnerable to catastrophic backtracking when complex strings are provided. Additionally, using `RegexOptions.Compiled` for one-off patterns forces compilation to IL and severely degraded server performance.
 **Prevention:** Always supply a `TimeSpan` timeout (e.g. 100ms) to `Regex.IsMatch` and handle `RegexMatchTimeoutException`. Never use `RegexOptions.Compiled` for dynamic patterns generated from user queries.
+## 2025-02-24 - Cryptographically Secure Randomization in Clustering
+**Vulnerability:** Weak, predictable random number generation (`new Random()`) used for cluster timeouts (Raft election timeouts) and peer selection (Gossip fanout targets).
+**Learning:** Distributed protocols like Raft and Gossip often rely on randomness for liveness (e.g., breaking split votes) and bounded propagation time. Predictable PRNGs can be exploited or synchronized to cause ongoing election loops, denial of service, or predictable network topologies.
+**Prevention:** Always use `System.Security.Cryptography.RandomNumberGenerator.GetInt32` (or equivalent cryptographic PRNGs) instead of `System.Random` in distributed consensus or security-adjacent randomization, even if it does not strictly generate cryptographic keys.
