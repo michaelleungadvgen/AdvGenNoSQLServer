@@ -48,7 +48,7 @@ public class ShardingDocumentStore : IDocumentStore
         var store = GetStoreForShard(shard.ShardId);
 
         var result = await store.InsertAsync(collectionName, document, cancellationToken);
-        
+
         // Update statistics
         if (_shardingManager is ShardingManager sm)
         {
@@ -68,7 +68,7 @@ public class ShardingDocumentStore : IDocumentStore
         var store = GetStoreForShard(shard.ShardId);
 
         var doc = await store.GetAsync(collectionName, documentId, cancellationToken);
-        
+
         // Update statistics
         if (_shardingManager is ShardingManager sm)
         {
@@ -80,8 +80,8 @@ public class ShardingDocumentStore : IDocumentStore
 
     /// <inheritdoc />
     public async Task<IEnumerable<Document>> GetManyAsync(
-        string collectionName, 
-        IEnumerable<string> documentIds, 
+        string collectionName,
+        IEnumerable<string> documentIds,
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -105,13 +105,13 @@ public class ShardingDocumentStore : IDocumentStore
         {
             var store = GetStoreForShard(kvp.Key);
             var docs = await store.GetManyAsync(collectionName, kvp.Value, cancellationToken);
-            
+
             // Update statistics
             if (_shardingManager is ShardingManager sm)
             {
                 sm.UpdateShardStatistics(kvp.Key, s => s.TotalRequests += kvp.Value.Count);
             }
-            
+
             return docs;
         });
 
@@ -131,13 +131,13 @@ public class ShardingDocumentStore : IDocumentStore
         {
             var store = GetStoreForShard(shard.ShardId);
             var docs = await store.GetAllAsync(collectionName, cancellationToken);
-            
+
             // Update statistics
             if (_shardingManager is ShardingManager sm)
             {
                 sm.UpdateShardStatistics(shard.ShardId, s => s.TotalRequests++);
             }
-            
+
             return docs;
         });
 
@@ -155,7 +155,7 @@ public class ShardingDocumentStore : IDocumentStore
         var store = GetStoreForShard(shard.ShardId);
 
         var result = await store.UpdateAsync(collectionName, document, cancellationToken);
-        
+
         // Update statistics
         if (_shardingManager is ShardingManager sm)
         {
@@ -175,7 +175,7 @@ public class ShardingDocumentStore : IDocumentStore
         var store = GetStoreForShard(shard.ShardId);
 
         var result = await store.DeleteAsync(collectionName, documentId, cancellationToken);
-        
+
         // Update statistics
         if (result && _shardingManager is ShardingManager sm)
         {
@@ -199,7 +199,7 @@ public class ShardingDocumentStore : IDocumentStore
         var store = GetStoreForShard(shard.ShardId);
 
         var result = await store.ExistsAsync(collectionName, documentId, cancellationToken);
-        
+
         // Update statistics
         if (_shardingManager is ShardingManager sm)
         {
@@ -221,13 +221,13 @@ public class ShardingDocumentStore : IDocumentStore
         {
             var store = GetStoreForShard(shard.ShardId);
             var count = await store.CountAsync(collectionName, cancellationToken);
-            
+
             // Update statistics
             if (_shardingManager is ShardingManager sm)
             {
                 sm.UpdateShardStatistics(shard.ShardId, s => s.TotalRequests++);
             }
-            
+
             return count;
         });
 
@@ -284,7 +284,7 @@ public class ShardingDocumentStore : IDocumentStore
         });
 
         var results = await Task.WhenAll(tasks);
-        return results.SelectMany(cols => cols).Distinct().ToList();
+        return results.SelectMany(cols => cols).Distinct();
     }
 
     /// <inheritdoc />
@@ -311,7 +311,7 @@ public class ShardingDocumentStore : IDocumentStore
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A dictionary mapping shard IDs to document counts.</returns>
     public async Task<Dictionary<string, long>> GetShardDocumentCountsAsync(
-        string collectionName, 
+        string collectionName,
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
