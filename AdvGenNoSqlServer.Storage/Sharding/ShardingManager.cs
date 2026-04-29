@@ -231,18 +231,36 @@ public class ShardingManager : IShardingManager
     /// <inheritdoc />
     public Task<ShardingClusterStatistics> GetStatisticsAsync(CancellationToken cancellationToken = default)
     {
+        long totalDocs = 0;
+        long totalStorage = 0;
+        int totalConns = 0;
+        long totalReqs = 0;
+        double sumLatency = 0;
+        int count = 0;
+        var shardStats = new List<ShardStatistics>(_statistics.Count);
+
+        foreach (var kvp in _statistics)
+        {
+            var s = kvp.Value;
+            totalDocs += s.DocumentCount;
+            totalStorage += s.StorageBytes;
+            totalConns += s.ActiveConnections;
+            totalReqs += s.TotalRequests;
+            sumLatency += s.AverageLatencyMs;
+            count++;
+            shardStats.Add(s);
+        }
+
         var clusterStats = new ShardingClusterStatistics
         {
             TotalShards = _configuration.Shards.Count,
             ActiveShards = _router.GetAllActiveShards().Count,
-            TotalDocuments = _statistics.Values.Sum(s => s.DocumentCount),
-            TotalStorageBytes = _statistics.Values.Sum(s => s.StorageBytes),
-            TotalActiveConnections = _statistics.Values.Sum(s => s.ActiveConnections),
-            TotalRequests = _statistics.Values.Sum(s => s.TotalRequests),
-            AverageClusterLatencyMs = _statistics.Values.Any() 
-                ? _statistics.Values.Average(s => s.AverageLatencyMs) 
-                : 0,
-            ShardStats = _statistics.Values.ToList()
+            TotalDocuments = totalDocs,
+            TotalStorageBytes = totalStorage,
+            TotalActiveConnections = totalConns,
+            TotalRequests = totalReqs,
+            AverageClusterLatencyMs = count > 0 ? sumLatency / count : 0,
+            ShardStats = shardStats
         };
 
         return Task.FromResult(clusterStats);
@@ -260,15 +278,29 @@ public class ShardingManager : IShardingManager
     {
         if (_statistics.Count < 2) return false;
 
-        var activeStats = _statistics.Values.Where(s => s.DocumentCount > 0).ToList();
-        if (activeStats.Count < 2) return false;
+        long sumLoad = 0;
+        long maxLoad = long.MinValue;
+        long minLoad = long.MaxValue;
+        int activeCount = 0;
 
-        var avgLoad = activeStats.Average(s => s.DocumentCount);
-        var maxLoad = activeStats.Max(s => s.DocumentCount);
-        var minLoad = activeStats.Min(s => s.DocumentCount);
+        foreach (var kvp in _statistics)
+        {
+            long docs = kvp.Value.DocumentCount;
+            if (docs > 0)
+            {
+                sumLoad += docs;
+                if (docs > maxLoad) maxLoad = docs;
+                if (docs < minLoad) minLoad = docs;
+                activeCount++;
+            }
+        }
+
+        if (activeCount < 2) return false;
+
+        var avgLoad = (double)sumLoad / activeCount;
 
         // Check if the difference between max and min exceeds the threshold
-        var imbalance = (maxLoad - minLoad) / (double)avgLoad;
+        var imbalance = (maxLoad - minLoad) / avgLoad;
         return imbalance > _configuration.RebalanceThreshold;
     }
 
