@@ -77,9 +77,9 @@ public class EncryptedDocumentStore : IDocumentStore
         if (config != null && config.EncryptedFields.Count > 0)
         {
             document = await _fieldEncryptor.EncryptFieldsAsync(
-                document, 
-                config.EncryptedFields, 
-                config.KeyId, 
+                document,
+                config.EncryptedFields,
+                config.KeyId,
                 cancellationToken);
         }
 
@@ -97,9 +97,9 @@ public class EncryptedDocumentStore : IDocumentStore
         if (config != null && config.EncryptedFields.Count > 0)
         {
             document = await _fieldEncryptor.DecryptFieldsAsync(
-                document, 
-                config.EncryptedFields, 
-                config.KeyId, 
+                document,
+                config.EncryptedFields,
+                config.KeyId,
                 cancellationToken);
         }
 
@@ -119,9 +119,9 @@ public class EncryptedDocumentStore : IDocumentStore
         foreach (var doc in documents)
         {
             var decryptedDoc = await _fieldEncryptor.DecryptFieldsAsync(
-                doc, 
-                config.EncryptedFields, 
-                config.KeyId, 
+                doc,
+                config.EncryptedFields,
+                config.KeyId,
                 cancellationToken);
             decrypted.Add(decryptedDoc);
         }
@@ -142,9 +142,9 @@ public class EncryptedDocumentStore : IDocumentStore
         foreach (var doc in documents)
         {
             var decryptedDoc = await _fieldEncryptor.DecryptFieldsAsync(
-                doc, 
-                config.EncryptedFields, 
-                config.KeyId, 
+                doc,
+                config.EncryptedFields,
+                config.KeyId,
                 cancellationToken);
             decrypted.Add(decryptedDoc);
         }
@@ -159,9 +159,9 @@ public class EncryptedDocumentStore : IDocumentStore
         if (config != null && config.EncryptedFields.Count > 0)
         {
             document = await _fieldEncryptor.EncryptFieldsAsync(
-                document, 
-                config.EncryptedFields, 
-                config.KeyId, 
+                document,
+                config.EncryptedFields,
+                config.KeyId,
                 cancellationToken);
         }
 
@@ -232,10 +232,10 @@ public class EncryptedDocumentStore : IDocumentStore
         {
             // Decrypt with old key
             var decrypted = await _fieldEncryptor.DecryptFieldsAsync(doc, config.EncryptedFields, oldKeyId, cancellationToken);
-            
+
             // Re-encrypt with new key
             var reencrypted = await _fieldEncryptor.EncryptFieldsAsync(decrypted, config.EncryptedFields, newKeyId, cancellationToken);
-            
+
             // Update in store
             await _innerStore.UpdateAsync(collectionName, reencrypted, cancellationToken);
             count++;

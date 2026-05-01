@@ -26,7 +26,7 @@ public class AttachmentEnabledDocumentStore : IDocumentStore, IDisposable
     /// <param name="attachmentStore">The attachment store</param>
     /// <param name="cascadeDelete">Whether to delete attachments when document is deleted</param>
     public AttachmentEnabledDocumentStore(
-        IDocumentStore documentStore, 
+        IDocumentStore documentStore,
         IAttachmentStore attachmentStore,
         bool cascadeDelete = true)
     {
@@ -79,15 +79,15 @@ public class AttachmentEnabledDocumentStore : IDocumentStore, IDisposable
     public async Task<bool> DeleteAsync(string collectionName, string documentId, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        
+
         var result = await _documentStore.DeleteAsync(collectionName, documentId, cancellationToken);
-        
+
         if (result && _cascadeDelete)
         {
             // Delete all attachments for this document
             await _attachmentStore.DeleteAllAsync(collectionName, documentId, cancellationToken);
         }
-        
+
         return result;
     }
 
@@ -116,7 +116,7 @@ public class AttachmentEnabledDocumentStore : IDocumentStore, IDisposable
     public async Task<bool> DropCollectionAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        
+
         // Get all documents to delete their attachments
         if (_cascadeDelete)
         {
@@ -126,7 +126,7 @@ public class AttachmentEnabledDocumentStore : IDocumentStore, IDisposable
                 await _attachmentStore.DeleteAllAsync(collectionName, doc.Id, cancellationToken);
             }
         }
-        
+
         return await _documentStore.DropCollectionAsync(collectionName, cancellationToken);
     }
 
@@ -148,10 +148,10 @@ public class AttachmentEnabledDocumentStore : IDocumentStore, IDisposable
     /// Stores an attachment for a document
     /// </summary>
     public Task<AttachmentResult> StoreAttachmentAsync(
-        string collectionName, 
-        string documentId, 
-        string name, 
-        string contentType, 
+        string collectionName,
+        string documentId,
+        string name,
+        string contentType,
         byte[] content,
         Dictionary<string, string>? metadata = null,
         CancellationToken cancellationToken = default)
@@ -164,8 +164,8 @@ public class AttachmentEnabledDocumentStore : IDocumentStore, IDisposable
     /// Gets an attachment
     /// </summary>
     public Task<Attachment?> GetAttachmentAsync(
-        string collectionName, 
-        string documentId, 
+        string collectionName,
+        string documentId,
         string name,
         CancellationToken cancellationToken = default)
     {
@@ -177,7 +177,7 @@ public class AttachmentEnabledDocumentStore : IDocumentStore, IDisposable
     /// Lists all attachments for a document
     /// </summary>
     public Task<IReadOnlyList<AttachmentInfo>> ListAttachmentsAsync(
-        string collectionName, 
+        string collectionName,
         string documentId,
         CancellationToken cancellationToken = default)
     {
@@ -189,8 +189,8 @@ public class AttachmentEnabledDocumentStore : IDocumentStore, IDisposable
     /// Deletes an attachment
     /// </summary>
     public Task<bool> DeleteAttachmentAsync(
-        string collectionName, 
-        string documentId, 
+        string collectionName,
+        string documentId,
         string name,
         CancellationToken cancellationToken = default)
     {
@@ -202,7 +202,7 @@ public class AttachmentEnabledDocumentStore : IDocumentStore, IDisposable
     /// Checks if a document has attachments
     /// </summary>
     public async Task<bool> HasAttachmentsAsync(
-        string collectionName, 
+        string collectionName,
         string documentId,
         CancellationToken cancellationToken = default)
     {
@@ -215,7 +215,7 @@ public class AttachmentEnabledDocumentStore : IDocumentStore, IDisposable
     /// Gets attachment count for a document
     /// </summary>
     public async Task<int> GetAttachmentCountAsync(
-        string collectionName, 
+        string collectionName,
         string documentId,
         CancellationToken cancellationToken = default)
     {
@@ -248,12 +248,12 @@ public class AttachmentEnabledDocumentStore : IDocumentStore, IDisposable
             {
                 docDisposable.Dispose();
             }
-            
+
             if (_attachmentStore is IDisposable attDisposable)
             {
                 attDisposable.Dispose();
             }
-            
+
             _disposed = true;
         }
     }
@@ -268,7 +268,7 @@ public static class AttachmentEnabledDocumentStoreExtensions
     /// Wraps the document store with attachment support
     /// </summary>
     public static AttachmentEnabledDocumentStore WithAttachments(
-        this IDocumentStore documentStore, 
+        this IDocumentStore documentStore,
         AttachmentStoreOptions options,
         bool cascadeDelete = true)
     {
@@ -280,7 +280,7 @@ public static class AttachmentEnabledDocumentStoreExtensions
     /// Wraps the document store with attachment support using existing attachment store
     /// </summary>
     public static AttachmentEnabledDocumentStore WithAttachments(
-        this IDocumentStore documentStore, 
+        this IDocumentStore documentStore,
         IAttachmentStore attachmentStore,
         bool cascadeDelete = true)
     {

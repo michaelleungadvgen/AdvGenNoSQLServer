@@ -18,27 +18,27 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
     private readonly SemaphoreSlim _concurrencySemaphore;
     private readonly IndexManager _indexManager;
     private bool _disposed;
-    
+
     /// <summary>
     /// Event raised when build progress is updated
     /// </summary>
     public event EventHandler<IndexBuildProgressEventArgs>? BuildProgress;
-    
+
     /// <summary>
     /// Event raised when a build completes
     /// </summary>
     public event EventHandler<IndexBuildCompletedEventArgs>? BuildCompleted;
-    
+
     /// <summary>
     /// Maximum number of concurrent builds allowed
     /// </summary>
     public int MaxConcurrentBuilds { get; set; }
-    
+
     /// <summary>
     /// Current number of running builds
     /// </summary>
     public int RunningBuildCount => _jobs.Values.Count(j => j.Status == BackgroundIndexBuildStatus.Running);
-    
+
     /// <summary>
     /// Creates a new background index builder
     /// </summary>
@@ -50,7 +50,7 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
         MaxConcurrentBuilds = maxConcurrentBuilds > 0 ? maxConcurrentBuilds : 2;
         _concurrencySemaphore = new SemaphoreSlim(MaxConcurrentBuilds, MaxConcurrentBuilds);
     }
-    
+
     /// <summary>
     /// Starts a background index build for a collection field
     /// </summary>
@@ -65,21 +65,21 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
         CancellationToken cancellationToken = default) where TKey : IComparable<TKey>
     {
         ThrowIfDisposed();
-        
+
         ArgumentException.ThrowIfNullOrEmpty(collectionName, nameof(collectionName));
         ArgumentException.ThrowIfNullOrEmpty(fieldName, nameof(fieldName));
         ArgumentNullException.ThrowIfNull(documents, nameof(documents));
         ArgumentNullException.ThrowIfNull(keySelector, nameof(keySelector));
-        
+
         options ??= new BackgroundIndexBuildOptions();
-        
+
         // Check for duplicate active build
         var buildKey = $"{collectionName}_{fieldName}";
         if (_activeBuilds.ContainsKey(buildKey))
         {
             throw new InvalidOperationException($"A build job for '{collectionName}.{fieldName}' is already in progress.");
         }
-        
+
         // Create the job
         var job = new BackgroundIndexBuildJob
         {
@@ -96,30 +96,30 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
                 Status = BackgroundIndexBuildStatus.Pending
             }
         };
-        
+
         // Generate job ID after creation
         job.JobId = GenerateJobId(collectionName, fieldName);
         job.Progress.JobId = job.JobId;
-        
+
         // Link external cancellation token
         if (cancellationToken.CanBeCanceled)
         {
             cancellationToken.Register(() => job.CancellationTokenSource?.Cancel());
         }
-        
+
         // Track active build and store the job
         if (!_activeBuilds.TryAdd(buildKey, job.JobId))
         {
             throw new InvalidOperationException($"A build job for '{collectionName}.{fieldName}' is already in progress.");
         }
-        
+
         if (!_jobs.TryAdd(job.JobId, job))
         {
             // Shouldn't happen since job IDs are unique, but clean up if it does
             _activeBuilds.TryRemove(buildKey, out _);
             throw new InvalidOperationException($"Failed to create build job for '{collectionName}.{fieldName}'.");
         }
-        
+
         // Start the build task
         job.BuildTask = Task.Run(async () =>
         {
@@ -144,14 +144,14 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
                 job.Result ??= BackgroundIndexBuildResult.Failure(job.JobId, collectionName, fieldName, ex.Message);
                 job.Result.Errors.Add(ex.ToString());
                 job.CompletedAt = DateTime.UtcNow;
-                
+
                 OnBuildCompleted(job.Result);
             }
         }, job.CancellationTokenSource.Token);
-        
+
         return job;
     }
-    
+
     /// <summary>
     /// Executes the build operation
     /// </summary>
@@ -167,7 +167,7 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
         job.Status = BackgroundIndexBuildStatus.Running;
         job.Progress.Status = BackgroundIndexBuildStatus.Running;
         job.Progress.StartedAt = job.StartedAt.Value;
-        
+
         var result = new BackgroundIndexBuildResult
         {
             JobId = job.JobId,
@@ -176,10 +176,10 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
             Status = BackgroundIndexBuildStatus.Running,
             StartedAt = job.StartedAt.Value
         };
-        
+
         // Wait for concurrency slot
         await _concurrencySemaphore.WaitAsync(job.CancellationTokenSource?.Token ?? CancellationToken.None);
-        
+
         try
         {
             // Create the index structure first
@@ -188,7 +188,7 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
                 job.FieldName,
                 isUnique,
                 keySelector);
-            
+
             // Convert to list for multiple enumeration
             var documentList = documents.ToList();
             long totalDocuments = documentList.Count;
@@ -196,12 +196,12 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
             long entriesCreated = 0;
             var errors = new List<string>();
             int errorCount = 0;
-            
+
             job.Progress.TotalDocuments = totalDocuments;
-            
+
             // Process documents in batches
             var batch = new List<Document>(job.Options.BatchSize);
-            
+
             foreach (var document in documentList)
             {
                 // Check for cancellation
@@ -216,29 +216,29 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
                     result.CompletedAt = DateTime.UtcNow;
                     job.CompletedAt = result.CompletedAt;
                     job.Result = result;
-                    
+
                     OnBuildCompleted(result);
                     return;
                 }
-                
+
                 batch.Add(document);
-                
+
                 // Process batch when full
                 if (batch.Count >= job.Options.BatchSize)
                 {
                     var (batchEntries, batchErrors) = ProcessBatch(batch, index, keySelector, isUnique);
-                    
+
                     entriesCreated += batchEntries;
                     errorCount += batchErrors.Count;
                     errors.AddRange(batchErrors);
-                    
+
                     processedCount += batch.Count;
-                    
+
                     // Update progress
                     job.Progress.DocumentsProcessed = processedCount;
                     job.Progress.ErrorCount = errorCount;
                     job.Progress.Elapsed = stopwatch.Elapsed;
-                    
+
                     // Calculate estimated remaining time
                     if (processedCount > 0 && processedCount < totalDocuments)
                     {
@@ -246,11 +246,11 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
                         var remainingDocs = totalDocuments - processedCount;
                         job.Progress.EstimatedRemaining = TimeSpan.FromSeconds(avgTimePerDoc * remainingDocs);
                     }
-                    
+
                     // Report progress
                     progress?.Report(job.Progress);
                     OnBuildProgress(job.Progress);
-                    
+
                     // Check error limits
                     if (errorCount > 0 && job.Options.StopOnFirstError)
                     {
@@ -263,11 +263,11 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
                         result.CompletedAt = DateTime.UtcNow;
                         job.CompletedAt = result.CompletedAt;
                         job.Result = result;
-                        
+
                         OnBuildCompleted(result);
                         return;
                     }
-                    
+
                     if (job.Options.MaxErrors > 0 && errorCount >= job.Options.MaxErrors)
                     {
                         errors.Add($"Maximum error count ({job.Options.MaxErrors}) exceeded. Aborting.");
@@ -280,21 +280,21 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
                         result.CompletedAt = DateTime.UtcNow;
                         job.CompletedAt = result.CompletedAt;
                         job.Result = result;
-                        
+
                         OnBuildCompleted(result);
                         return;
                     }
-                    
+
                     // Clear batch
                     batch.Clear();
-                    
+
                     // Apply throttling delay if configured
                     if (job.Options.BatchDelayMs > 0)
                     {
-                        await Task.Delay(job.Options.BatchDelayMs, 
+                        await Task.Delay(job.Options.BatchDelayMs,
                             job.CancellationTokenSource?.Token ?? CancellationToken.None);
                     }
-                    
+
                     // Yield to allow other operations
                     if (job.Options.Priority == IndexBuildPriority.Low)
                     {
@@ -302,18 +302,18 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
                     }
                 }
             }
-            
+
             // Process remaining documents in final batch
             if (batch.Count > 0)
             {
                 var (batchEntries, batchErrors) = ProcessBatch(batch, index, keySelector, isUnique);
-                
+
                 entriesCreated += batchEntries;
                 errorCount += batchErrors.Count;
                 errors.AddRange(batchErrors);
-                
+
                 processedCount += batch.Count;
-                
+
                 // Update and report progress for final batch
                 job.Progress.DocumentsProcessed = processedCount;
                 job.Progress.ErrorCount = errorCount;
@@ -321,10 +321,10 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
                 progress?.Report(job.Progress);
                 OnBuildProgress(job.Progress);
             }
-            
+
             // Mark as completed
             stopwatch.Stop();
-            
+
             job.Status = BackgroundIndexBuildStatus.Completed;
             result.Status = BackgroundIndexBuildStatus.Completed;
             result.DocumentsProcessed = processedCount;
@@ -333,13 +333,13 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
             result.Errors = errors;
             result.Duration = stopwatch.Elapsed;
             result.CompletedAt = DateTime.UtcNow;
-            
+
             job.Progress.Status = BackgroundIndexBuildStatus.Completed;
             job.Progress.DocumentsProcessed = processedCount;
             job.Progress.Elapsed = stopwatch.Elapsed;
             job.CompletedAt = result.CompletedAt;
             job.Result = result;
-            
+
             OnBuildCompleted(result);
         }
         finally
@@ -350,7 +350,7 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
             _activeBuilds.TryRemove(buildKey, out _);
         }
     }
-    
+
     /// <summary>
     /// Processes a batch of documents
     /// </summary>
@@ -362,7 +362,7 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
     {
         long entries = 0;
         var errors = new List<string>();
-        
+
         foreach (var document in batch)
         {
             try
@@ -386,10 +386,10 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
                 errors.Add($"Error indexing document '{document.Id}': {ex.Message}");
             }
         }
-        
+
         return (entries, errors);
     }
-    
+
     /// <summary>
     /// Generates a unique job ID
     /// </summary>
@@ -399,7 +399,7 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
         var random = Guid.NewGuid().ToString("N")[..8];
         return $"{collectionName}_{fieldName}_{timestamp}_{random}";
     }
-    
+
     /// <summary>
     /// Raises the BuildProgress event
     /// </summary>
@@ -407,7 +407,7 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
     {
         BuildProgress?.Invoke(this, new IndexBuildProgressEventArgs(progress));
     }
-    
+
     /// <summary>
     /// Raises the BuildCompleted event
     /// </summary>
@@ -415,7 +415,7 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
     {
         BuildCompleted?.Invoke(this, new IndexBuildCompletedEventArgs(result));
     }
-    
+
     /// <summary>
     /// Gets a job by ID
     /// </summary>
@@ -425,7 +425,7 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
         _jobs.TryGetValue(jobId, out var job);
         return job;
     }
-    
+
     /// <summary>
     /// Gets all jobs
     /// </summary>
@@ -434,7 +434,7 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
         ThrowIfDisposed();
         return _jobs.Values.ToList();
     }
-    
+
     /// <summary>
     /// Gets jobs by status
     /// </summary>
@@ -443,28 +443,28 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
         ThrowIfDisposed();
         return _jobs.Values.Where(j => j.Status == status).ToList();
     }
-    
+
     /// <summary>
     /// Cancels a running job
     /// </summary>
     public bool CancelJob(string jobId)
     {
         ThrowIfDisposed();
-        
+
         if (_jobs.TryGetValue(jobId, out var job))
         {
             if (job.IsCompleted)
             {
                 return false;
             }
-            
+
             job.CancellationTokenSource?.Cancel();
             return true;
         }
-        
+
         return false;
     }
-    
+
     /// <summary>
     /// Waits for a job to complete
     /// </summary>
@@ -474,18 +474,18 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        
+
         var job = GetJob(jobId);
         if (job == null)
         {
             return null;
         }
-        
+
         if (job.BuildTask == null)
         {
             return job.Result;
         }
-        
+
         try
         {
             if (timeout.HasValue)
@@ -506,10 +506,10 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
                 return null; // Timeout
             }
         }
-        
+
         return job.Result;
     }
-    
+
     /// <summary>
     /// Throws if the object has been disposed
     /// </summary>
@@ -520,7 +520,7 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
             throw new ObjectDisposedException(nameof(BackgroundIndexBuilder));
         }
     }
-    
+
     /// <summary>
     /// Disposes the builder and cancels all running jobs
     /// </summary>
@@ -530,21 +530,21 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
         {
             return;
         }
-        
+
         _disposed = true;
-        
+
         // Cancel all running jobs
         foreach (var job in _jobs.Values.Where(j => j.IsRunning))
         {
             job.CancellationTokenSource?.Cancel();
         }
-        
+
         // Wait for jobs to complete (with timeout)
         var runningTasks = _jobs.Values
             .Where(j => j.BuildTask != null && !j.BuildTask.IsCompleted)
             .Select(j => j.BuildTask!)
             .ToArray();
-        
+
         if (runningTasks.Length > 0)
         {
             try
@@ -556,9 +556,9 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
                 // Ignore exceptions during disposal
             }
         }
-        
+
         _concurrencySemaphore.Dispose();
-        
+
         // Dispose cancellation token sources
         foreach (var job in _jobs.Values)
         {

@@ -25,10 +25,10 @@ public class ShardRouter : IShardRouter
     {
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _configuration.Validate();
-        
+
         _shards = new Dictionary<string, ShardNode>();
         _consistentHashRing = new SortedDictionary<int, string>();
-        
+
         // Initialize with existing shards
         foreach (var shard in _configuration.Shards)
         {
@@ -46,17 +46,17 @@ public class ShardRouter : IShardRouter
         if (shardKey == null) throw new ArgumentNullException(nameof(shardKey));
 
         int hash;
-        
+
         switch (shardKey.Strategy)
         {
             case ShardKeyStrategy.Hash:
                 hash = shardKey.ComputeShardHash(document);
                 return RouteByHash(hash);
-                
+
             case ShardKeyStrategy.Range:
                 hash = shardKey.ComputeShardHash(document);
                 return RouteByHash(hash);
-                
+
             case ShardKeyStrategy.Tagged:
                 var tag = shardKey.GetShardTag(document);
                 if (tag != null)
@@ -68,7 +68,7 @@ public class ShardRouter : IShardRouter
                 // Fall back to hash routing if tag not found
                 hash = shardKey.ComputeShardHash(document);
                 return RouteByHash(hash);
-                
+
             default:
                 throw new ShardingException($"Unknown shard key strategy: {shardKey.Strategy}");
         }
@@ -156,7 +156,7 @@ public class ShardRouter : IShardRouter
                 .Where(s => s.IsActive && s.Tags.Contains(tag, StringComparer.OrdinalIgnoreCase))
                 .OrderByDescending(s => s.Priority)
                 .FirstOrDefault();
-            
+
             if (exactMatch != null)
                 return exactMatch;
 
@@ -245,7 +245,7 @@ public class ShardRouter : IShardRouter
     public IReadOnlyList<ShardNode> GetReplicaShards(Document document, IShardKey shardKey)
     {
         var primaryShard = RouteDocument(document, shardKey);
-        
+
         // For now, return other active shards as replicas
         // In a real implementation, this would use configured replication topology
         return GetAllActiveShards()
@@ -263,7 +263,7 @@ public class ShardRouter : IShardRouter
         try
         {
             AddShardToInternalStructures(shard);
-            
+
             RoutingChanged?.Invoke(this, new ShardRoutingChangedEventArgs
             {
                 ChangeType = RoutingChangeType.ShardAdded,
@@ -289,13 +289,13 @@ public class ShardRouter : IShardRouter
                 return false;
 
             _shards.Remove(shardId);
-            
+
             // Remove from consistent hash ring
             var keysToRemove = _consistentHashRing
                 .Where(kvp => kvp.Value == shardId)
                 .Select(kvp => kvp.Key)
                 .ToList();
-            
+
             foreach (var key in keysToRemove)
             {
                 _consistentHashRing.Remove(key);
@@ -394,13 +394,13 @@ public class ShardRouter : IShardRouter
             {
                 var virtualNodeKey = $"{shard.ShardId}:{i}";
                 var hash = ComputeConsistentHash(virtualNodeKey);
-                
+
                 // Handle hash collisions
                 while (_consistentHashRing.ContainsKey(hash))
                 {
                     hash = (hash + 1) % int.MaxValue;
                 }
-                
+
                 _consistentHashRing[hash] = shard.ShardId;
             }
         }
@@ -411,21 +411,21 @@ public class ShardRouter : IShardRouter
         // Use FNV-1a for consistent hashing
         const uint fnvOffsetBasis = 0x811c9dc5;
         const uint fnvPrime = 0x01000193;
-        
+
         uint hash = fnvOffsetBasis;
         foreach (var c in key)
         {
             hash ^= c;
             hash *= fnvPrime;
         }
-        
+
         return (int)hash;
     }
 
     private Dictionary<string, List<ShardRange>> CalculateRangesFromConsistentHashRing()
     {
         var ranges = new Dictionary<string, List<ShardRange>>();
-        
+
         if (_consistentHashRing.Count == 0)
             return ranges;
 

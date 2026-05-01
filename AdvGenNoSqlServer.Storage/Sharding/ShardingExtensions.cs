@@ -123,12 +123,12 @@ public static class ShardingExtensions
         if (shardCount == 0) return configuration;
 
         var rangeSize = (long)uint.MaxValue / shardCount;
-        
+
         for (int i = 0; i < shardCount; i++)
         {
             var minHash = i == 0 ? int.MinValue : (int)(int.MinValue + i * rangeSize);
             var maxHash = i == shardCount - 1 ? int.MaxValue : (int)(int.MinValue + (i + 1) * rangeSize);
-            
+
             configuration.Ranges.Add(new ShardRange
             {
                 ShardId = configuration.Shards[i].ShardId,
@@ -155,7 +155,7 @@ public static class ShardingExtensions
 
         configuration.VirtualNodesPerShard = virtualNodesPerShard;
         configuration.Ranges.Clear(); // Clear ranges to use consistent hashing
-        
+
         return configuration;
     }
 }
