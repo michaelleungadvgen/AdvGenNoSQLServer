@@ -36,10 +36,10 @@ public class FullTextDocumentStore : IDocumentStore
     {
         // Insert into underlying store first
         var result = _innerStore.InsertAsync(collectionName, document, cancellationToken);
-        
+
         // Update full-text indexes
         _indexManager.IndexDocument(collectionName, document);
-        
+
         return result;
     }
 
@@ -66,10 +66,10 @@ public class FullTextDocumentStore : IDocumentStore
     {
         // Update underlying store first
         var result = _innerStore.UpdateAsync(collectionName, document, cancellationToken);
-        
+
         // Update full-text indexes
         _indexManager.UpdateDocument(collectionName, document);
-        
+
         return result;
     }
 
@@ -78,7 +78,7 @@ public class FullTextDocumentStore : IDocumentStore
     {
         // Remove from full-text indexes first
         _indexManager.RemoveDocument(collectionName, documentId);
-        
+
         // Delete from underlying store
         return _innerStore.DeleteAsync(collectionName, documentId, cancellationToken);
     }
@@ -106,7 +106,7 @@ public class FullTextDocumentStore : IDocumentStore
     {
         // Drop full-text indexes for this collection
         _indexManager.DropCollectionIndexes(collectionName);
-        
+
         // Drop collection from underlying store
         return _innerStore.DropCollectionAsync(collectionName, cancellationToken);
     }
@@ -122,7 +122,7 @@ public class FullTextDocumentStore : IDocumentStore
     {
         // Clear full-text indexes for this collection
         _indexManager.DropCollectionIndexes(collectionName);
-        
+
         // Clear collection from underlying store
         return _innerStore.ClearCollectionAsync(collectionName, cancellationToken);
     }
@@ -137,14 +137,14 @@ public class FullTextDocumentStore : IDocumentStore
     public IFullTextIndex CreateFullTextIndex(string collectionName, string fieldName, AnalyzerType analyzerType = AnalyzerType.Standard)
     {
         var index = _indexManager.CreateIndex(collectionName, fieldName, analyzerType);
-        
+
         // Index existing documents
         var documents = _innerStore.GetAllAsync(collectionName).Result;
         foreach (var doc in documents)
         {
             _indexManager.IndexDocument(collectionName, doc);
         }
-        
+
         return index;
     }
 
@@ -168,13 +168,13 @@ public class FullTextDocumentStore : IDocumentStore
     /// <param name="options">Search options</param>
     /// <returns>Matching documents with search scores</returns>
     public async Task<IEnumerable<(Document Document, double Score)>> SearchDocumentsAsync(
-        string collectionName, 
-        string query, 
+        string collectionName,
+        string query,
         FullTextSearchOptions? options = null,
         CancellationToken cancellationToken = default)
     {
         var searchResult = _indexManager.Search(collectionName, query, options);
-        
+
         if (!searchResult.Success || searchResult.Results.Count == 0)
         {
             return Enumerable.Empty<(Document, double)>();
@@ -182,9 +182,9 @@ public class FullTextDocumentStore : IDocumentStore
 
         var documentIds = searchResult.Results.Select(r => r.DocumentId);
         var documents = await _innerStore.GetManyAsync(collectionName, documentIds, cancellationToken);
-        
+
         var docDictionary = documents.ToDictionary(d => d.Id);
-        
+
         return searchResult.Results
             .Where(r => docDictionary.ContainsKey(r.DocumentId))
             .Select(r => (docDictionary[r.DocumentId], r.Score));

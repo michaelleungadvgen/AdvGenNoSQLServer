@@ -79,7 +79,7 @@ public class IndexManager
         bool isUnique,
         CancellationToken cancellationToken = default)
     {
-        return Task.FromResult(CreateIndex(collectionName, fieldName, isUnique, doc => 
+        return Task.FromResult(CreateIndex(collectionName, fieldName, isUnique, doc =>
             doc.Data.TryGetValue(fieldName, out var value) ? value?.ToString() ?? string.Empty : string.Empty));
     }
 

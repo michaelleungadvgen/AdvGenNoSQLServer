@@ -354,7 +354,7 @@ namespace AdvGenNoSqlServer.Storage.Revisions
 
             var stats = new RevisionHistoryStats();
             var allDocs = await _innerStore.GetAllAsync(collection, cancellationToken);
-            
+
             foreach (var doc in allDocs)
             {
                 var revisions = await _revisionManager.GetAllRevisionsAsync(collection, doc.Id, cancellationToken);

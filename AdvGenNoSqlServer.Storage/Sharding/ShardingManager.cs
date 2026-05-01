@@ -239,8 +239,8 @@ public class ShardingManager : IShardingManager
             TotalStorageBytes = _statistics.Values.Sum(s => s.StorageBytes),
             TotalActiveConnections = _statistics.Values.Sum(s => s.ActiveConnections),
             TotalRequests = _statistics.Values.Sum(s => s.TotalRequests),
-            AverageClusterLatencyMs = _statistics.Values.Any() 
-                ? _statistics.Values.Average(s => s.AverageLatencyMs) 
+            AverageClusterLatencyMs = _statistics.Values.Any()
+                ? _statistics.Values.Average(s => s.AverageLatencyMs)
                 : 0,
             ShardStats = _statistics.Values.ToList()
         };

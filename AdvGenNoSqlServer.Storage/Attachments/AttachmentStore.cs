@@ -26,38 +26,38 @@ public class AttachmentStore : IAttachmentStore, IDisposable
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _options.Validate();
-        
+
         // Ensure base directory exists
         Directory.CreateDirectory(_options.BasePath);
     }
 
     /// <inheritdoc />
     public async Task<AttachmentResult> StoreAsync(
-        string collectionName, 
-        string documentId, 
-        string name, 
-        string contentType, 
+        string collectionName,
+        string documentId,
+        string name,
+        string contentType,
         byte[] content,
         Dictionary<string, string>? metadata = null,
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        
+
         ValidateInputs(collectionName, documentId, name, contentType);
-        
+
         // Check content type restrictions
         if (!IsContentTypeAllowed(contentType))
         {
             return AttachmentResult.FailureResult($"Content type '{contentType}' is not allowed");
         }
-        
+
         // Check size limit
         if (content.Length > _options.MaxAttachmentSize)
         {
             return AttachmentResult.FailureResult(
                 $"Attachment size ({content.Length} bytes) exceeds maximum ({_options.MaxAttachmentSize} bytes)");
         }
-        
+
         // Check total storage limit
         if (_options.MaxTotalStorage > 0)
         {
@@ -67,10 +67,10 @@ public class AttachmentStore : IAttachmentStore, IDisposable
                 return AttachmentResult.FailureResult("Storage quota exceeded");
             }
         }
-        
+
         var now = DateTime.UtcNow;
         var hash = ComputeHash(content);
-        
+
         var attachmentInfo = new AttachmentInfo
         {
             Name = name,
@@ -81,33 +81,33 @@ public class AttachmentStore : IAttachmentStore, IDisposable
             UpdatedAt = now,
             Metadata = metadata
         };
-        
+
         var docPath = GetDocumentPath(collectionName, documentId);
         var attachmentPath = Path.Combine(docPath, SanitizeFileName(name));
         var metadataPath = Path.Combine(docPath, _metadataFileName);
         var tempPath = attachmentPath + ".tmp";
-        
+
         await _lock.WaitAsync(cancellationToken);
         try
         {
             // Ensure directory exists
             Directory.CreateDirectory(docPath);
-            
+
             // Write content to file (atomic write via temp file)
             await File.WriteAllBytesAsync(tempPath, content, cancellationToken);
-            
+
             // Move temp to final (atomic on most filesystems)
             if (File.Exists(attachmentPath))
             {
                 File.Delete(attachmentPath);
             }
             File.Move(tempPath, attachmentPath);
-            
+
             // Update metadata
             var attachments = await LoadMetadataAsync(metadataPath, cancellationToken);
             attachments[name] = attachmentInfo;
             await SaveMetadataAsync(metadataPath, attachments, cancellationToken);
-            
+
             return AttachmentResult.SuccessResult(attachmentInfo);
         }
         catch (Exception ex)
@@ -127,31 +127,31 @@ public class AttachmentStore : IAttachmentStore, IDisposable
 
     /// <inheritdoc />
     public async Task<Attachment?> GetAsync(
-        string collectionName, 
-        string documentId, 
+        string collectionName,
+        string documentId,
         string name,
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        
+
         var info = await GetInfoAsync(collectionName, documentId, name, cancellationToken);
         if (info == null)
             return null;
-        
+
         var attachmentPath = GetAttachmentPath(collectionName, documentId, name);
-        
+
         if (!File.Exists(attachmentPath))
             return null;
-        
+
         var content = await File.ReadAllBytesAsync(attachmentPath, cancellationToken);
-        
+
         // Verify integrity
         var actualHash = ComputeHash(content);
         if (actualHash != info.Hash)
         {
             throw new AttachmentStoreException($"Attachment integrity check failed for '{name}'");
         }
-        
+
         return new Attachment
         {
             Name = info.Name,
@@ -167,73 +167,73 @@ public class AttachmentStore : IAttachmentStore, IDisposable
 
     /// <inheritdoc />
     public Task<AttachmentInfo?> GetInfoAsync(
-        string collectionName, 
-        string documentId, 
+        string collectionName,
+        string documentId,
         string name,
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        
+
         var metadataPath = Path.Combine(GetDocumentPath(collectionName, documentId), _metadataFileName);
-        
+
         if (!File.Exists(metadataPath))
             return Task.FromResult<AttachmentInfo?>(null);
-        
+
         return GetInfoInternalAsync(metadataPath, name, cancellationToken);
     }
 
     private async Task<AttachmentInfo?> GetInfoInternalAsync(string metadataPath, string name, CancellationToken cancellationToken)
     {
         var attachments = await LoadMetadataAsync(metadataPath, cancellationToken);
-        
+
         if (attachments.TryGetValue(name, out var info))
             return info;
-        
+
         return null;
     }
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<AttachmentInfo>> ListAsync(
-        string collectionName, 
+        string collectionName,
         string documentId,
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        
+
         var metadataPath = Path.Combine(GetDocumentPath(collectionName, documentId), _metadataFileName);
-        
+
         if (!File.Exists(metadataPath))
             return new List<AttachmentInfo>();
-        
+
         var attachments = await LoadMetadataAsync(metadataPath, cancellationToken);
         return attachments.Values.ToList().AsReadOnly();
     }
 
     /// <inheritdoc />
     public async Task<bool> DeleteAsync(
-        string collectionName, 
-        string documentId, 
+        string collectionName,
+        string documentId,
         string name,
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        
+
         var docPath = GetDocumentPath(collectionName, documentId);
         var attachmentPath = Path.Combine(docPath, SanitizeFileName(name));
         var metadataPath = Path.Combine(docPath, _metadataFileName);
-        
+
         await _lock.WaitAsync(cancellationToken);
         try
         {
             var deleted = false;
-            
+
             // Delete file
             if (File.Exists(attachmentPath))
             {
                 File.Delete(attachmentPath);
                 deleted = true;
             }
-            
+
             // Update metadata
             if (File.Exists(metadataPath))
             {
@@ -251,13 +251,13 @@ public class AttachmentStore : IAttachmentStore, IDisposable
                     deleted = true;
                 }
             }
-            
+
             // Clean up empty document directory
             if (Directory.Exists(docPath) && !Directory.EnumerateFileSystemEntries(docPath).Any())
             {
                 Directory.Delete(docPath);
             }
-            
+
             return deleted;
         }
         finally
@@ -268,28 +268,28 @@ public class AttachmentStore : IAttachmentStore, IDisposable
 
     /// <inheritdoc />
     public async Task<int> DeleteAllAsync(
-        string collectionName, 
+        string collectionName,
         string documentId,
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        
+
         var docPath = GetDocumentPath(collectionName, documentId);
-        
+
         if (!Directory.Exists(docPath))
             return 0;
-        
+
         await _lock.WaitAsync(cancellationToken);
         try
         {
             var metadataPath = Path.Combine(docPath, _metadataFileName);
             var count = 0;
-            
+
             // Load metadata to get attachment names
             if (File.Exists(metadataPath))
             {
                 var attachments = await LoadMetadataAsync(metadataPath, cancellationToken);
-                
+
                 // Delete all attachment files
                 foreach (var name in attachments.Keys)
                 {
@@ -300,17 +300,17 @@ public class AttachmentStore : IAttachmentStore, IDisposable
                         count++;
                     }
                 }
-                
+
                 // Delete metadata file
                 File.Delete(metadataPath);
             }
-            
+
             // Delete any remaining files and directory
             if (Directory.Exists(docPath))
             {
                 Directory.Delete(docPath, true);
             }
-            
+
             return count;
         }
         finally
@@ -321,13 +321,13 @@ public class AttachmentStore : IAttachmentStore, IDisposable
 
     /// <inheritdoc />
     public Task<bool> ExistsAsync(
-        string collectionName, 
-        string documentId, 
+        string collectionName,
+        string documentId,
         string name,
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        
+
         var attachmentPath = GetAttachmentPath(collectionName, documentId, name);
         return Task.FromResult(File.Exists(attachmentPath));
     }
@@ -336,16 +336,16 @@ public class AttachmentStore : IAttachmentStore, IDisposable
     public Task<long> GetTotalStorageSizeAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        
+
         if (!Directory.Exists(_options.BasePath))
             return Task.FromResult(0L);
-        
+
         long size = 0;
         foreach (var file in Directory.EnumerateFiles(_options.BasePath, "*", SearchOption.AllDirectories))
         {
             if (file.EndsWith(_metadataFileName) || file.EndsWith(".tmp"))
                 continue;
-            
+
             try
             {
                 size += new FileInfo(file).Length;
@@ -355,7 +355,7 @@ public class AttachmentStore : IAttachmentStore, IDisposable
                 // File was deleted between enumeration and access
             }
         }
-        
+
         return Task.FromResult(size);
     }
 
@@ -376,14 +376,14 @@ public class AttachmentStore : IAttachmentStore, IDisposable
         // Replace invalid characters with underscores
         var invalid = Path.GetInvalidFileNameChars();
         var sanitized = new string(name.Select(c => invalid.Contains(c) ? '_' : c).ToArray());
-        
+
         // Prevent directory traversal
         sanitized = sanitized.Replace("..", "__");
-        
+
         // Limit length
         if (sanitized.Length > 200)
             sanitized = sanitized.Substring(0, 200);
-        
+
         return sanitized;
     }
 
@@ -398,13 +398,13 @@ public class AttachmentStore : IAttachmentStore, IDisposable
     {
         if (string.IsNullOrWhiteSpace(collectionName))
             throw new ArgumentException("Collection name cannot be empty", nameof(collectionName));
-        
+
         if (string.IsNullOrWhiteSpace(documentId))
             throw new ArgumentException("Document ID cannot be empty", nameof(documentId));
-        
+
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Attachment name cannot be empty", nameof(name));
-        
+
         if (string.IsNullOrWhiteSpace(contentType))
             throw new ArgumentException("Content type cannot be empty", nameof(contentType));
     }
@@ -414,13 +414,13 @@ public class AttachmentStore : IAttachmentStore, IDisposable
         // Check blocked types
         if (_options.BlockedContentTypes.Contains(contentType, StringComparer.OrdinalIgnoreCase))
             return false;
-        
+
         // Check allowed types (if specified)
         if (_options.AllowedContentTypes?.Count > 0)
         {
             return _options.AllowedContentTypes.Contains(contentType, StringComparer.OrdinalIgnoreCase);
         }
-        
+
         return true;
     }
 
@@ -428,7 +428,7 @@ public class AttachmentStore : IAttachmentStore, IDisposable
     {
         if (!File.Exists(metadataPath))
             return new Dictionary<string, AttachmentInfo>();
-        
+
         try
         {
             var json = await File.ReadAllTextAsync(metadataPath, cancellationToken);
@@ -450,11 +450,11 @@ public class AttachmentStore : IAttachmentStore, IDisposable
         {
             WriteIndented = true
         });
-        
+
         // Atomic write
         var tempPath = metadataPath + ".tmp";
         await File.WriteAllTextAsync(tempPath, json, cancellationToken);
-        
+
         if (File.Exists(metadataPath))
         {
             File.Delete(metadataPath);

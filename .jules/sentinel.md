@@ -12,3 +12,7 @@
 **Vulnerability:** Regular Expression Denial of Service (ReDoS) vulnerability in `AdvGenNoSqlServer.Query/Filtering/FilterEngine.cs` during `$regex` evaluation.
 **Learning:** Evaluating user-supplied or highly variable regex patterns using `Regex.IsMatch` without a timeout leaves the server vulnerable to catastrophic backtracking when complex strings are provided. Additionally, using `RegexOptions.Compiled` for one-off patterns forces compilation to IL and severely degraded server performance.
 **Prevention:** Always supply a `TimeSpan` timeout (e.g. 100ms) to `Regex.IsMatch` and handle `RegexMatchTimeoutException`. Never use `RegexOptions.Compiled` for dynamic patterns generated from user queries.
+## 2026-05-01 - Path Traversal via Direct Path.Combine in HybridDocumentStore
+**Vulnerability:** Path traversal in `HybridDocumentStore` due to user inputs (`collectionName`, `documentId`) directly concatenated with `Path.Combine` without validation.
+**Learning:** Even if `PathValidator` is used in other storage classes, failing to systematically apply it across all storage implementations (like `HybridDocumentStore`) leaves the system vulnerable to directory traversal attacks (`../`).
+**Prevention:** Always wrap any user-controlled file path assembly (`Path.Combine`) with `PathValidator.GetSafePath(basePath, ...)` systematically across the entire storage layer.
