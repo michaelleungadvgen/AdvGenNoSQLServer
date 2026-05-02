@@ -231,18 +231,36 @@ public class ShardingManager : IShardingManager
     /// <inheritdoc />
     public Task<ShardingClusterStatistics> GetStatisticsAsync(CancellationToken cancellationToken = default)
     {
+        long totalDocs = 0;
+        long totalStorage = 0;
+        int totalConns = 0;
+        long totalReqs = 0;
+        double sumLatency = 0;
+        var statsList = new List<ShardStatistics>(_statistics.Count);
+
+        // Performance optimization: Consolidate multiple LINQ aggregations into a single pass.
+        // This eliminates redundant iterations and intermediate allocations over ConcurrentDictionary.Values.
+        foreach (var kvp in _statistics)
+        {
+            var s = kvp.Value;
+            totalDocs += s.DocumentCount;
+            totalStorage += s.StorageBytes;
+            totalConns += s.ActiveConnections;
+            totalReqs += s.TotalRequests;
+            sumLatency += s.AverageLatencyMs;
+            statsList.Add(s);
+        }
+
         var clusterStats = new ShardingClusterStatistics
         {
             TotalShards = _configuration.Shards.Count,
             ActiveShards = _router.GetAllActiveShards().Count,
-            TotalDocuments = _statistics.Values.Sum(s => s.DocumentCount),
-            TotalStorageBytes = _statistics.Values.Sum(s => s.StorageBytes),
-            TotalActiveConnections = _statistics.Values.Sum(s => s.ActiveConnections),
-            TotalRequests = _statistics.Values.Sum(s => s.TotalRequests),
-            AverageClusterLatencyMs = _statistics.Values.Any() 
-                ? _statistics.Values.Average(s => s.AverageLatencyMs) 
-                : 0,
-            ShardStats = _statistics.Values.ToList()
+            TotalDocuments = totalDocs,
+            TotalStorageBytes = totalStorage,
+            TotalActiveConnections = totalConns,
+            TotalRequests = totalReqs,
+            AverageClusterLatencyMs = statsList.Count > 0 ? sumLatency / statsList.Count : 0,
+            ShardStats = statsList
         };
 
         return Task.FromResult(clusterStats);
@@ -260,15 +278,31 @@ public class ShardingManager : IShardingManager
     {
         if (_statistics.Count < 2) return false;
 
-        var activeStats = _statistics.Values.Where(s => s.DocumentCount > 0).ToList();
-        if (activeStats.Count < 2) return false;
+        long totalLoad = 0;
+        long maxLoad = long.MinValue;
+        long minLoad = long.MaxValue;
+        int activeCount = 0;
 
-        var avgLoad = activeStats.Average(s => s.DocumentCount);
-        var maxLoad = activeStats.Max(s => s.DocumentCount);
-        var minLoad = activeStats.Min(s => s.DocumentCount);
+        // Performance optimization: Combine multiple LINQ passes (Where, Average, Max, Min) into a single loop.
+        // This reduces time complexity from O(4N) to O(N) and prevents excessive GC pressure.
+        foreach (var kvp in _statistics)
+        {
+            long docCount = kvp.Value.DocumentCount;
+            if (docCount > 0)
+            {
+                totalLoad += docCount;
+                if (docCount > maxLoad) maxLoad = docCount;
+                if (docCount < minLoad) minLoad = docCount;
+                activeCount++;
+            }
+        }
+
+        if (activeCount < 2) return false;
+
+        double avgLoad = (double)totalLoad / activeCount;
 
         // Check if the difference between max and min exceeds the threshold
-        var imbalance = (maxLoad - minLoad) / (double)avgLoad;
+        var imbalance = (maxLoad - minLoad) / avgLoad;
         return imbalance > _configuration.RebalanceThreshold;
     }
 
