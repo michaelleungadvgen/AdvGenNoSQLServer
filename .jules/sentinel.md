@@ -12,3 +12,7 @@
 **Vulnerability:** Regular Expression Denial of Service (ReDoS) vulnerability in `AdvGenNoSqlServer.Query/Filtering/FilterEngine.cs` during `$regex` evaluation.
 **Learning:** Evaluating user-supplied or highly variable regex patterns using `Regex.IsMatch` without a timeout leaves the server vulnerable to catastrophic backtracking when complex strings are provided. Additionally, using `RegexOptions.Compiled` for one-off patterns forces compilation to IL and severely degraded server performance.
 **Prevention:** Always supply a `TimeSpan` timeout (e.g. 100ms) to `Regex.IsMatch` and handle `RegexMatchTimeoutException`. Never use `RegexOptions.Compiled` for dynamic patterns generated from user queries.
+## 2026-03-05 - [Unlogged Encryption Key Generation]
+**Vulnerability:** Unlogged, unpersisted master encryption keys lead to potential data loss (SEC-009).
+**Learning:** When generating a secure random master key dynamically during service initialization due to missing configuration, failing to properly log this event means administrators are unaware the key was generated and will lose all encrypted data upon service restart if the key isn't backed up.
+**Prevention:** Always log critical security events, particularly the generation of unpersisted master encryption keys, using an injected `ILogger` instance so administrators are warned of the data loss risk.
