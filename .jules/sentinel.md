@@ -12,3 +12,8 @@
 **Vulnerability:** Regular Expression Denial of Service (ReDoS) vulnerability in `AdvGenNoSqlServer.Query/Filtering/FilterEngine.cs` during `$regex` evaluation.
 **Learning:** Evaluating user-supplied or highly variable regex patterns using `Regex.IsMatch` without a timeout leaves the server vulnerable to catastrophic backtracking when complex strings are provided. Additionally, using `RegexOptions.Compiled` for one-off patterns forces compilation to IL and severely degraded server performance.
 **Prevention:** Always supply a `TimeSpan` timeout (e.g. 100ms) to `Regex.IsMatch` and handle `RegexMatchTimeoutException`. Never use `RegexOptions.Compiled` for dynamic patterns generated from user queries.
+
+## 2026-03-05 - [Missing JWT Signature Validation]
+**Vulnerability:** JWT Signature Verification Bypass in `JwtTokenProvider.cs`. `ExtractUsername` and `GetExpirationTime` decoded the token and returned data without validating the HMAC signature.
+**Learning:** Returning parsed data from a JWT without explicitly calling the signature validation logic (or a dedicated internal token validator) permits attackers to forge claims by tampering with the payload and submitting it. Any logic relying on these methods for authentication or authorization is vulnerable.
+**Prevention:** Before extracting and returning claims from a JSON Web Token, ensure that the token's signature is verified using fixed-time cryptographic comparison (`CryptographicOperations.FixedTimeEquals`).
