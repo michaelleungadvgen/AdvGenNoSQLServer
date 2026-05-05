@@ -16,6 +16,8 @@ namespace AdvGenNoSqlServer.Core.Validation
     {
         private readonly ConcurrentDictionary<string, CollectionValidationConfig> _validationConfigs = new();
 
+        private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(100);
+
         /// <summary>
         /// Initializes a new instance of the <see cref="DocumentValidator"/> class.
         /// </summary>
@@ -296,10 +298,14 @@ namespace AdvGenNoSqlServer.Core.Validation
                 {
                     try
                     {
-                        if (!Regex.IsMatch(value, pattern))
+                        if (!Regex.IsMatch(value, pattern, RegexOptions.None, RegexTimeout))
                         {
                             errors.Add(ValidationError.Pattern(path, pattern, value));
                         }
+                    }
+                    catch (RegexMatchTimeoutException)
+                    {
+                        errors.Add(ValidationError.Custom(path, "PATTERN_TIMEOUT", $"Regex pattern evaluation timed out for pattern '{pattern}'."));
                     }
                     catch (RegexParseException)
                     {
@@ -559,17 +565,27 @@ namespace AdvGenNoSqlServer.Core.Validation
         /// </summary>
         private void ValidateFormat(string value, string format, string path, List<ValidationError> errors)
         {
-            var isValid = format switch
+            bool isValid;
+            try
             {
-                "email" => Regex.IsMatch(value, @"^[^@\s]+@[^@\s]+\.[^@\s]+$"),
-                "date" => DateTime.TryParseExact(value, "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.None, out _),
-                "date-time" => DateTime.TryParse(value, out _),
-                "uri" => Uri.TryCreate(value, UriKind.Absolute, out _),
-                "uuid" => Guid.TryParseExact(value, "D", out _) || Guid.TryParse(value, out _),
-                "hostname" => Regex.IsMatch(value, @"^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$"),
-                "ipv4" => Regex.IsMatch(value, @"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"),
-                _ => true // Unknown formats are allowed
-            };
+                isValid = format switch
+                {
+                    "email" => Regex.IsMatch(value, @"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.None, RegexTimeout),
+                    "date" => DateTime.TryParseExact(value, "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.None, out _),
+                    "date-time" => DateTime.TryParse(value, out _),
+                    "uri" => Uri.TryCreate(value, UriKind.Absolute, out _),
+                    "uuid" => Guid.TryParseExact(value, "D", out _) || Guid.TryParse(value, out _),
+                    "hostname" => Regex.IsMatch(value, @"^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$", RegexOptions.None, RegexTimeout),
+                    "ipv4" => Regex.IsMatch(value, @"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$", RegexOptions.None, RegexTimeout),
+                    _ => true // Unknown formats are allowed
+                };
+            }
+            catch (RegexMatchTimeoutException)
+            {
+                isValid = false;
+                errors.Add(ValidationError.Custom(path, "FORMAT_TIMEOUT", $"Regex format evaluation timed out for format '{format}'.", new Dictionary<string, object> { ["format"] = format, ["value"] = value }));
+                return;
+            }
 
             if (!isValid)
             {
