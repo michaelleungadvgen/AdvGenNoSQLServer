@@ -216,6 +216,12 @@ public class JwtTokenProvider : IJwtTokenProvider
             if (parts.Length != 3)
                 return null;
 
+            var expectedSignature = ComputeHmacSha256Signature($"{parts[0]}.{parts[1]}", _secretKey);
+            var actualSignature = Base64UrlDecode(parts[2]);
+
+            if (!CryptographicOperations.FixedTimeEquals(expectedSignature, actualSignature))
+                return null;
+
             var payloadJson = Encoding.UTF8.GetString(Base64UrlDecode(parts[1]));
             var payload = JsonSerializer.Deserialize<JwtPayload>(payloadJson, _jsonOptions);
 
@@ -237,6 +243,12 @@ public class JwtTokenProvider : IJwtTokenProvider
         {
             var parts = token.Split('.');
             if (parts.Length != 3)
+                return null;
+
+            var expectedSignature = ComputeHmacSha256Signature($"{parts[0]}.{parts[1]}", _secretKey);
+            var actualSignature = Base64UrlDecode(parts[2]);
+
+            if (!CryptographicOperations.FixedTimeEquals(expectedSignature, actualSignature))
                 return null;
 
             var payloadJson = Encoding.UTF8.GetString(Base64UrlDecode(parts[1]));
