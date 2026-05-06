@@ -116,7 +116,9 @@ public class ShardingDocumentStore : IDocumentStore
         });
 
         var results = await Task.WhenAll(tasks);
-        return results.SelectMany(docs => docs).ToList();
+        // Avoid .ToList() to return a deferred enumerable, preserving zero-allocation lazy evaluation
+        // This is safe because IDocumentStore specifies Task<IEnumerable<Document>> and callers like QueryExecutor expect lazy iteration.
+        return results.SelectMany(docs => docs);
     }
 
     /// <inheritdoc />
@@ -142,7 +144,9 @@ public class ShardingDocumentStore : IDocumentStore
         });
 
         var results = await Task.WhenAll(tasks);
-        return results.SelectMany(docs => docs).ToList();
+        // Avoid .ToList() to return a deferred enumerable, preserving zero-allocation lazy evaluation.
+        // Safe as interface defines Task<IEnumerable<Document>>.
+        return results.SelectMany(docs => docs);
     }
 
     /// <inheritdoc />
@@ -284,7 +288,8 @@ public class ShardingDocumentStore : IDocumentStore
         });
 
         var results = await Task.WhenAll(tasks);
-        return results.SelectMany(cols => cols).Distinct().ToList();
+        // Use Concat().Distinct() over materialized collections to defer execution and avoid eagerly creating duplicate hashsets.
+        return results.SelectMany(cols => cols).Distinct();
     }
 
     /// <inheritdoc />
