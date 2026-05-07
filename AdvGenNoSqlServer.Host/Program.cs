@@ -2,17 +2,22 @@
 // Licensed under the MIT License.
 // See LICENSE.txt for license information.
 
+using AdvGenNoSqlServer.Core.Abstractions;
 using AdvGenNoSqlServer.Core.Caching;
 using AdvGenNoSqlServer.Core.Configuration;
 using AdvGenNoSqlServer.Core.Authentication;
 using AdvGenNoSqlServer.Core.MemoryManagement;
 using AdvGenNoSqlServer.Core.Metrics;
+using AdvGenNoSqlServer.Core.Models;
 using AdvGenNoSqlServer.Core.Transactions;
 using AdvGenNoSqlServer.Storage;
 using AdvGenNoSqlServer.Network;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 namespace AdvGenNoSqlServer.Host;
 
@@ -39,8 +44,28 @@ public class Program
         builder.Logging.SetMinimumLevel(LogLevel.Information);
         builder.Logging.AddConsole();
 
-        // HTTP API port for Blazor WASM admin dashboard
-        builder.WebHost.UseUrls("http://0.0.0.0:9092");
+        // HTTPS API port for Blazor WASM admin dashboard (TCP port 9191 + 1 = 9192, always HTTPS)
+        // Blazor WASM is served from HTTPS so the API must also be HTTPS to avoid mixed-content blocks.
+        // Uses the ASP.NET Core developer certificate. Run: dotnet dev-certs https --trust
+        var certPath = builder.Configuration.GetValue<string>("HttpsCertificatePath");
+        var certPassword = builder.Configuration.GetValue<string>("HttpsCertificatePassword");
+
+        builder.WebHost.ConfigureKestrel(options =>
+        {
+            options.ListenAnyIP(9192, listenOptions =>
+            {
+                if (!string.IsNullOrEmpty(certPath) && File.Exists(certPath))
+                {
+                    listenOptions.UseHttps(certPath, certPassword);
+                    Console.WriteLine($"[HTTPS API] Using certificate: {certPath}");
+                }
+                else
+                {
+                    listenOptions.UseHttps(); // Uses ASP.NET Core developer certificate
+                }
+            });
+        });
+        Console.WriteLine("[HTTPS API] TCP port: 9191, HTTPS API port: 9192");
 
         // CORS for Blazor WASM
         builder.Services.AddCors();
@@ -53,22 +78,36 @@ public class Program
 
         var app = builder.Build();
 
-        // CORS middleware
+        // CORS middleware (must be before auth)
         app.UseCors(policy => policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
+
+        // Authentication & Authorization middleware
+        app.UseAuthentication();
+        app.UseAuthorization();
 
         // --- REST API endpoints ---
 
-        app.MapGet("/api/stats", async (ApiDataService data) =>
+        // Public health check — used by Admin ConnectAsync before auth token is available
+        app.MapGet("/api/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
+
+        // Secured endpoints (require JWT auth)
+        app.MapGet("/api/stats", [Microsoft.AspNetCore.Authorization.Authorize] async (ApiDataService data) =>
         {
             var uptime = DateTime.UtcNow - data.StartTime;
             var memMB = (int)(GC.GetTotalMemory(false) / 1_048_576);
             long totalDocs = 0;
             int totalCols = 0;
-            if (data.DocumentStore != null)
+            int totalDbs = 0;
+            if (data.DatabaseManager != null)
             {
-                var cols = (await data.DocumentStore.GetCollectionsAsync()).ToList();
-                totalCols = cols.Count;
-                foreach (var c in cols) totalDocs += await data.DocumentStore.CountAsync(c);
+                totalDbs = data.DatabaseManager.GetDatabaseNames().Count();
+                // Get stats from default database
+                if (data.DocumentStore != null)
+                {
+                    var cols = (await data.DocumentStore.GetCollectionsAsync()).ToList();
+                    totalCols = cols.Count;
+                    foreach (var c in cols) totalDocs += await data.DocumentStore.CountAsync(c);
+                }
             }
             return Results.Ok(new
             {
@@ -77,25 +116,82 @@ public class Program
                 memoryUsageMB = memMB,
                 totalDocuments = totalDocs,
                 totalCollections = totalCols,
+                totalDatabases = totalDbs,
                 activeConnections = data.TcpServer?.ActiveConnectionCount ?? 0
             });
         });
 
-        app.MapGet("/api/collections", async (ApiDataService data) =>
+        // --- Database Management ---
+
+        app.MapGet("/api/databases", [Microsoft.AspNetCore.Authorization.Authorize] (ApiDataService data) =>
+        {
+            if (data.DatabaseManager == null) return Results.Ok(Array.Empty<string>());
+            var dbs = data.DatabaseManager.GetDatabaseNames();
+            return Results.Ok(dbs);
+        });
+
+        app.MapPost("/api/databases/{name}", [Microsoft.AspNetCore.Authorization.Authorize] async (string name, ApiDataService data) =>
+        {
+            if (data.DatabaseManager == null) return Results.StatusCode(503);
+            try
+            {
+                var created = await data.DatabaseManager.CreateDatabaseAsync(name);
+                if (created)
+                    return Results.Ok(new { success = true, message = $"Database '{name}' created" });
+                return Results.BadRequest(new { success = false, error = "Database already exists or invalid name" });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { success = false, error = ex.Message });
+            }
+        });
+
+        app.MapDelete("/api/databases/{name}", [Microsoft.AspNetCore.Authorization.Authorize] async (string name, ApiDataService data) =>
+        {
+            if (data.DatabaseManager == null) return Results.StatusCode(503);
+            try
+            {
+                var deleted = await data.DatabaseManager.DeleteDatabaseAsync(name);
+                if (deleted)
+                    return Results.Ok(new { success = true, message = $"Database '{name}' deleted" });
+                return Results.BadRequest(new { success = false, error = "Cannot delete default database or database not found" });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { success = false, error = ex.Message });
+            }
+        });
+
+        app.MapPost("/api/databases/{name}/select", [Microsoft.AspNetCore.Authorization.Authorize] (string name, ApiDataService data) =>
+        {
+            if (data.DatabaseManager == null) return Results.StatusCode(503);
+            try
+            {
+                var store = data.DatabaseManager.GetDatabase(name);
+                data.DocumentStore = store;
+                return Results.Ok(new { success = true, message = $"Database '{name}' selected" });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { success = false, error = ex.Message });
+            }
+        });
+
+        app.MapGet("/api/collections", [Microsoft.AspNetCore.Authorization.Authorize] async (ApiDataService data) =>
         {
             if (data.DocumentStore == null) return Results.Ok(Array.Empty<string>());
             var cols = await data.DocumentStore.GetCollectionsAsync();
             return Results.Ok(cols);
         });
 
-        app.MapGet("/api/collections/{name}/count", async (string name, ApiDataService data) =>
+        app.MapGet("/api/collections/{name}/count", [Microsoft.AspNetCore.Authorization.Authorize] async (string name, ApiDataService data) =>
         {
             if (data.DocumentStore == null) return Results.Ok(new { count = 0L });
             var count = await data.DocumentStore.CountAsync(name);
             return Results.Ok(new { count });
         });
 
-        app.MapGet("/api/collections/{name}/documents", async (string name, int skip, int take, ApiDataService data) =>
+        app.MapGet("/api/collections/{name}/documents", [Microsoft.AspNetCore.Authorization.Authorize] async (string name, int skip, int take, ApiDataService data) =>
         {
             if (data.DocumentStore == null) return Results.Ok(Array.Empty<object>());
             var all = await data.DocumentStore.GetAllAsync(name);
@@ -103,14 +199,14 @@ public class Program
             return Results.Ok(page);
         });
 
-        app.MapGet("/api/collections/{name}/documents/{id}", async (string name, string id, ApiDataService data) =>
+        app.MapGet("/api/collections/{name}/documents/{id}", [Microsoft.AspNetCore.Authorization.Authorize] async (string name, string id, ApiDataService data) =>
         {
             if (data.DocumentStore == null) return Results.NotFound();
             var doc = await data.DocumentStore.GetAsync(name, id);
             return doc == null ? Results.NotFound() : Results.Ok(doc);
         });
 
-        app.MapPost("/api/query", async (QueryRequest req, ApiDataService data) =>
+        app.MapPost("/api/query", [Microsoft.AspNetCore.Authorization.Authorize] async (QueryRequest req, ApiDataService data) =>
         {
             var sw = System.Diagnostics.Stopwatch.StartNew();
             var docs = new List<object>();
@@ -128,6 +224,119 @@ public class Program
                 totalCount = docs.Count
             });
         });
+
+        // --- Collection Management ---
+
+        app.MapPost("/api/collections/{name}", [Microsoft.AspNetCore.Authorization.Authorize] async (string name, ApiDataService data) =>
+        {
+            if (data.DocumentStore == null) return Results.StatusCode(503);
+            try
+            {
+                await data.DocumentStore.CreateCollectionAsync(name);
+                return Results.Ok(new { success = true, message = $"Collection '{name}' created" });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { success = false, error = ex.Message });
+            }
+        });
+
+        app.MapDelete("/api/collections/{name}", [Microsoft.AspNetCore.Authorization.Authorize] async (string name, ApiDataService data) =>
+        {
+            if (data.DocumentStore == null) return Results.StatusCode(503);
+            try
+            {
+                var deleted = await data.DocumentStore.DropCollectionAsync(name);
+                if (deleted)
+                    return Results.Ok(new { success = true, message = $"Collection '{name}' deleted" });
+                return Results.NotFound(new { success = false, error = "Collection not found" });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { success = false, error = ex.Message });
+            }
+        });
+
+        // --- Document CRUD ---
+
+        app.MapPost("/api/collections/{name}/documents", [Microsoft.AspNetCore.Authorization.Authorize] async (string name, Document doc, ApiDataService data) =>
+        {
+            if (data.DocumentStore == null) return Results.StatusCode(503);
+            try
+            {
+                if (string.IsNullOrEmpty(doc.Id))
+                    doc.Id = Guid.NewGuid().ToString("N");
+                var inserted = await data.DocumentStore.InsertAsync(name, doc);
+                return Results.Ok(new { success = true, id = inserted.Id });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { success = false, error = ex.Message });
+            }
+        });
+
+        app.MapPut("/api/collections/{name}/documents/{id}", [Microsoft.AspNetCore.Authorization.Authorize] async (string name, string id, Document doc, ApiDataService data) =>
+        {
+            if (data.DocumentStore == null) return Results.StatusCode(503);
+            try
+            {
+                doc.Id = id;
+                var updated = await data.DocumentStore.UpdateAsync(name, doc);
+                return Results.Ok(new { success = true, id = updated.Id });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { success = false, error = ex.Message });
+            }
+        });
+
+        app.MapDelete("/api/collections/{name}/documents/{id}", [Microsoft.AspNetCore.Authorization.Authorize] async (string name, string id, ApiDataService data) =>
+        {
+            if (data.DocumentStore == null) return Results.StatusCode(503);
+            try
+            {
+                var deleted = await data.DocumentStore.DeleteAsync(name, id);
+                if (deleted)
+                    return Results.Ok(new { success = true, message = "Document deleted" });
+                return Results.NotFound(new { success = false, error = "Document not found" });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { success = false, error = ex.Message });
+            }
+        });
+
+        // --- Authentication ---
+
+        // Public endpoint: Login (no auth required)
+        app.MapPost("/api/auth/login", async (LoginRequest req, ApiDataService data, AuthenticationManager auth, IJwtTokenProvider jwtProvider) =>
+        {
+            if (data.DocumentStore == null) return Results.StatusCode(503);
+            try
+            {
+                var result = auth.Authenticate(req.Username, req.Password);
+                if (result != null)
+                {
+                    // Generate JWT token with admin role
+                    var roles = new[] { "Admin" };
+                    var permissions = new[] { "*" };
+                    var jwtToken = jwtProvider.GenerateToken(req.Username, roles, permissions);
+                    
+                    return Results.Ok(new
+                    {
+                        success = true,
+                        token = jwtToken,
+                        username = req.Username,
+                        expiresAt = result.ExpiresAt
+                    });
+                }
+                return Results.Unauthorized();
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { success = false, error = ex.Message });
+            }
+        }).AllowAnonymous();
 
         // Start the application (also starts IHostedServices)
         await app.RunAsync();
@@ -182,6 +391,49 @@ public class Program
             return new AuthenticationManager(config);
         });
 
+        // Add JWT token provider
+        services.AddSingleton<IJwtTokenProvider>(provider =>
+        {
+            var configManager = provider.GetRequiredService<Core.Configuration.IConfigurationManager>();
+            var config = configManager.Configuration;
+            return new JwtTokenProvider(config);
+        });
+
+        // Add JWT authentication
+        services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddJwtBearer(options =>
+            {
+                var config = services.BuildServiceProvider()
+                    .GetRequiredService<Core.Configuration.IConfigurationManager>().Configuration;
+                
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    ValidIssuer = config.JwtIssuer ?? "AdvGenNoSqlServer",
+                    ValidAudience = config.JwtAudience ?? "AdvGenNoSqlClient",
+                    IssuerSigningKey = new SymmetricSecurityKey(
+                        Encoding.UTF8.GetBytes(config.JwtSecretKey ?? GenerateSecureSecret()))
+                };
+                
+                // For Blazor WASM, don't redirect to login page on 401
+                options.Events = new JwtBearerEvents
+                {
+                    OnAuthenticationFailed = context =>
+                    {
+                        if (context.Exception.GetType() == typeof(SecurityTokenExpiredException))
+                        {
+                            context.Response.Headers.Append("Token-Expired", "true");
+                        }
+                        return Task.CompletedTask;
+                    }
+                };
+            });
+
+        services.AddAuthorization();
+
         // Add Write-Ahead Log
         services.AddSingleton<IWriteAheadLog>(provider =>
         {
@@ -209,8 +461,32 @@ public class Program
             return new TransactionCoordinator(writeAheadLog, lockManager);
         });
 
+        // Add database manager
+        services.AddSingleton<IDatabaseManager>(provider =>
+        {
+            var configManager = provider.GetRequiredService<Core.Configuration.IConfigurationManager>();
+            var config = configManager.Configuration;
+            var storagePath = string.IsNullOrEmpty(config.StoragePath) ? "data" : config.StoragePath;
+            if (!Path.IsPathRooted(storagePath))
+            {
+                storagePath = Path.Combine(AppContext.BaseDirectory, storagePath);
+            }
+            return new DatabaseManager(storagePath);
+        });
+
         // Add the hosted NoSQL server service
         services.AddHostedService<NoSqlServerHost>();
+    }
+
+    /// <summary>
+    /// Generates a secure random secret key for JWT signing
+    /// </summary>
+    private static string GenerateSecureSecret()
+    {
+        var bytes = new byte[32];
+        using var rng = System.Security.Cryptography.RandomNumberGenerator.Create();
+        rng.GetBytes(bytes);
+        return Convert.ToBase64String(bytes);
     }
 }
 
@@ -218,6 +494,11 @@ public class Program
 /// Request body for POST /api/query.
 /// </summary>
 public record QueryRequest(string Query, string? Collection);
+
+/// <summary>
+/// Request body for POST /api/auth/login.
+/// </summary>
+public record LoginRequest(string Username, string Password);
 
 /// <summary>
 /// Hosted service wrapper for the NoSQL server.
@@ -228,9 +509,9 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
     private readonly Core.Configuration.IConfigurationManager _configManager;
     private readonly IAuditLogger _auditLogger;
     private readonly AuthenticationManager _authManager;
+    private readonly IDatabaseManager _databaseManager;
     private readonly ApiDataService _apiData;
     private TcpServer? _tcpServer;
-    private HybridDocumentStore? _documentStore;
     private bool _disposed;
 
     public NoSqlServerHost(
@@ -238,12 +519,14 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
         Core.Configuration.IConfigurationManager configManager,
         IAuditLogger auditLogger,
         AuthenticationManager authManager,
+        IDatabaseManager databaseManager,
         ApiDataService apiData)
     {
         _logger = logger;
         _configManager = configManager;
         _auditLogger = auditLogger;
         _authManager = authManager;
+        _databaseManager = databaseManager;
         _apiData = apiData;
     }
 
@@ -257,17 +540,10 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
         // Ensure data directories exist
         EnsureDirectoriesExist(config);
 
-        // Initialize hybrid document store (cache + disk)
-        var storagePath = string.IsNullOrEmpty(config.StoragePath) ? "data" : config.StoragePath;
-        if (!Path.IsPathRooted(storagePath))
-        {
-            storagePath = Path.Combine(AppContext.BaseDirectory, storagePath);
-        }
-
-        _logger.LogInformation("Initializing hybrid storage at: {Path}", storagePath);
-        _documentStore = new HybridDocumentStore(storagePath);
-        await _documentStore.InitializeAsync();
-        _logger.LogInformation("Hybrid storage initialized successfully");
+        _logger.LogInformation("Initializing database manager...");
+        // DatabaseManager is already initialized via DI
+        var defaultDb = _databaseManager.GetDatabase(_databaseManager.DefaultDatabaseName);
+        _logger.LogInformation("Databases: {Count}", _databaseManager.GetDatabaseNames().Count());
 
         // Create and configure the TCP server
         _tcpServer = new TcpServer(config);
@@ -276,7 +552,8 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
         _tcpServer.MessageReceived += OnMessageReceivedAsync;
 
         // Expose live references to the HTTP API
-        _apiData.DocumentStore = _documentStore;
+        _apiData.DatabaseManager = _databaseManager;
+        _apiData.DocumentStore = defaultDb;
         _apiData.TcpServer = _tcpServer;
 
         // Start the TCP server
@@ -298,7 +575,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine("═══════════════════════════════════════════════════════════════");
         Console.WriteLine($"  Server is running on {config.Host}:{config.Port}");
-        Console.WriteLine($"  HTTP API is running on http://0.0.0.0:9092");
+        Console.WriteLine($"  HTTPS API is running on https://0.0.0.0:9192");
         Console.WriteLine($"  Press Ctrl+C to stop the server");
         Console.WriteLine("═══════════════════════════════════════════════════════════════");
         Console.ResetColor();
@@ -310,6 +587,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
         _logger.LogInformation("Stopping NoSQL Server...");
 
         // Clear live references so HTTP API returns safe empty data
+        _apiData.DatabaseManager = null;
         _apiData.DocumentStore = null;
         _apiData.TcpServer = null;
 
@@ -331,16 +609,6 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
             await _tcpServer.StopAsync(TimeSpan.FromSeconds(30));
             _tcpServer.Dispose();
             _tcpServer = null;
-        }
-
-        // Flush and dispose document store
-        if (_documentStore != null)
-        {
-            _logger.LogInformation("Flushing pending writes to disk...");
-            await _documentStore.FlushAsync();
-            await _documentStore.DisposeAsync();
-            _documentStore = null;
-            _logger.LogInformation("Storage shutdown complete");
         }
 
         _logger.LogInformation("NoSQL Server stopped successfully");
@@ -532,7 +800,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
 
     private async Task<NoSqlMessage> HandleCommandAsync(NoSqlMessage message, string connectionId)
     {
-        if (_documentStore == null)
+        if (_apiData.DocumentStore == null)
         {
             return NoSqlMessage.CreateError("NOT_INITIALIZED", "Document store not initialized");
         }
@@ -587,7 +855,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
             return NoSqlMessage.CreateError("INVALID_COMMAND", "Collection and id are required");
         }
 
-        var document = await _documentStore!.GetAsync(collection, id);
+        var document = await _apiData.DocumentStore!.GetAsync(collection, id);
 
         if (document == null)
         {
@@ -625,14 +893,14 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
             document.Id = Guid.NewGuid().ToString("N");
         }
 
-        var exists = await _documentStore!.ExistsAsync(collection, document.Id);
+        var exists = await _apiData.DocumentStore!.ExistsAsync(collection, document.Id);
         if (exists)
         {
-            await _documentStore.UpdateAsync(collection, document);
+            await _apiData.DocumentStore.UpdateAsync(collection, document);
         }
         else
         {
-            await _documentStore.InsertAsync(collection, document);
+            await _apiData.DocumentStore.InsertAsync(collection, document);
         }
 
         return NoSqlMessage.CreateSuccess(new { stored = true, id = document.Id });
@@ -654,7 +922,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
             return NoSqlMessage.CreateError("INVALID_COMMAND", "Collection and id are required");
         }
 
-        var deleted = await _documentStore!.DeleteAsync(collection, id);
+        var deleted = await _apiData.DocumentStore!.DeleteAsync(collection, id);
 
         return NoSqlMessage.CreateSuccess(new { deleted });
     }
@@ -675,7 +943,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
             return NoSqlMessage.CreateError("INVALID_COMMAND", "Collection and id are required");
         }
 
-        var exists = await _documentStore!.ExistsAsync(collection, id);
+        var exists = await _apiData.DocumentStore!.ExistsAsync(collection, id);
 
         return NoSqlMessage.CreateSuccess(new { exists });
     }
@@ -689,15 +957,15 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
             var collection = collectionProp.GetString();
             if (!string.IsNullOrEmpty(collection))
             {
-                count = await _documentStore!.CountAsync(collection);
+                count = await _apiData.DocumentStore!.CountAsync(collection);
             }
         }
         else
         {
-            var collections = await _documentStore!.GetCollectionsAsync();
+            var collections = await _apiData.DocumentStore!.GetCollectionsAsync();
             foreach (var collection in collections)
             {
-                count += await _documentStore.CountAsync(collection);
+                count += await _apiData.DocumentStore.CountAsync(collection);
             }
         }
 
@@ -706,7 +974,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
 
     private async Task<NoSqlMessage> HandleListCollectionsCommandAsync()
     {
-        var collections = await _documentStore!.GetCollectionsAsync();
+        var collections = await _apiData.DocumentStore!.GetCollectionsAsync();
         return NoSqlMessage.CreateSuccess(new { collections });
     }
 
@@ -727,10 +995,5 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
 
         _disposed = true;
         _tcpServer?.Dispose();
-
-        if (_documentStore != null)
-        {
-            await _documentStore.DisposeAsync();
-        }
     }
 }

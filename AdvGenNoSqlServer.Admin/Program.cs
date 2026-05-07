@@ -18,9 +18,11 @@ builder.Services.AddMudServices();
 // Configure HttpClient for API calls
 builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });
 
-// Add custom services
+// Add custom services — ServerConnectionService must be singleton so connection state persists across pages
+builder.Services.AddSingleton<ServerConnectionService>(_ => new ServerConnectionService(new HttpClient()));
 builder.Services.AddSingleton<AdminAuthService>();
-builder.Services.AddHttpClient<ServerConnectionService>();
+builder.Services.AddSingleton<INoSqlServerClient>(sp => sp.GetRequiredService<ServerConnectionService>());
 builder.Services.AddSingleton<NotificationService>();
+builder.Services.AddScoped<LocalStorageService>();
 
 await builder.Build().RunAsync();

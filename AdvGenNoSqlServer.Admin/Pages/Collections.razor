@@ -54,8 +54,6 @@ else
         <HeaderContent>
             <MudTh>Collection Name</MudTh>
             <MudTh>Documents</MudTh>
-            <MudTh>Size</MudTh>
-            <MudTh>Indexes</MudTh>
             <MudTh>Actions</MudTh>
         </HeaderContent>
         <RowTemplate>
@@ -66,8 +64,6 @@ else
                 </MudLink>
             </MudTd>
             <MudTd DataLabel="Documents">@context.DocumentCount.ToString("N0")</MudTd>
-            <MudTd DataLabel="Size">@FormatBytes(context.SizeBytes)</MudTd>
-            <MudTd DataLabel="Indexes">@context.IndexCount</MudTd>
             <MudTd DataLabel="Actions">
                 <MudIconButton Icon="@Icons.Material.Filled.Search" 
                                Size="Size.Small"
@@ -103,16 +99,13 @@ else
         try
         {
             var collectionNames = await ConnectionService.GetCollectionsAsync();
-            var random = new Random();
-            
-            _collections = collectionNames.Select(name => new CollectionInfo
+            var infos = new List<CollectionInfo>();
+            foreach (var name in collectionNames)
             {
-                Name = name,
-                DocumentCount = random.Next(100, 100000),
-                SizeBytes = random.Next(1024 * 1024, 1024 * 1024 * 1024),
-                IndexCount = random.Next(1, 10)
-            }).ToList();
-            
+                var count = await ConnectionService.GetCollectionCountAsync(name);
+                infos.Add(new CollectionInfo { Name = name, DocumentCount = count });
+            }
+            _collections = infos;
             FilterCollections();
         }
         catch (Exception ex)
@@ -153,7 +146,11 @@ else
         
         if (result?.Canceled == false && result.Data is string collectionName && !string.IsNullOrWhiteSpace(collectionName))
         {
-            Snackbar.Add($"Collection '{collectionName}' created successfully", Severity.Success);
+            var (ok, error) = await ConnectionService.CreateCollectionAsync(collectionName);
+            if (ok)
+                Snackbar.Add($"Collection '{collectionName}' created successfully", Severity.Success);
+            else
+                Snackbar.Add($"Failed to create collection '{collectionName}': {error}", Severity.Error);
             await LoadCollections();
         }
     }
@@ -183,29 +180,18 @@ else
         
         if (result?.Canceled == false)
         {
-            Snackbar.Add($"Collection '{collectionName}' deleted", Severity.Success);
+            var ok = await ConnectionService.DeleteCollectionAsync(collectionName);
+            if (ok)
+                Snackbar.Add($"Collection '{collectionName}' deleted", Severity.Success);
+            else
+                Snackbar.Add($"Failed to delete collection '{collectionName}'", Severity.Error);
             await LoadCollections();
         }
     }
 
-    private string FormatBytes(long bytes)
-    {
-        string[] sizes = { "B", "KB", "MB", "GB", "TB" };
-        int order = 0;
-        double size = bytes;
-        while (size >= 1024 && order < sizes.Length - 1)
-        {
-            order++;
-            size /= 1024;
-        }
-        return $"{size:0.##} {sizes[order]}";
-    }
-
-    public class CollectionInfo
+public class CollectionInfo
     {
         public string Name { get; set; } = "";
-        public int DocumentCount { get; set; }
-        public long SizeBytes { get; set; }
-        public int IndexCount { get; set; }
+        public long DocumentCount { get; set; }
     }
 }

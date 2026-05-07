@@ -16,7 +16,8 @@
     <MudGrid>
         <MudItem xs="12" md="4">
             <MudSelect T="string" 
-                       @bind-Value="_selectedCollection"
+                       Value="_selectedCollection"
+                       ValueChanged="OnCollectionChanged"
                        Label="Collection"
                        Variant="Variant.Outlined"
                        Dense="true">
@@ -40,7 +41,8 @@
                        Color="Color.Primary"
                        FullWidth="true"
                        StartIcon="@Icons.Material.Filled.Add"
-                       OnClick="CreateDocument">
+                       OnClick="CreateDocument"
+                       Disabled="string.IsNullOrEmpty(_selectedCollection)">
                 New
             </MudButton>
         </MudItem>
@@ -51,7 +53,7 @@
 {
     <MudProgressLinear Indeterminate="true" Class="my-4" />
 }
-else if (_documents?.Any() != true)
+else if (_filteredDocuments?.Any() != true)
 {
     <MudAlert Severity="Severity.Info" Class="my-4">
         No documents found. Select a collection or create a new document.
@@ -59,7 +61,7 @@ else if (_documents?.Any() != true)
 }
 else
 {
-    <MudTable Items="_documents" 
+    <MudTable Items="_filteredDocuments" 
               Dense="true" 
               Hover="true" 
               Bordered="true"
@@ -67,7 +69,6 @@ else
         <HeaderContent>
             <MudTh>ID</MudTh>
             <MudTh>Preview</MudTh>
-            <MudTh>Created</MudTh>
             <MudTh>Actions</MudTh>
         </HeaderContent>
         <RowTemplate>
@@ -77,11 +78,10 @@ else
                 </MudText>
             </MudTd>
             <MudTd DataLabel="Preview">
-                <MudText Typo="Typo.body2" Class="text-truncate" Style="max-width: 300px;">
+                <MudText Typo="Typo.body2" Class="text-truncate" Style="max-width: 400px;">
                     @GetDocumentPreview(context)
                 </MudText>
             </MudTd>
-            <MudTd DataLabel="Created">@GetCreatedDate(context)</MudTd>
             <MudTd DataLabel="Actions">
                 <MudIconButton Icon="@Icons.Material.Filled.Visibility" 
                                Size="Size.Small"
@@ -107,17 +107,60 @@ else
     private List<string> _collections = new();
     private string _selectedCollection = "";
     private List<Document>? _documents;
+    private List<Document>? _filteredDocuments;
     private bool _isLoading;
     private string _searchTerm = "";
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadCollections();
+        
+        // Check for collection in query string
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        var queryParams = ParseQueryString(uri.Query);
+        if (queryParams.TryGetValue("collection", out var collection) && !string.IsNullOrEmpty(collection))
+        {
+            _selectedCollection = collection;
+            await LoadDocuments();
+        }
+    }
+
+    private static Dictionary<string, string> ParseQueryString(string query)
+    {
+        var result = new Dictionary<string, string>();
+        if (string.IsNullOrEmpty(query) || query == "?") return result;
+        
+        var queryPart = query.StartsWith('?') ? query[1..] : query;
+        var pairs = queryPart.Split('&');
+        
+        foreach (var pair in pairs)
+        {
+            var parts = pair.Split('=', 2);
+            if (parts.Length == 2)
+            {
+                var key = Uri.UnescapeDataString(parts[0]);
+                var value = Uri.UnescapeDataString(parts[1]);
+                result[key] = value;
+            }
+        }
+        
+        return result;
+    }
+
+    private async Task LoadCollections()
+    {
         _collections = await ConnectionService.GetCollectionsAsync();
-        if (_collections.Any())
+        if (_collections.Any() && string.IsNullOrEmpty(_selectedCollection))
         {
             _selectedCollection = _collections.First();
             await LoadDocuments();
         }
+    }
+
+    private async Task OnCollectionChanged(string collection)
+    {
+        _selectedCollection = collection;
+        await LoadDocuments();
     }
 
     private async Task LoadDocuments()
@@ -127,7 +170,8 @@ else
         _isLoading = true;
         try
         {
-            _documents = await ConnectionService.GetDocumentsAsync(_selectedCollection);
+            _documents = await ConnectionService.GetDocumentsAsync(_selectedCollection, 0, 100);
+            FilterDocuments();
         }
         catch (Exception ex)
         {
@@ -139,17 +183,25 @@ else
         }
     }
 
-    private async Task SearchDocuments()
+    private void FilterDocuments()
     {
-        await LoadDocuments();
-        // In a real implementation, this would filter on the server
-        if (!string.IsNullOrWhiteSpace(_searchTerm) && _documents != null)
+        if (string.IsNullOrWhiteSpace(_searchTerm))
         {
-            _documents = _documents.Where(d => 
+            _filteredDocuments = _documents;
+        }
+        else if (_documents != null)
+        {
+            _filteredDocuments = _documents.Where(d => 
                 d.Id.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
                 GetDocumentPreview(d).Contains(_searchTerm, StringComparison.OrdinalIgnoreCase)
             ).ToList();
         }
+    }
+
+    private async Task SearchDocuments()
+    {
+        FilterDocuments();
+        await Task.CompletedTask;
     }
 
     private string GetDocumentPreview(Document doc)
@@ -158,14 +210,10 @@ else
             return name?.ToString() ?? "(no name)";
         if (doc.Data.TryGetValue("title", out var title))
             return title?.ToString() ?? "(no title)";
-        return "(no preview)";
-    }
-
-    private string GetCreatedDate(Document doc)
-    {
-        if (doc.Data.TryGetValue("createdAt", out var createdAt) && createdAt is DateTime dt)
-            return dt.ToString("yyyy-MM-dd HH:mm");
-        return "Unknown";
+        
+        // Return first few properties
+        var preview = string.Join(", ", doc.Data.Take(3).Select(kvp => $"{kvp.Key}: {kvp.Value}"));
+        return string.IsNullOrEmpty(preview) ? "(empty)" : preview;
     }
 
     private void ViewDocument(Document doc)
@@ -184,32 +232,66 @@ else
         DialogService.Show<DocumentViewDialog>("View Document", parameters);
     }
 
-    private void EditDocument(Document doc)
+    private async Task EditDocument(Document doc)
     {
-        Snackbar.Add($"Edit document: {doc.Id}", Severity.Info);
+        var parameters = new DialogParameters
+        {
+            ["Title"] = "Edit Document",
+            ["CollectionName"] = _selectedCollection,
+            ["Document"] = doc
+        };
+        
+        var dialog = await DialogService.ShowAsync<DocumentEditDialog>("Edit Document", parameters);
+        var result = await dialog.Result;
+        
+        if (result?.Canceled == false && result.Data is DocumentEditDialog.DocumentResult docResult)
+        {
+            var updatedDoc = new Document
+            {
+                Id = docResult.Id,
+                Data = docResult.Data
+            };
+            
+            var (success, error) = await ConnectionService.UpdateDocumentAsync(_selectedCollection, updatedDoc);
+            if (success)
+            {
+                Snackbar.Add("Document updated successfully", Severity.Success);
+                await LoadDocuments();
+            }
+            else
+            {
+                Snackbar.Add($"Failed to update document: {error}", Severity.Error);
+            }
+        }
     }
 
     private async Task DeleteDocument(Document doc)
     {
-        var parameters = new DialogParameters
+        var parameters = new DialogParameters<ConfirmDialog>
         {
-            ["Title"] = "Delete Document",
-            ["Message"] = $"Are you sure you want to delete document '{doc.Id}'?",
-            ["ConfirmText"] = "Delete",
-            ["CancelText"] = "Cancel"
+            { x => x.Title, "Delete Document" },
+            { x => x.Message, $"Are you sure you want to delete document '{doc.Id}'? This action cannot be undone." },
+            { x => x.ConfirmText, "Delete" }
         };
         
         var dialog = await DialogService.ShowAsync<ConfirmDialog>("Confirm Delete", parameters);
         var result = await dialog.Result;
         
-        if (result?.Canceled == false)
+        if (result?.Canceled == true) return;
+        
+        var success = await ConnectionService.DeleteDocumentAsync(_selectedCollection, doc.Id);
+        if (success)
         {
             Snackbar.Add($"Document '{doc.Id}' deleted", Severity.Success);
             await LoadDocuments();
         }
+        else
+        {
+            Snackbar.Add($"Failed to delete document '{doc.Id}'", Severity.Error);
+        }
     }
 
-    private void CreateDocument()
+    private async Task CreateDocument()
     {
         if (string.IsNullOrEmpty(_selectedCollection))
         {
@@ -217,6 +299,33 @@ else
             return;
         }
         
-        Snackbar.Add("Create new document", Severity.Info);
+        var parameters = new DialogParameters
+        {
+            ["Title"] = "Create New Document",
+            ["CollectionName"] = _selectedCollection
+        };
+        
+        var dialog = await DialogService.ShowAsync<DocumentEditDialog>("Create Document", parameters);
+        var result = await dialog.Result;
+        
+        if (result?.Canceled == false && result.Data is DocumentEditDialog.DocumentResult docResult)
+        {
+            var newDoc = new Document
+            {
+                Id = docResult.Id,
+                Data = docResult.Data
+            };
+            
+            var (success, docId, error) = await ConnectionService.InsertDocumentAsync(_selectedCollection, newDoc);
+            if (success)
+            {
+                Snackbar.Add($"Document created with ID: {docId}", Severity.Success);
+                await LoadDocuments();
+            }
+            else
+            {
+                Snackbar.Add($"Failed to create document: {error}", Severity.Error);
+            }
+        }
     }
 }

@@ -5,6 +5,8 @@
 @page "/query"
 @inject ServerConnectionService ConnectionService
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject IJSRuntime JSRuntime
 
 <PageTitle>Query - AdvGenNoSQL Admin</PageTitle>
 
@@ -87,10 +89,14 @@
                     <CardHeaderActions>
                         <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" 
                                        Color="Color.Default"
-                                       OnClick="CopyResults" />
+                                       OnClick="CopyResults"
+                                       Disabled="_queryResult.Documents?.Any() != true"
+                                       Title="Copy to clipboard" />
                         <MudIconButton Icon="@Icons.Material.Filled.Download" 
                                        Color="Color.Default"
-                                       OnClick="DownloadResults" />
+                                       OnClick="DownloadResults"
+                                       Disabled="_queryResult.Documents?.Any() != true"
+                                       Title="Download as JSON" />
                     </CardHeaderActions>
                 </MudCardHeader>
                 <MudCardContent>
@@ -127,7 +133,8 @@
                                     <MudIconButton Icon="@Icons.Material.Filled.Visibility" 
                                                    Size="Size.Small"
                                                    Color="Color.Primary"
-                                                   OnClick="() => ViewDocument(context)" />
+                                                   OnClick="() => ViewDocument(context)"
+                                                   Title="View document" />
                                 </MudTd>
                             </RowTemplate>
                         </MudTable>
@@ -230,25 +237,55 @@
             WriteIndented = true 
         });
         
-        // Would show a dialog in real implementation
-        Snackbar.Add($"Document: {json.Substring(0, Math.Min(100, json.Length))}...", Severity.Info);
+        var parameters = new DialogParameters
+        {
+            ["Title"] = $"Document: {doc.Id}",
+            ["Content"] = json
+        };
+        
+        DialogService.Show<DocumentViewDialog>("View Document", parameters);
     }
 
-    private void CopyResults()
+    private async Task CopyResults()
     {
-        if (_queryResult?.Documents != null)
+        if (_queryResult?.Documents == null) return;
+        
+        try
         {
             var json = System.Text.Json.JsonSerializer.Serialize(_queryResult.Documents, new System.Text.Json.JsonSerializerOptions 
             { 
                 WriteIndented = true 
             });
-            // In a real implementation, this would copy to clipboard
+            
+            await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", json);
             Snackbar.Add("Results copied to clipboard", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to copy: {ex.Message}", Severity.Error);
         }
     }
 
-    private void DownloadResults()
+    private async Task DownloadResults()
     {
-        Snackbar.Add("Download started", Severity.Info);
+        if (_queryResult?.Documents == null) return;
+        
+        try
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(_queryResult.Documents, new System.Text.Json.JsonSerializerOptions 
+            { 
+                WriteIndented = true 
+            });
+            
+            var fileName = $"query-results-{DateTime.Now:yyyyMMdd-HHmmss}.json";
+            
+            // Use JavaScript to trigger file download
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, json, "application/json");
+            Snackbar.Add("Download started", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to download: {ex.Message}", Severity.Error);
+        }
     }
 }

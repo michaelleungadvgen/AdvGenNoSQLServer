@@ -4,66 +4,214 @@
 
 namespace AdvGenNoSqlServer.Admin.Services;
 
-using System;
-using System.Collections.Generic;
-using System.Net.Http;
 using System.Net.Http.Json;
-using System.Threading.Tasks;
 using AdvGenNoSqlServer.Core.Models;
 
 /// <summary>
-/// Service for managing connection to the NoSQL server via HTTP API (port = TCP port + 1).
+/// Interface for NoSQL server client operations.
+/// Provides a client library pattern for Admin App (uses HTTP in WASM, TCP in native).
 /// </summary>
-public class ServerConnectionService
+public interface INoSqlServerClient
+{
+    /// <summary>
+    /// Gets whether connected to the server.
+    /// </summary>
+    bool IsConnected { get; }
+
+    /// <summary>
+    /// Gets the current server URL.
+    /// </summary>
+    string ServerUrl { get; }
+
+    /// <summary>
+    /// Gets the last connection error message.
+    /// </summary>
+    string? LastConnectError { get; }
+
+    /// <summary>
+    /// Event raised when connection state changes.
+    /// </summary>
+    event EventHandler? ConnectionStateChanged;
+
+    /// <summary>
+    /// Gets the currently selected database name.
+    /// </summary>
+    string? CurrentDatabase { get; }
+
+    /// <summary>
+    /// Connects to the NoSQL server.
+    /// </summary>
+    Task<bool> ConnectAsync(string serverUrl, string? username = null, string? password = null);
+
+    /// <summary>
+    /// Disconnects from the server.
+    /// </summary>
+    Task DisconnectAsync();
+
+    /// <summary>
+    /// Gets the list of databases.
+    /// </summary>
+    Task<List<string>> GetDatabasesAsync();
+
+    /// <summary>
+    /// Creates a new database.
+    /// </summary>
+    Task<bool> CreateDatabaseAsync(string name);
+
+    /// <summary>
+    /// Deletes a database.
+    /// </summary>
+    Task<bool> DeleteDatabaseAsync(string name);
+
+    /// <summary>
+    /// Selects a database to use.
+    /// </summary>
+    Task<bool> SelectDatabaseAsync(string name);
+
+    /// <summary>
+    /// Authenticates with the server.
+    /// </summary>
+    Task<bool> AuthenticateAsync(string username, string password);
+
+    /// <summary>
+    /// Returns server statistics.
+    /// </summary>
+    Task<ServerStats> GetServerStatsAsync();
+
+    /// <summary>
+    /// Creates a collection.
+    /// </summary>
+    Task<(bool Success, string? Error)> CreateCollectionAsync(string name);
+
+    /// <summary>
+    /// Deletes a collection.
+    /// </summary>
+    Task<bool> DeleteCollectionAsync(string name);
+
+    /// <summary>
+    /// Gets document count for a collection.
+    /// </summary>
+    Task<long> GetCollectionCountAsync(string name);
+
+    /// <summary>
+    /// Gets list of collections.
+    /// </summary>
+    Task<List<string>> GetCollectionsAsync();
+
+    /// <summary>
+    /// Gets documents from a collection.
+    /// </summary>
+    Task<List<Document>> GetDocumentsAsync(string collectionName, int skip = 0, int take = 50);
+
+    /// <summary>
+    /// Gets a single document by ID.
+    /// </summary>
+    Task<Document?> GetDocumentAsync(string collectionName, string documentId);
+
+    /// <summary>
+    /// Executes a query.
+    /// </summary>
+    Task<QueryResult> ExecuteQueryAsync(string query);
+
+    /// <summary>
+    /// Inserts a document and returns the result with document ID.
+    /// </summary>
+    Task<(bool Success, string? DocumentId, string? Error)> InsertDocumentAsync(string collectionName, Document document);
+
+    /// <summary>
+    /// Updates a document and returns the result.
+    /// </summary>
+    Task<(bool Success, string? Error)> UpdateDocumentAsync(string collectionName, Document document);
+
+    /// <summary>
+    /// Deletes a document.
+    /// </summary>
+    Task<bool> DeleteDocumentAsync(string collectionName, string documentId);
+}
+
+/// <summary>
+/// Service for managing connection to the NoSQL server via HTTP API.
+/// Implements INoSqlServerClient to provide client library pattern.
+/// Note: Blazor WebAssembly uses HTTP (port+1) as TCP sockets are not supported in browsers.
+/// </summary>
+public class ServerConnectionService : INoSqlServerClient
 {
     private readonly HttpClient _http;
     private string _serverUrl = "localhost:9090";
     private string? _baseApiUrl;
     private bool _isConnected;
+    private string? _lastConnectError;
+    private string? _currentDatabase;
+    private string? _authToken;
 
     public ServerConnectionService(HttpClient http) => _http = http;
 
-    /// <summary>
-    /// Event raised when connection state changes.
-    /// </summary>
+    /// <inheritdoc />
+    public string? LastConnectError => _lastConnectError;
+
+    /// <inheritdoc />
     public event EventHandler? ConnectionStateChanged;
 
-    /// <summary>
-    /// Gets whether connected to the server.
-    /// </summary>
+    /// <inheritdoc />
     public bool IsConnected => _isConnected;
 
-    /// <summary>
-    /// Gets the current server URL.
-    /// </summary>
+    /// <inheritdoc />
     public string ServerUrl => _serverUrl;
 
+    /// <inheritdoc />
+    public string? CurrentDatabase => _currentDatabase;
+
     /// <summary>
-    /// Connects by probing GET /api/stats on the HTTP API port (TCP port + 1).
+    /// Gets or sets the JWT authentication token.
     /// </summary>
+    public string? AuthToken 
+    { 
+        get => _authToken;
+        set
+        {
+            _authToken = value;
+            // Update HttpClient default headers
+            _http.DefaultRequestHeaders.Authorization = 
+                string.IsNullOrEmpty(value) ? null : 
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", value);
+        }
+    }
+
+    /// <inheritdoc />
     public async Task<bool> ConnectAsync(string serverUrl, string? username = null, string? password = null)
     {
         _serverUrl = serverUrl;
-        // Derive HTTP API URL: parse host:port, increment port by 1
-        _baseApiUrl = DeriveApiUrl(serverUrl);
+        _lastConnectError = null;
+
+        var httpUrl = DeriveApiUrl(serverUrl);
 
         try
         {
-            var resp = await _http.GetAsync($"{_baseApiUrl}/api/stats");
+            Console.WriteLine($"[Connect] GET {httpUrl}/api/health");
+            var resp = await _http.GetAsync($"{httpUrl}/api/health");
+            Console.WriteLine($"[Connect] Response: {(int)resp.StatusCode}");
             _isConnected = resp.IsSuccessStatusCode;
+            if (_isConnected)
+            {
+                _baseApiUrl = httpUrl;
+            }
+            else
+            {
+                _lastConnectError = $"HTTP {(int)resp.StatusCode} from {httpUrl}/api/health";
+            }
         }
-        catch
+        catch (Exception ex)
         {
             _isConnected = false;
+            _lastConnectError = $"{ex.GetType().Name}: {ex.Message} (URL: {httpUrl}/api/health)";
+            Console.WriteLine($"[Connect] Exception: {_lastConnectError}");
         }
 
         ConnectionStateChanged?.Invoke(this, EventArgs.Empty);
         return _isConnected;
     }
 
-    /// <summary>
-    /// Disconnects from the server.
-    /// </summary>
+    /// <inheritdoc />
     public Task DisconnectAsync()
     {
         _isConnected = false;
@@ -72,9 +220,19 @@ public class ServerConnectionService
         return Task.CompletedTask;
     }
 
-    /// <summary>
-    /// Returns live server statistics from GET /api/stats.
-    /// </summary>
+    /// <inheritdoc />
+    public async Task<bool> AuthenticateAsync(string username, string password)
+    {
+        if (!_isConnected || _baseApiUrl == null) return false;
+        try
+        {
+            var resp = await _http.PostAsJsonAsync($"{_baseApiUrl}/api/auth/login", new { username, password });
+            return resp.IsSuccessStatusCode;
+        }
+        catch { return false; }
+    }
+
+    /// <inheritdoc />
     public async Task<ServerStats> GetServerStatsAsync()
     {
         if (!_isConnected || _baseApiUrl == null) return new ServerStats();
@@ -95,9 +253,45 @@ public class ServerConnectionService
         catch { return new ServerStats(); }
     }
 
-    /// <summary>
-    /// Gets list of collections from GET /api/collections.
-    /// </summary>
+    /// <inheritdoc />
+    public async Task<(bool Success, string? Error)> CreateCollectionAsync(string name)
+    {
+        if (!_isConnected || _baseApiUrl == null) return (false, "Not connected");
+        try
+        {
+            var resp = await _http.PostAsync($"{_baseApiUrl}/api/collections/{Uri.EscapeDataString(name)}", null);
+            if (resp.IsSuccessStatusCode) return (true, null);
+            var body = await resp.Content.ReadAsStringAsync();
+            return (false, $"HTTP {(int)resp.StatusCode}: {body}");
+        }
+        catch (Exception ex) { return (false, ex.Message); }
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> DeleteCollectionAsync(string name)
+    {
+        if (!_isConnected || _baseApiUrl == null) return false;
+        try
+        {
+            var resp = await _http.DeleteAsync($"{_baseApiUrl}/api/collections/{Uri.EscapeDataString(name)}");
+            return resp.IsSuccessStatusCode;
+        }
+        catch { return false; }
+    }
+
+    /// <inheritdoc />
+    public async Task<long> GetCollectionCountAsync(string name)
+    {
+        if (!_isConnected || _baseApiUrl == null) return 0;
+        try
+        {
+            var result = await _http.GetFromJsonAsync<CountResult>($"{_baseApiUrl}/api/collections/{Uri.EscapeDataString(name)}/count");
+            return result?.Count ?? 0;
+        }
+        catch { return 0; }
+    }
+
+    /// <inheritdoc />
     public async Task<List<string>> GetCollectionsAsync()
     {
         if (!_isConnected || _baseApiUrl == null) return [];
@@ -105,9 +299,7 @@ public class ServerConnectionService
         catch { return []; }
     }
 
-    /// <summary>
-    /// Gets documents from a collection via GET /api/collections/{name}/documents.
-    /// </summary>
+    /// <inheritdoc />
     public async Task<List<Document>> GetDocumentsAsync(string collectionName, int skip = 0, int take = 50)
     {
         if (!_isConnected || _baseApiUrl == null) return [];
@@ -119,9 +311,7 @@ public class ServerConnectionService
         catch { return []; }
     }
 
-    /// <summary>
-    /// Gets a single document by ID via GET /api/collections/{name}/documents/{id}.
-    /// </summary>
+    /// <inheritdoc />
     public async Task<Document?> GetDocumentAsync(string collectionName, string documentId)
     {
         if (!_isConnected || _baseApiUrl == null) return null;
@@ -134,9 +324,7 @@ public class ServerConnectionService
         catch { return null; }
     }
 
-    /// <summary>
-    /// Executes a query via POST /api/query.
-    /// </summary>
+    /// <inheritdoc />
     public async Task<QueryResult> ExecuteQueryAsync(string query)
     {
         if (!_isConnected || _baseApiUrl == null)
@@ -151,15 +339,124 @@ public class ServerConnectionService
         catch (Exception ex) { return new QueryResult { Success = false, ErrorMessage = ex.Message }; }
     }
 
+    /// <inheritdoc />
+    public async Task<(bool Success, string? DocumentId, string? Error)> InsertDocumentAsync(string collectionName, Document document)
+    {
+        if (!_isConnected || _baseApiUrl == null) return (false, null, "Not connected");
+        try
+        {
+            var resp = await _http.PostAsJsonAsync(
+                $"{_baseApiUrl}/api/collections/{Uri.EscapeDataString(collectionName)}/documents", document);
+            if (resp.IsSuccessStatusCode)
+            {
+                var result = await resp.Content.ReadFromJsonAsync<DocumentResponse>();
+                return (result?.Success ?? false, result?.Id, null);
+            }
+            var error = await resp.Content.ReadFromJsonAsync<ErrorResponse>();
+            return (false, null, error?.Error ?? $"HTTP {(int)resp.StatusCode}");
+        }
+        catch (Exception ex) { return (false, null, ex.Message); }
+    }
+
+    /// <inheritdoc />
+    public async Task<(bool Success, string? Error)> UpdateDocumentAsync(string collectionName, Document document)
+    {
+        if (!_isConnected || _baseApiUrl == null) return (false, "Not connected");
+        try
+        {
+            var resp = await _http.PutAsJsonAsync(
+                $"{_baseApiUrl}/api/collections/{Uri.EscapeDataString(collectionName)}/documents/{Uri.EscapeDataString(document.Id)}", document);
+            if (resp.IsSuccessStatusCode)
+            {
+                var result = await resp.Content.ReadFromJsonAsync<DocumentResponse>();
+                return (result?.Success ?? false, null);
+            }
+            var error = await resp.Content.ReadFromJsonAsync<ErrorResponse>();
+            return (false, error?.Error ?? $"HTTP {(int)resp.StatusCode}");
+        }
+        catch (Exception ex) { return (false, ex.Message); }
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> DeleteDocumentAsync(string collectionName, string documentId)
+    {
+        if (!_isConnected || _baseApiUrl == null) return false;
+        try
+        {
+            var resp = await _http.DeleteAsync(
+                $"{_baseApiUrl}/api/collections/{Uri.EscapeDataString(collectionName)}/documents/{Uri.EscapeDataString(documentId)}");
+            return resp.IsSuccessStatusCode;
+        }
+        catch { return false; }
+    }
+
+    /// <inheritdoc />
+    public async Task<List<string>> GetDatabasesAsync()
+    {
+        if (!_isConnected || _baseApiUrl == null) return [];
+        try
+        {
+            return await _http.GetFromJsonAsync<List<string>>($"{_baseApiUrl}/api/databases") ?? [];
+        }
+        catch { return []; }
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> CreateDatabaseAsync(string name)
+    {
+        if (!_isConnected || _baseApiUrl == null) return false;
+        try
+        {
+            var resp = await _http.PostAsync($"{_baseApiUrl}/api/databases/{Uri.EscapeDataString(name)}", null);
+            return resp.IsSuccessStatusCode;
+        }
+        catch { return false; }
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> DeleteDatabaseAsync(string name)
+    {
+        if (!_isConnected || _baseApiUrl == null) return false;
+        try
+        {
+            var resp = await _http.DeleteAsync($"{_baseApiUrl}/api/databases/{Uri.EscapeDataString(name)}");
+            return resp.IsSuccessStatusCode;
+        }
+        catch { return false; }
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> SelectDatabaseAsync(string name)
+    {
+        if (!_isConnected || _baseApiUrl == null) return false;
+        try
+        {
+            var resp = await _http.PostAsync($"{_baseApiUrl}/api/databases/{Uri.EscapeDataString(name)}/select", null);
+            if (resp.IsSuccessStatusCode)
+            {
+                _currentDatabase = name;
+                return true;
+            }
+            return false;
+        }
+        catch { return false; }
+    }
+
+    private record DocumentResponse(bool Success, string? Id, string? Message);
+    private record ErrorResponse(string? Error);
+
     private static string DeriveApiUrl(string serverUrl)
     {
-        // Strip protocol prefix if present
+        // API always uses HTTPS (TCP port + 1). Blazor WASM is served from HTTPS so the API
+        // must match to avoid browser mixed-content blocks.
         var url = serverUrl.Replace("http://", "").Replace("https://", "").TrimEnd('/');
         var lastColon = url.LastIndexOf(':');
         if (lastColon >= 0 && int.TryParse(url[(lastColon + 1)..], out var port))
-            return $"http://{url[..lastColon]}:{port + 1}";
-        return $"http://{url}";
+            return $"https://{url[..lastColon]}:{port + 1}";
+        return $"https://{url}";
     }
+
+    private record CountResult(long Count);
 
     // DTO for deserializing /api/stats response
     private record ServerStatsDto(

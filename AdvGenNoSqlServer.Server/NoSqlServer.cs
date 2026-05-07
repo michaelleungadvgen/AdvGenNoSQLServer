@@ -4,7 +4,6 @@
 
 using AdvGenNoSqlServer.Core.Abstractions;
 using AdvGenNoSqlServer.Core.Clustering;
-using AdvGenNoSqlServer.Core.Configuration;
 using AdvGenNoSqlServer.Core.Models;
 using AdvGenNoSqlServer.Network;
 using AdvGenNoSqlServer.Storage;
@@ -12,6 +11,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Text.Json;
+using IConfigurationManager = AdvGenNoSqlServer.Core.Configuration.IConfigurationManager;
 
 namespace AdvGenNoSqlServer.Server;
 
@@ -23,6 +23,7 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
     private readonly ILogger<NoSqlServer> _logger;
     private readonly IConfigurationManager _configurationManager;
     private readonly IClusterManager? _clusterManager;
+    private readonly ApiDataService _apiData;
     private HybridDocumentStore? _documentStore;
     private TcpServer? _tcpServer;
     private bool _disposed;
@@ -33,10 +34,20 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
     /// </summary>
     public const string ServerVersion = "1.0.0";
 
-    public NoSqlServer(ILogger<NoSqlServer> logger, IConfigurationManager configurationManager, IClusterManager? clusterManager = null)
+    public NoSqlServer(ILogger<NoSqlServer> logger, IConfigurationManager configurationManager, ApiDataService apiData, IClusterManager? clusterManager = null)
     {
         _logger = logger;
         _configurationManager = configurationManager;
+        _apiData = apiData;
+        _clusterManager = clusterManager;
+    }
+
+    // Backward-compatible constructor for tests
+    public NoSqlServer(ILogger<NoSqlServer> logger, IConfigurationManager configurationManager, IClusterManager clusterManager)
+    {
+        _logger = logger;
+        _configurationManager = configurationManager;
+        _apiData = new ApiDataService();
         _clusterManager = clusterManager;
     }
 
@@ -72,6 +83,10 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
         _tcpServer.ConnectionClosed += OnConnectionClosed;
         _tcpServer.MessageReceived += OnMessageReceivedAsync;
 
+        // Expose live references to the HTTP API
+        _apiData.DocumentStore = _documentStore;
+        _apiData.TcpServer = _tcpServer;
+
         // Start the TCP server
         _tcpServer.StartAsync(cancellationToken);
 
@@ -81,6 +96,9 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Stopping NoSQL Server...");
+
+        _apiData.DocumentStore = null;
+        _apiData.TcpServer = null;
 
         if (_tcpServer != null)
         {

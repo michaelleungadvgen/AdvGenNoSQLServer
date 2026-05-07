@@ -4,6 +4,7 @@
 
 @page "/settings"
 @inject ISnackbar Snackbar
+@inject LocalStorageService LocalStorage
 
 <PageTitle>Settings - AdvGenNoSQL Admin</PageTitle>
 
@@ -123,10 +124,34 @@
 
 @code {
     private AppSettings _settings = new();
+    private const string SettingsKey = "advgen-admin-settings";
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        // Load settings from local storage in a real implementation
+        await LoadSettingsAsync();
+    }
+
+    private async Task LoadSettingsAsync()
+    {
+        try
+        {
+            var json = await LocalStorage.GetItemAsync(SettingsKey);
+            if (!string.IsNullOrEmpty(json))
+            {
+                var savedSettings = System.Text.Json.JsonSerializer.Deserialize<AppSettings>(json);
+                if (savedSettings != null)
+                {
+                    _settings = savedSettings;
+                    return;
+                }
+            }
+        }
+        catch
+        {
+            // Fall back to defaults
+        }
+
+        // Default settings
         _settings = new AppSettings
         {
             ServerUrl = "localhost:9090",
@@ -138,14 +163,29 @@
         };
     }
 
-    private void SaveConnectionSettings()
+    private async Task SaveConnectionSettings()
     {
+        await SaveSettingsAsync();
         Snackbar.Add("Connection settings saved", Severity.Success);
     }
 
-    private void SaveDisplaySettings()
+    private async Task SaveDisplaySettings()
     {
+        await SaveSettingsAsync();
         Snackbar.Add("Display settings saved", Severity.Success);
+    }
+
+    private async Task SaveSettingsAsync()
+    {
+        try
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(_settings);
+            await LocalStorage.SetItemAsync(SettingsKey, json);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to save settings: {ex.Message}", Severity.Error);
+        }
     }
 
     public class AppSettings

@@ -4,10 +4,12 @@
 
 @inherits LayoutComponentBase
 @inject AdminAuthService AuthService
+@inject ServerConnectionService ConnectionService
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 
 <MudThemeProvider />
+<MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
 
@@ -16,8 +18,33 @@
         <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
         <MudText Typo="Typo.h6" Class="ml-3">AdvGenNoSQL Admin</MudText>
         <MudSpacer />
-        @if (AuthService.IsAuthenticated)
+        
+        @if (AuthService.IsAuthenticated && ConnectionService.IsConnected)
         {
+            <!-- Database Selector -->
+            <MudSelect T="string"
+                       Value="ConnectionService.CurrentDatabase"
+                       ValueChanged="OnDatabaseChanged"
+                       Label="Database"
+                       Dense="true"
+                       Variant="Variant.Outlined"
+                       AdornmentIcon="@Icons.Material.Filled.Storage"
+                       Class="mr-4"
+                       Style="min-width: 150px;">
+                @foreach (var db in _databases)
+                {
+                    <MudSelectItem Value="@db">@db</MudSelectItem>
+                }
+            </MudSelect>
+            
+            <MudIconButton Icon="@Icons.Material.Filled.Add" 
+                           Size="Size.Small" 
+                           Color="Color.Inherit"
+                           OnClick="CreateDatabase"
+                           Title="Create new database" />
+            
+            <MudDivider Vertical="true" Class="mx-4" />
+            
             <MudChip T="string" Color="Color.Success" Size="Size.Small" Class="mr-2">
                 <MudIcon Icon="@Icons.Material.Filled.Circle" Size="Size.Small" Class="mr-1" />
                 Connected
@@ -51,6 +78,76 @@
 
 @code {
     private bool _drawerOpen = true;
+    private List<string> _databases = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        ConnectionService.ConnectionStateChanged += OnConnectionStateChanged;
+        await LoadDatabasesAsync();
+    }
+
+    private async void OnConnectionStateChanged(object? sender, EventArgs e)
+    {
+        if (ConnectionService.IsConnected)
+        {
+            await LoadDatabasesAsync();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadDatabasesAsync()
+    {
+        if (ConnectionService.IsConnected)
+        {
+            _databases = await ConnectionService.GetDatabasesAsync();
+        }
+    }
+
+    private async Task OnDatabaseChanged(string databaseName)
+    {
+        var success = await ConnectionService.SelectDatabaseAsync(databaseName);
+        if (success)
+        {
+            Snackbar.Add($"Database '{databaseName}' selected", Severity.Success);
+            // Reload current page to reflect new database
+            Navigation.NavigateTo(Navigation.Uri, forceLoad: false);
+        }
+        else
+        {
+            Snackbar.Add($"Failed to select database '{databaseName}'", Severity.Error);
+        }
+    }
+
+    private async Task CreateDatabase()
+    {
+        var parameters = new DialogParameters<TextInputDialog>
+        {
+            { x => x.Title, "Create New Database" },
+            { x => x.Message, "Enter the name for the new database:" },
+            { x => x.Label, "Database Name" }
+        };
+        
+        var dialog = await DialogService.ShowAsync<TextInputDialog>("Create Database", parameters);
+        var result = await dialog.Result;
+        
+        if (result?.Canceled == false && result.Data is string dbName && !string.IsNullOrWhiteSpace(dbName))
+        {
+            var success = await ConnectionService.CreateDatabaseAsync(dbName);
+            if (success)
+            {
+                Snackbar.Add($"Database '{dbName}' created successfully", Severity.Success);
+                await LoadDatabasesAsync();
+                
+                // Auto-select the new database
+                await ConnectionService.SelectDatabaseAsync(dbName);
+                StateHasChanged();
+            }
+            else
+            {
+                Snackbar.Add($"Failed to create database '{dbName}'", Severity.Error);
+            }
+        }
+    }
 
     private void DrawerToggle()
     {
@@ -68,4 +165,7 @@
         Snackbar.Add("Logged out successfully", Severity.Success);
         Navigation.NavigateTo("/login");
     }
+
+    [CascadingParameter]
+    private IDialogService DialogService { get; set; } = default!;
 }

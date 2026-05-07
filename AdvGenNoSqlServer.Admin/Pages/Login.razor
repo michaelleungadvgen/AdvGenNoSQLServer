@@ -20,11 +20,16 @@
         <MudText Typo="Typo.body2" Align="Align.Center" Class="mb-6">Web Administration Console</MudText>
         
         <MudForm @ref="_form" @bind-IsValid="_isValid">
-            <MudTextField T="string" 
+            <MudButtonGroup Variant="Variant.Outlined" Class="mb-2">
+                <MudButton Color="@HttpColor" OnClick="SelectHttp">HTTP</MudButton>
+                <MudButton Color="@HttpsColor" OnClick="SelectHttps">HTTPS</MudButton>
+            </MudButtonGroup>
+            <MudTextField T="string"
                           @bind-Value="_serverUrl"
-                          Label="Server URL" 
+                          Label="Server URL"
                           Variant="Variant.Outlined"
-                          Placeholder="localhost:9090"
+                          Placeholder="localhost:9191"
+                          HelperText="@_urlHelperText"
                           Required="true"
                           RequiredError="Server URL is required"
                           Class="mb-4" />
@@ -81,7 +86,13 @@
     private bool _isValid;
     private bool _isLoading;
     
-    private string _serverUrl = "localhost:9090";
+    private string _serverUrl = "localhost:9191";
+    private string _protocol = "http";
+    private string _urlHelperText => $"Enter TCP port — HTTPS API connects on TCP port+1";
+    private void SelectHttp() => _protocol = "http";
+    private void SelectHttps() => _protocol = "https";
+    private Color HttpColor => _protocol == "http" ? Color.Primary : Color.Default;
+    private Color HttpsColor => _protocol == "https" ? Color.Primary : Color.Default;
     private string _username = "";
     private string _password = "";
 
@@ -107,25 +118,34 @@
         
         try
         {
-            // First connect to server
-            var connected = await ConnectionService.ConnectAsync(_serverUrl);
+            // First connect to server — pass protocol so DeriveApiUrl uses it
+            var cleanUrl = _serverUrl.Replace("http://", string.Empty).Replace("https://", string.Empty);
+            var connected = await ConnectionService.ConnectAsync($"{_protocol}://{cleanUrl}");
             if (!connected)
             {
-                Snackbar.Add("Failed to connect to server", Severity.Error);
+                var detail = ConnectionService.LastConnectError ?? "No response";
+                Snackbar.Add($"Failed to connect: {detail}", Severity.Error);
                 return;
             }
             
-            // Then authenticate
+            // Then authenticate (must be before calling secured endpoints)
             var success = await AuthService.LoginAsync(_username, _password, _serverUrl);
-            if (success)
-            {
-                Snackbar.Add("Login successful!", Severity.Success);
-                Navigation.NavigateTo("/");
-            }
-            else
+            if (!success)
             {
                 Snackbar.Add("Invalid credentials", Severity.Error);
+                return;
             }
+            
+            // Now load databases and select the default one (requires auth)
+            var databases = await ConnectionService.GetDatabasesAsync();
+            if (databases.Any())
+            {
+                var defaultDb = databases.First();
+                await ConnectionService.SelectDatabaseAsync(defaultDb);
+            }
+            
+            Snackbar.Add("Login successful!", Severity.Success);
+            Navigation.NavigateTo("/");
         }
         catch (Exception ex)
         {

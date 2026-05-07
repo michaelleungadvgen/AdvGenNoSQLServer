@@ -1,0 +1,161 @@
+// Copyright (c) 2026 AdvanGeneration Pty. Ltd.
+// Licensed under the MIT License.
+// See LICENSE.txt for license information.
+
+<MudDialog Style="max-width: 800px;">
+    <DialogContent>
+        <MudText Typo="Typo.h6" Class="mb-4">@Title</MudText>
+        
+        <MudGrid>
+            <MudItem xs="12">
+                <MudTextField T="string"
+                              @bind-Value="_documentId"
+                              Label="Document ID"
+                              Variant="Variant.Outlined"
+                              Disabled="_isEditMode"
+                              Placeholder="Leave empty for auto-generated ID"
+                              HelperText="@(_isEditMode ? "ID cannot be changed" : "Optional - will be auto-generated if empty")"
+                              Class="mb-4" />
+            </MudItem>
+            
+            <MudItem xs="12">
+                <MudTextField T="string"
+                              @bind-Value="_jsonData"
+                              Label="Document Data (JSON)"
+                              Variant="Variant.Outlined"
+                              Lines="12"
+                              Error="!_isValidJson"
+                              ErrorText="Invalid JSON format"
+                              Immediate="true"
+                              OnBlur="ValidateJson"
+                              Class="mb-2" />
+            </MudItem>
+            
+            <MudItem xs="12">
+                <MudExpansionPanels Elevation="0">
+                    <MudExpansionPanel Text="JSON Format Help">
+                        <MudText Typo="Typo.caption">
+                            Enter valid JSON object. Example:<br />
+                            <code style="background: var(--mud-palette-background-grey); padding: 8px; display: block; margin-top: 4px;">
+{<br />
+&nbsp;&nbsp;"name": "John Doe",<br />
+&nbsp;&nbsp;"email": "john@example.com",<br />
+&nbsp;&nbsp;"age": 30,<br />
+&nbsp;&nbsp;"active": true<br />
+}
+                            </code>
+                        </MudText>
+                    </MudExpansionPanel>
+                </MudExpansionPanels>
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" 
+                   Variant="Variant.Filled" 
+                   OnClick="Submit"
+                   Disabled="!_isValidJson || _isLoading">
+            @if (_isLoading)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            @(_isEditMode ? "Update" : "Create")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private MudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public string Title { get; set; } = "Edit Document";
+
+    [Parameter]
+    public string CollectionName { get; set; } = "";
+
+    [Parameter]
+    public Document? Document { get; set; }
+
+    private string _documentId = "";
+    private string _jsonData = "";
+    private bool _isEditMode;
+    private bool _isValidJson = true;
+    private bool _isLoading;
+
+    protected override void OnInitialized()
+    {
+        _isEditMode = Document != null;
+        
+        if (_isEditMode && Document != null)
+        {
+            _documentId = Document.Id;
+            _jsonData = System.Text.Json.JsonSerializer.Serialize(Document.Data, new System.Text.Json.JsonSerializerOptions
+            {
+                WriteIndented = true
+            });
+        }
+        else
+        {
+            _jsonData = "{\n  \n}";
+        }
+        
+        ValidateJson();
+    }
+
+    private void ValidateJson()
+    {
+        if (string.IsNullOrWhiteSpace(_jsonData))
+        {
+            _isValidJson = false;
+            return;
+        }
+
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(_jsonData);
+            _isValidJson = doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object;
+        }
+        catch
+        {
+            _isValidJson = false;
+        }
+    }
+
+    private void Submit()
+    {
+        ValidateJson();
+        if (!_isValidJson) return;
+
+        try
+        {
+            var data = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(_jsonData);
+            if (data == null)
+            {
+                _isValidJson = false;
+                return;
+            }
+
+            var result = new DocumentResult
+            {
+                Id = _isEditMode ? _documentId : (string.IsNullOrWhiteSpace(_documentId) ? Guid.NewGuid().ToString("N") : _documentId),
+                Data = data
+            };
+
+            MudDialog.Close(DialogResult.Ok(result));
+        }
+        catch
+        {
+            _isValidJson = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    public class DocumentResult
+    {
+        public string Id { get; set; } = "";
+        public Dictionary<string, object> Data { get; set; } = new();
+    }
+}

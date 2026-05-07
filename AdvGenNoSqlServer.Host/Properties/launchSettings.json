@@ -1,12 +1,12 @@
 {
   "profiles": {
-    "AdvGenNoSqlServer.Admin": {
+    "AdvGenNoSqlServer.Host": {
       "commandName": "Project",
       "launchBrowser": true,
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       },
-      "applicationUrl": "http://localhost:62960;https://localhost:62959"
+      "applicationUrl": "https://localhost:60248;http://localhost:60250"
     }
   }
 }
