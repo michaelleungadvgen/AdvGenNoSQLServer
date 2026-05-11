@@ -12,3 +12,7 @@
 ## 2026-05-04 - Avoid repeated enumeration on deferred Distinct queries
 **Learning:** When replacing `.ToList()` with deferred execution (lazy evaluation) on LINQ queries that contain stateful or expensive operators like `.Distinct()`, verify that the caller does not enumerate the result multiple times. Repeated enumeration of deferred pipelines re-executes the O(N) logic and re-allocates internal structures (like HashSets) every time, which can cause severe performance regressions.
 **Action:** If a deferred collection with a stateful operator is going to be iterated over multiple times, materialized snapshot evaluation (like `.ToList()`) might still be necessary. Always balance the memory savings of lazy evaluation against the CPU cost of re-evaluating the pipeline.
+
+## 2026-10-23 - Track aggregates incrementally on concurrent collections
+**Learning:** O(N) aggregate methods (like `.Values.Sum()` and `.Values.Average()`) on concurrent dictionaries force allocations and read locks over all internal buckets. In read-heavy scenarios (like returning index statistics or BM25 scoring parameters), this creates substantial bottlenecks.
+**Action:** When computing aggregates like total counts or averages over a concurrent collection, track the aggregate state incrementally on insert/delete via `Interlocked.Add`. This replaces O(N) linear scans and memory allocations with an O(1) Interlocked read, offering massive read performance improvements.
