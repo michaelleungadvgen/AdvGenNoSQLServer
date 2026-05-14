@@ -21,3 +21,8 @@
 **Vulnerability:** Regular Expression Denial of Service (ReDoS) vulnerability in `AdvGenNoSqlServer.Core/Validation/DocumentValidator.cs` when evaluating the string "pattern" property and the email, ipv4, and hostname formats using `Regex.IsMatch`.
 **Learning:** Hardcoding regular expression checks on user-supplied strings using `Regex.IsMatch` without providing a `TimeSpan` timeout makes the application vulnerable to excessive CPU consumption, especially for inherently complex regex patterns.
 **Prevention:** For `Regex.IsMatch` calls evaluating external inputs against patterns (even static/precompiled ones for formats), always inject a static readonly timeout configuration (e.g. `RegexTimeout = TimeSpan.FromMilliseconds(100)`) and safely handle the resulting `RegexMatchTimeoutException`.
+
+## 2026-03-05 - [Insecure Randomness in Consensus Algorithms]
+**Vulnerability:** Predictable outcomes in clustering components (`RaftConsensus.cs` election timeouts and `GossipProtocol.cs` node selection) due to the use of `System.Random`.
+**Learning:** Using `System.Random` for consensus logic allows attackers to predict algorithm behavior. This can be exploited to manipulate cluster elections, isolate nodes, or partition the cluster.
+**Prevention:** Always use a cryptographically secure random number generator (e.g., `System.Security.Cryptography.RandomNumberGenerator.GetInt32()`) for any consensus or clustering algorithms where predictability could be weaponized.

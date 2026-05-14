@@ -144,8 +144,7 @@ namespace AdvGenNoSqlServer.Core.Clustering
         /// </summary>
         public TimeSpan GetElectionTimeout()
         {
-            var random = new Random();
-            var ms = random.Next(ElectionTimeoutMinMs, ElectionTimeoutMaxMs);
+            var ms = System.Security.Cryptography.RandomNumberGenerator.GetInt32(ElectionTimeoutMinMs, ElectionTimeoutMaxMs);
             return TimeSpan.FromMilliseconds(ms);
         }
     }
