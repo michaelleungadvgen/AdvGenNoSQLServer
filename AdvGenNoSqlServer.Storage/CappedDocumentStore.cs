@@ -287,18 +287,11 @@ public class CappedDocumentStore : IDocumentStore
     /// <inheritdoc />
     public async Task<IEnumerable<string>> GetCollectionsAsync(CancellationToken cancellationToken = default)
     {
-        var collections = (await _underlyingStore.GetCollectionsAsync(cancellationToken)).ToList();
+        var underlyingCollections = await _underlyingStore.GetCollectionsAsync(cancellationToken);
         
-        // Add any capped collections that might not be in the underlying store
-        foreach (var cappedCollectionName in _cappedCollections.Keys)
-        {
-            if (!collections.Contains(cappedCollectionName))
-            {
-                collections.Add(cappedCollectionName);
-            }
-        }
-
-        return collections;
+        // Performance optimization: Avoid O(N*M) .Contains checks inside a loop by using Concat and Distinct.
+        // Eagerly materialize to avoid invalid state and multiple enumeration overhead.
+        return underlyingCollections.Concat(_cappedCollections.Keys).Distinct().ToList();
     }
 
     /// <inheritdoc />
