@@ -9,6 +9,11 @@
 ## 2026-10-23 - Consolidate LINQ aggregations on ConcurrentDictionary
 **Learning:** Performing multiple sequential LINQ aggregations (e.g., `.Values.Sum()`, `.Values.Average()`, `.Values.Max()`) on a `ConcurrentDictionary` causes significant performance degradation. Each LINQ method triggers a separate enumeration of the dictionary, leading to multiple internal snapshot allocations and $O(M \times N)$ time complexity where M is the number of aggregations.
 **Action:** When calculating multiple statistics or aggregates over a `ConcurrentDictionary` or any concurrent collection, manually consolidate the logic into a single `foreach` loop. This ensures only a single pass ($O(N)$) is made over the data, dramatically reducing CPU overhead and Garbage Collection pressure.
+
 ## 2026-05-04 - Avoid repeated enumeration on deferred Distinct queries
 **Learning:** When replacing `.ToList()` with deferred execution (lazy evaluation) on LINQ queries that contain stateful or expensive operators like `.Distinct()`, verify that the caller does not enumerate the result multiple times. Repeated enumeration of deferred pipelines re-executes the O(N) logic and re-allocates internal structures (like HashSets) every time, which can cause severe performance regressions.
 **Action:** If a deferred collection with a stateful operator is going to be iterated over multiple times, materialized snapshot evaluation (like `.ToList()`) might still be necessary. Always balance the memory savings of lazy evaluation against the CPU cost of re-evaluating the pipeline.
+
+## 2026-05-18 - Optimize collection merging and deduplication
+**Learning:** When merging mutable concurrent states (like dictionary keys) from different layers (e.g., `_underlyingStore` and `_cappedCollections` in `CappedDocumentStore.GetCollectionsAsync`), using LINQ's `.Concat().Distinct().ToList()` performs better and uses less code than materializing a list, iterating another collection, and calling an O(N) `.Contains()` check inside a loop. We must still evaluate to a list ultimately to prevent thread-safety issues during iteration.
+**Action:** Use `.Concat().Distinct().ToList()` when merging collections from different sources instead of manual loops with `.Contains()`, especially in asynchronous code fetching collections or metadata.
