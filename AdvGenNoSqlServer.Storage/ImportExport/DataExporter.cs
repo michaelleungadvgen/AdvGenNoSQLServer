@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using AdvGenNoSqlServer.Core.Abstractions;
+using AdvGenNoSqlServer.Core.Security;
 using AdvGenNoSqlServer.Core.Models;
 
 namespace AdvGenNoSqlServer.Storage.ImportExport;
@@ -115,7 +116,7 @@ public class DataExporter : IDataExporter
         {
             options.CancellationToken.ThrowIfCancellationRequested();
 
-            var outputPath = Path.Combine(outputDirectory, $"{collectionName}{extension}");
+            var outputPath = PathValidator.GetSafePath(outputDirectory, Path.Combine(outputDirectory, $"{collectionName}{extension}"));
             var result = await ExportCollectionAsync(store, collectionName, outputPath, options);
             results[collectionName] = result;
 
