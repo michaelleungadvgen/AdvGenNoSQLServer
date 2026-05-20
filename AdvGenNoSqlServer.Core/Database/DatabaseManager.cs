@@ -3,6 +3,7 @@
 // See LICENSE.txt for license information.
 
 using System.Collections.Concurrent;
+using AdvGenNoSqlServer.Core.Security;
 
 namespace AdvGenNoSqlServer.Core.Database
 {
@@ -273,7 +274,7 @@ namespace AdvGenNoSqlServer.Core.Database
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Database name cannot be null or empty", nameof(name));
 
-            return System.IO.Path.Combine(_basePath, name);
+            return PathValidator.GetSafePath(_basePath, System.IO.Path.Combine(_basePath, name));
         }
 
         /// <summary>
