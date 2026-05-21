@@ -5,6 +5,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Security.Cryptography;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -144,8 +145,7 @@ namespace AdvGenNoSqlServer.Core.Clustering
         /// </summary>
         public TimeSpan GetElectionTimeout()
         {
-            var random = new Random();
-            var ms = random.Next(ElectionTimeoutMinMs, ElectionTimeoutMaxMs);
+            var ms = RandomNumberGenerator.GetInt32(ElectionTimeoutMinMs, ElectionTimeoutMaxMs);
             return TimeSpan.FromMilliseconds(ms);
         }
     }

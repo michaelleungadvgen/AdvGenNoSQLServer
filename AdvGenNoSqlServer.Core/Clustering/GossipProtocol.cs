@@ -5,6 +5,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Security.Cryptography;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -338,9 +339,8 @@ namespace AdvGenNoSqlServer.Core.Clustering
             if (candidates.Count <= count)
                 return candidates;
 
-            var random = new Random();
             return candidates
-                .OrderBy(_ => random.Next())
+                .OrderBy(_ => RandomNumberGenerator.GetInt32(int.MaxValue))
                 .Take(count)
                 .ToList();
         }
