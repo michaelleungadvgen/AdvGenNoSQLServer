@@ -15,6 +15,8 @@ namespace AdvGenNoSqlServer.Storage.FullText;
 /// </summary>
 public class FullTextIndex : IFullTextIndex
 {
+    private static readonly Regex _tokenPattern = new Regex(@"[a-zA-Z0-9]+", RegexOptions.Compiled);
+
     // Inverted index: term -> list of (documentId, term frequency, positions)
     private readonly ConcurrentDictionary<string, List<Posting>> _invertedIndex;
     
@@ -23,6 +25,8 @@ public class FullTextIndex : IFullTextIndex
     
     // Thread-safe locking for write operations
     private readonly ReaderWriterLockSlim _lock;
+
+    private long _totalTokenCount;
 
     /// <inheritdoc />
     public string IndexName { get; }
@@ -97,6 +101,7 @@ public class FullTextIndex : IFullTextIndex
 
             // Store document info
             _documents[documentId] = new DocumentInfo(tokensWithPositions.Count, text);
+            Interlocked.Add(ref _totalTokenCount, tokensWithPositions.Count);
         }
         finally
         {
@@ -123,9 +128,10 @@ public class FullTextIndex : IFullTextIndex
 
     private bool RemoveDocumentInternal(string documentId)
     {
-        if (!_documents.TryRemove(documentId, out _))
+        if (!_documents.TryRemove(documentId, out var removedDoc))
             return false;
 
+        Interlocked.Add(ref _totalTokenCount, -removedDoc.TokenCount);
         // Remove from inverted index
         foreach (var (term, postings) in _invertedIndex)
         {
@@ -325,8 +331,8 @@ public class FullTextIndex : IFullTextIndex
     {
         // This is a simplified implementation
         // In a real implementation, we'd track character positions during tokenization
-        var tokenPattern = new Regex(@"[a-zA-Z0-9]+", RegexOptions.Compiled);
-        var matches = tokenPattern.Matches(text);
+        var matches = _tokenPattern.Matches(text);
+
         
         if (tokenIndex < matches.Count)
         {
@@ -338,7 +344,8 @@ public class FullTextIndex : IFullTextIndex
     private double GetAverageDocumentLength()
     {
         if (_documents.IsEmpty) return 1.0;
-        return _documents.Values.Average(d => (double)d.TokenCount);
+        long totalTokens = Interlocked.Read(ref _totalTokenCount);
+        return (double)totalTokens / Math.Max(1, _documents.Count);
     }
 
     /// <inheritdoc />
@@ -349,6 +356,7 @@ public class FullTextIndex : IFullTextIndex
         {
             _invertedIndex.Clear();
             _documents.Clear();
+            Interlocked.Exchange(ref _totalTokenCount, 0);
         }
         finally
         {
@@ -359,8 +367,8 @@ public class FullTextIndex : IFullTextIndex
     /// <inheritdoc />
     public FullTextIndexStats GetStats()
     {
-        long totalTokens = _documents.Values.Sum(d => (long)d.TokenCount);
-        double avgLength = _documents.IsEmpty ? 0 : _documents.Values.Average(d => (double)d.TokenCount);
+        long totalTokens = Interlocked.Read(ref _totalTokenCount);
+        double avgLength = _documents.IsEmpty ? 0 : (double)totalTokens / Math.Max(1, DocumentCount);
 
         return new FullTextIndexStats(
             IndexName,
