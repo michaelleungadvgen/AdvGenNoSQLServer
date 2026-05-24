@@ -186,9 +186,10 @@ public class SecurityPenetrationTests
         // Assert - All should fail
         Assert.Equal(5, failedAttempts);
 
-        // Even with correct password after many failed attempts
+        // Even with correct password after many failed attempts,
+        // it should fail now due to brute force protection (lockout)
         var finalResult = authService.Authenticate("testuser", "correctpassword");
-        Assert.NotNull(finalResult); // System should still work (no lockout in basic implementation)
+        Assert.Null(finalResult);
     }
 
     [Fact]
