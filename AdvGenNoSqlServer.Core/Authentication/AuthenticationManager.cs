@@ -16,6 +16,8 @@ public class AuthenticationManager
 {
     private readonly ConcurrentDictionary<string, UserCredentials> _users = new();
     private readonly ConcurrentDictionary<string, AuthToken> _activeSessions = new();
+    private readonly ConcurrentDictionary<string, LoginAttemptTracker> _loginAttempts = new();
+    private readonly System.Timers.Timer _cleanupTimer;
     private readonly TimeSpan _tokenExpiration;
     private readonly ServerConfiguration _configuration;
 
@@ -23,6 +25,10 @@ public class AuthenticationManager
     private const int Pbkdf2Iterations = 100000;
     private const int SaltSizeBytes = 32;
     private const int HashSizeBytes = 32;
+
+    // Brute force protection constants
+    private const int MaxFailedAttempts = 5;
+    private static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
 
     public AuthenticationManager(ServerConfiguration configuration)
     {
@@ -33,6 +39,24 @@ public class AuthenticationManager
         if (!string.IsNullOrEmpty(configuration.MasterPassword))
         {
             RegisterUser("admin", configuration.MasterPassword);
+        }
+
+        // Initialize cleanup timer for login attempts
+        _cleanupTimer = new System.Timers.Timer(TimeSpan.FromMinutes(5).TotalMilliseconds);
+        _cleanupTimer.Elapsed += (sender, e) => CleanupExpiredLockouts();
+        _cleanupTimer.AutoReset = true;
+        _cleanupTimer.Start();
+    }
+
+    private void CleanupExpiredLockouts()
+    {
+        var now = DateTime.UtcNow;
+        foreach (var kvp in _loginAttempts)
+        {
+            if (now > kvp.Value.LockoutEnd || (kvp.Value.FailedAttempts == 0))
+            {
+                _loginAttempts.TryRemove(kvp.Key, out _);
+            }
         }
     }
 
@@ -68,9 +92,55 @@ public class AuthenticationManager
         if (!_users.TryGetValue(username, out var credentials))
             return null;
 
+        // Check if user is locked out
+        var now = DateTime.UtcNow;
+        var attemptTracker = _loginAttempts.GetOrAdd(username, _ => new LoginAttemptTracker());
+
+        bool isLockedOut = false;
+        lock (attemptTracker)
+        {
+            if (attemptTracker.FailedAttempts >= MaxFailedAttempts)
+            {
+                if (now < attemptTracker.LockoutEnd)
+                {
+                    isLockedOut = true;
+                }
+                else
+                {
+                    // Lockout expired, reset attempts
+                    attemptTracker.FailedAttempts = 0;
+                }
+            }
+        }
+
         // Verify password using constant-time comparison to prevent timing attacks
-        if (!VerifyPassword(password, credentials.Salt, credentials.PasswordHash))
+        // We evaluate this even if the user is locked out to prevent timing attacks from revealing lockout state
+        bool isPasswordValid = VerifyPassword(password, credentials.Salt, credentials.PasswordHash);
+
+        if (isLockedOut)
+        {
             return null;
+        }
+
+        if (!isPasswordValid)
+        {
+            // Record failed attempt
+            lock (attemptTracker)
+            {
+                attemptTracker.FailedAttempts++;
+                if (attemptTracker.FailedAttempts >= MaxFailedAttempts)
+                {
+                    attemptTracker.LockoutEnd = now.Add(LockoutDuration);
+                }
+            }
+            return null;
+        }
+
+        // Reset failed attempts on successful login
+        lock (attemptTracker)
+        {
+            attemptTracker.FailedAttempts = 0;
+        }
 
         var token = new AuthToken
         {
@@ -256,4 +326,13 @@ public class AuthToken
     public required string Username { get; set; }
     public DateTime IssuedAt { get; set; }
     public DateTime ExpiresAt { get; set; }
+}
+
+/// <summary>
+/// Tracks login attempts for brute force protection.
+/// </summary>
+public class LoginAttemptTracker
+{
+    public int FailedAttempts { get; set; }
+    public DateTime LockoutEnd { get; set; }
 }
