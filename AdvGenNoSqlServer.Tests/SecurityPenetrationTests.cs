@@ -172,7 +172,7 @@ public class SecurityPenetrationTests
         {
             RequireAuthentication = true
         };
-        var authService = new AuthenticationService(config);
+        using var authService = new AuthenticationService(config);
         authService.RegisterUser("testuser", "correctpassword");
 
         // Act - Attempt multiple wrong passwords
@@ -186,16 +186,16 @@ public class SecurityPenetrationTests
         // Assert - All should fail
         Assert.Equal(5, failedAttempts);
 
-        // Even with correct password after many failed attempts
+        // Even with correct password after many failed attempts, we now have a lockout implementation
         var finalResult = authService.Authenticate("testuser", "correctpassword");
-        Assert.NotNull(finalResult); // System should still work (no lockout in basic implementation)
+        Assert.Null(finalResult); // System now has lockout implementation, should fail
     }
 
     [Fact]
     public void Authentication_PasswordGuessing_CommonPasswords_ShouldBeRejected()
     {
         // Arrange
-        var authService = new AuthenticationService(new ServerConfiguration());
+        using var authService = new AuthenticationService(new ServerConfiguration());
         var commonPasswords = new[] { "password", "123456", "qwerty", "admin", "letmein" };
 
         // Act & Assert - Try to register with weak passwords
@@ -218,7 +218,7 @@ public class SecurityPenetrationTests
     public void Authentication_TimingAttack_ShouldHaveSimilarTiming()
     {
         // Arrange
-        var authService = new AuthenticationService(new ServerConfiguration());
+        using var authService = new AuthenticationService(new ServerConfiguration());
         authService.RegisterUser("testuser", "correctpassword");
 
         // Warm up
@@ -258,7 +258,7 @@ public class SecurityPenetrationTests
     {
         // Arrange
         var roleManager = new RoleManager();
-        var authService = new AuthenticationService(new ServerConfiguration { RequireAuthentication = true });
+        using var authService = new AuthenticationService(new ServerConfiguration { RequireAuthentication = true });
 
         // Create admin and regular user
         authService.RegisterUser("admin", "adminpass", RoleNames.Admin);
@@ -427,7 +427,7 @@ public class SecurityPenetrationTests
     public void InputValidation_MaliciousStrings_ShouldBeHandledSafely(string maliciousInput)
     {
         // Arrange
-        var authService = new AuthenticationService(new ServerConfiguration());
+        using var authService = new AuthenticationService(new ServerConfiguration());
 
         // Create a safe username by sanitizing the input
         var safeUsername = "user_" + maliciousInput.GetHashCode();
@@ -452,7 +452,7 @@ public class SecurityPenetrationTests
     public void InputValidation_LongUsername_ShouldBeHandled()
     {
         // Arrange
-        var authService = new AuthenticationService(new ServerConfiguration());
+        using var authService = new AuthenticationService(new ServerConfiguration());
         var longUsername = new string('a', 1000);
 
         // Act & Assert - Should handle gracefully (either accept or reject, not crash)
@@ -477,7 +477,7 @@ public class SecurityPenetrationTests
     public void InputValidation_UnicodeAndSpecialCharacters_ShouldBeHandled()
     {
         // Arrange
-        var authService = new AuthenticationService(new ServerConfiguration());
+        using var authService = new AuthenticationService(new ServerConfiguration());
         var specialUsernames = new[]
         {
             "用户",
@@ -506,7 +506,7 @@ public class SecurityPenetrationTests
     public void InputValidation_NullAndEmptyInputs_ShouldBeRejected()
     {
         // Arrange
-        var authService = new AuthenticationService(new ServerConfiguration());
+        using var authService = new AuthenticationService(new ServerConfiguration());
         var roleManager = new RoleManager();
 
         // Act & Assert - Empty inputs should throw exceptions or be rejected
@@ -562,7 +562,7 @@ public class SecurityPenetrationTests
     public void Session_ConcurrentAuthentications_ShouldBeIndependent()
     {
         // Arrange
-        var authService = new AuthenticationService(new ServerConfiguration());
+        using var authService = new AuthenticationService(new ServerConfiguration());
         authService.RegisterUser("testuser", "password123");
 
         // Act - Simulate concurrent authentications
@@ -591,7 +591,7 @@ public class SecurityPenetrationTests
         var config = new ServerConfiguration();
         var auditLogger = new AuditLogger(config, "./test_audit_logs", true, 100, 0);
 
-        var authService = new AuthenticationService(new ServerConfiguration { RequireAuthentication = true });
+        using var authService = new AuthenticationService(new ServerConfiguration { RequireAuthentication = true });
         authService.RegisterUser("testuser", "correctpassword");
 
         // Act

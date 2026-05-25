@@ -12,17 +12,22 @@ namespace AdvGenNoSqlServer.Core.Authentication;
 /// <summary>
 /// Manages user authentication with secure password hashing using PBKDF2.
 /// </summary>
-public class AuthenticationManager
+public class AuthenticationManager : IDisposable
 {
     private readonly ConcurrentDictionary<string, UserCredentials> _users = new();
     private readonly ConcurrentDictionary<string, AuthToken> _activeSessions = new();
+    private readonly ConcurrentDictionary<string, (int Attempts, DateTime LockoutEnd)> _failedAttempts = new();
     private readonly TimeSpan _tokenExpiration;
     private readonly ServerConfiguration _configuration;
+    private readonly Timer _cleanupTimer;
 
     // PBKDF2 configuration - OWASP recommends 600k iterations for SHA256 in 2023
     private const int Pbkdf2Iterations = 100000;
     private const int SaltSizeBytes = 32;
     private const int HashSizeBytes = 32;
+
+    private const int MaxFailedAttempts = 5;
+    private const int LockoutDurationMinutes = 15;
 
     public AuthenticationManager(ServerConfiguration configuration)
     {
@@ -34,6 +39,26 @@ public class AuthenticationManager
         {
             RegisterUser("admin", configuration.MasterPassword);
         }
+
+        // Run cleanup every LockoutDurationMinutes to remove expired lockouts
+        _cleanupTimer = new Timer(CleanupExpiredLockouts, null, TimeSpan.FromMinutes(LockoutDurationMinutes), TimeSpan.FromMinutes(LockoutDurationMinutes));
+    }
+
+    private void CleanupExpiredLockouts(object? state)
+    {
+        var now = DateTime.UtcNow;
+        foreach (var kvp in _failedAttempts)
+        {
+            if (now >= kvp.Value.LockoutEnd)
+            {
+                _failedAttempts.TryRemove(kvp.Key, out _);
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        _cleanupTimer?.Dispose();
     }
 
     /// <summary>
@@ -61,16 +86,82 @@ public class AuthenticationManager
     }
 
     /// <summary>
+    // Dummy static fields for timing attack prevention
+    private static readonly string _dummySalt;
+    private static readonly string _dummyHash;
+
+    static AuthenticationManager()
+    {
+        // Generate a random dummy hash once per app lifecycle to use when username doesn't exist
+        var dummySaltBytes = new byte[SaltSizeBytes];
+        using (var rng = RandomNumberGenerator.Create())
+        {
+            rng.GetBytes(dummySaltBytes);
+        }
+        var passwordBytes = Encoding.UTF8.GetBytes("dummy-password");
+        var hashBytes = Rfc2898DeriveBytes.Pbkdf2(
+            password: passwordBytes,
+            salt: dummySaltBytes,
+            iterations: Pbkdf2Iterations,
+            hashAlgorithm: HashAlgorithmName.SHA256,
+            outputLength: HashSizeBytes);
+
+        _dummySalt = Convert.ToBase64String(dummySaltBytes);
+        _dummyHash = Convert.ToBase64String(hashBytes);
+    }
+
+    /// <summary>
     /// Authenticates a user and returns an auth token if successful.
     /// </summary>
     public AuthToken? Authenticate(string username, string password)
     {
-        if (!_users.TryGetValue(username, out var credentials))
-            return null;
+        bool isLockedOut = false;
+        if (_failedAttempts.TryGetValue(username, out var attemptState))
+        {
+            if (attemptState.Attempts >= MaxFailedAttempts && DateTime.UtcNow < attemptState.LockoutEnd)
+            {
+                isLockedOut = true;
+            }
+        }
 
-        // Verify password using constant-time comparison to prevent timing attacks
-        if (!VerifyPassword(password, credentials.Salt, credentials.PasswordHash))
+        bool userExists = _users.TryGetValue(username, out var credentials);
+
+        // Always execute password verification to prevent timing attacks
+        string saltToVerify = userExists ? credentials!.Salt : _dummySalt;
+        string hashToVerify = userExists ? credentials!.PasswordHash : _dummyHash;
+
+        bool passwordValid = VerifyPassword(password, saltToVerify, hashToVerify);
+
+        if (!userExists || !passwordValid)
+        {
+            // Record failed attempt
+            _failedAttempts.AddOrUpdate(username,
+                (1, DateTime.UtcNow.AddMinutes(LockoutDurationMinutes)),
+                (k, v) =>
+                {
+                    // If previously locked out and time has passed, reset
+                    if (v.Attempts >= MaxFailedAttempts && DateTime.UtcNow >= v.LockoutEnd)
+                    {
+                        return (1, DateTime.UtcNow.AddMinutes(LockoutDurationMinutes));
+                    }
+
+                    int newAttempts = v.Attempts + 1;
+                    DateTime lockoutEnd = DateTime.UtcNow.AddMinutes(LockoutDurationMinutes);
+
+                    return (newAttempts, lockoutEnd);
+                });
+
             return null;
+        }
+
+        if (isLockedOut)
+        {
+            // Password is correct but user is locked out. Do not log them in.
+            return null;
+        }
+
+        // Authentication successful. Clear failed attempts.
+        _failedAttempts.TryRemove(username, out _);
 
         var token = new AuthToken
         {

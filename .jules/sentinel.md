@@ -21,3 +21,8 @@
 **Vulnerability:** Regular Expression Denial of Service (ReDoS) vulnerability in `AdvGenNoSqlServer.Core/Validation/DocumentValidator.cs` when evaluating the string "pattern" property and the email, ipv4, and hostname formats using `Regex.IsMatch`.
 **Learning:** Hardcoding regular expression checks on user-supplied strings using `Regex.IsMatch` without providing a `TimeSpan` timeout makes the application vulnerable to excessive CPU consumption, especially for inherently complex regex patterns.
 **Prevention:** For `Regex.IsMatch` calls evaluating external inputs against patterns (even static/precompiled ones for formats), always inject a static readonly timeout configuration (e.g. `RegexTimeout = TimeSpan.FromMilliseconds(100)`) and safely handle the resulting `RegexMatchTimeoutException`.
+
+## 2026-03-05 - [Memory Leak in Rate Limiting Implementation]
+**Vulnerability:** When implementing a sliding-window lockout dictionary with a background timer for cleanup, leaving un-locked out attempts (e.g. 1-4 failures) uncleaned leads to bounded memory exhaustion.
+**Learning:** If a user only ever makes a single failed attempt, a naïve implementation might never advance their "lockout end" date and skip cleaning it up. An attacker could trivially exhaust server memory by sending a single incorrect password request for millions of random usernames. In addition, when adding an unmanaged resource or timer (which roots the object), the object and its callers must implement `IDisposable` (and `using` blocks in tests) to prevent test-suite or app memory leaks.
+**Prevention:** Ensure the rate-limit dictionary gives a TTL to *all* tracking states, not just the locked-out states, and always implement and cascade `IDisposable` when adding a background timer.
