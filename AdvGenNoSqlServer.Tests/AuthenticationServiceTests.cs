@@ -7,7 +7,7 @@ using AdvGenNoSqlServer.Core.Configuration;
 
 namespace AdvGenNoSqlServer.Tests;
 
-public class AuthenticationServiceTests
+public class AuthenticationServiceTests : IDisposable
 {
     private readonly AuthenticationService _authService;
     private readonly ServerConfiguration _config;
@@ -96,6 +96,26 @@ public class AuthenticationServiceTests
 
         // Assert
         Assert.Null(token);
+    }
+
+    [Fact]
+    public void Authenticate_ExceedsMaxAttempts_LocksOutUser()
+    {
+        // Arrange
+        _authService.RegisterUser("lockoutuser", "password123");
+
+        // Act - 5 failed attempts
+        for (int i = 0; i < 5; i++)
+        {
+            var failedToken = _authService.Authenticate("lockoutuser", "wrongpassword");
+            Assert.Null(failedToken);
+        }
+
+        // 6th attempt with correct password should still fail due to lockout
+        var lockoutToken = _authService.Authenticate("lockoutuser", "password123");
+
+        // Assert
+        Assert.Null(lockoutToken);
     }
 
     [Fact]
@@ -462,4 +482,9 @@ public class AuthenticationServiceTests
     }
 
     #endregion
+
+    public void Dispose()
+    {
+        _authService?.Dispose();
+    }
 }
