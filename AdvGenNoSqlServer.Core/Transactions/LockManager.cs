@@ -36,7 +36,13 @@ public class LockManager : ILockManager, IDisposable
             _lock.EnterReadLock();
             try
             {
-                return _resourceLocks.Values.Sum(list => list.Count);
+                // Avoid .Values allocation by directly iterating the dictionary
+                int sum = 0;
+                foreach (var kvp in _resourceLocks)
+                {
+                    sum += kvp.Value.Count;
+                }
+                return sum;
             }
             finally
             {
@@ -53,7 +59,13 @@ public class LockManager : ILockManager, IDisposable
             _lock.EnterReadLock();
             try
             {
-                return _waitingQueues.Values.Sum(queue => queue.Count);
+                // Avoid .Values allocation by directly iterating the dictionary
+                int sum = 0;
+                foreach (var kvp in _waitingQueues)
+                {
+                    sum += kvp.Value.Count;
+                }
+                return sum;
             }
             finally
             {
