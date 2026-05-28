@@ -1,0 +1,119 @@
+@page "/"
+@inject TcpAdminService AdminService
+@inject NavigationManager Navigation
+@implements IAsyncDisposable
+
+<PageTitle>Dashboard - AdvGenNoSQL Admin</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-6">Server Dashboard</MudText>
+
+@if (_stats == null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else
+{
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="4">
+            <MudPaper Elevation="2" Class="pa-4">
+                <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Version</MudText>
+                <MudText Typo="Typo.h5">@_stats.Version</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudPaper Elevation="2" Class="pa-4">
+                <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Uptime</MudText>
+                <MudText Typo="Typo.h5">@FormatUptime(_stats.UptimeSeconds)</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudPaper Elevation="2" Class="pa-4">
+                <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Active Connections</MudText>
+                <MudText Typo="Typo.h5">@_stats.ActiveConnections</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudPaper Elevation="2" Class="pa-4">
+                <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Total Documents</MudText>
+                <MudText Typo="Typo.h5">@_stats.TotalDocuments.ToString("N0")</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudPaper Elevation="2" Class="pa-4">
+                <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Collections</MudText>
+                <MudText Typo="Typo.h5">@_stats.TotalCollections</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudPaper Elevation="2" Class="pa-4">
+                <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Memory Usage</MudText>
+                <MudText Typo="Typo.h5">@_stats.MemoryUsageMB MB</MudText>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@if (_error != null)
+{
+    <MudAlert Severity="Severity.Error" Class="mt-4">@_error</MudAlert>
+}
+
+@code {
+    private ServerStats? _stats;
+    private string? _error;
+    private PeriodicTimer? _timer;
+    private Task? _timerTask;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AdminService.IsConnected)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+        await LoadStatsAsync();
+        _timer = new PeriodicTimer(TimeSpan.FromSeconds(30));
+        _timerTask = RunAutoRefreshAsync();
+    }
+
+    private async Task LoadStatsAsync()
+    {
+        try
+        {
+            _stats = await AdminService.GetStatsAsync();
+            _error = null;
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task RunAutoRefreshAsync()
+    {
+        try
+        {
+            while (_timer != null && await _timer.WaitForNextTickAsync())
+            {
+                await LoadStatsAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private static string FormatUptime(long seconds)
+    {
+        var ts = TimeSpan.FromSeconds(seconds);
+        if (ts.TotalDays >= 1) return $"{(int)ts.TotalDays}d {ts.Hours}h {ts.Minutes}m";
+        if (ts.TotalHours >= 1) return $"{ts.Hours}h {ts.Minutes}m";
+        return $"{ts.Minutes}m {ts.Seconds}s";
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _timer?.Dispose();
+        _timer = null;
+        if (_timerTask != null) await _timerTask.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+    }
+}
