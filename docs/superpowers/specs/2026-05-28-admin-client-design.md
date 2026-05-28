@@ -26,14 +26,16 @@ The admin client always connects to the NoSQL TCP port (default 9191) with SSL. 
 
 ## Server Changes Required (Host)
 
-The Host's TCP command handler currently supports: `get`, `set`, `delete`, `exists`, `count`, `listcollections`. Four new commands must be added to `AdvGenNoSqlServer.Host/Program.cs` (`HandleCommandAsync` switch) before the admin client can be fully functional:
+The Host's TCP command handler currently supports: `get`, `set`, `delete`, `exists`, `count`, `listcollections`. Four new commands must be added to `AdvGenNoSqlServer.Host/Program.cs` (`HandleCommandAsync` switch) before the admin client can be fully functional.
 
-| New command | Payload | Server action |
-|---|---|---|
-| `createcollection` | `{ "collection": "name" }` | `DocumentStore.CreateCollectionAsync(name)` |
-| `dropcollection` | `{ "collection": "name" }` | `DocumentStore.DropCollectionAsync(name)` |
-| `listdocuments` | `{ "collection": "name", "skip": 0, "take": 50 }` | `DocumentStore.GetAllAsync(collection).Skip(skip).Take(take)` |
-| `stats` | `{}` | Returns version, uptimeSeconds, memoryUsageMB, totalDocuments, totalCollections, activeConnections |
+**Wire format note:** `ExecuteCommandAsync(command, collection, document?)` from `MessageProtocol.CreateCommand` always produces `{"command":"…","collection":"…","document":{…}}`. The `document` key is omitted when null. New handlers must read fields from `commandElement` (top-level) for `collection`, and from `commandElement.GetProperty("document")` for any nested payload.
+
+| New command | Wire payload (actual) | Server action | Response `data` shape |
+|---|---|---|---|
+| `createcollection` | `{"command":"createcollection","collection":"name"}` | `DocumentStore.CreateCollectionAsync(collection)` — reads `collection` from top level | `{"created":true,"name":"collectionname"}` |
+| `dropcollection` | `{"command":"dropcollection","collection":"name"}` | `DocumentStore.DropCollectionAsync(collection)` — reads `collection` from top level | `{"dropped":true,"name":"collectionname"}` |
+| `listdocuments` | `{"command":"listdocuments","collection":"name","document":{"skip":0,"take":50}}` | `DocumentStore.GetAllAsync(collection).Skip(skip).Take(take)` — reads `collection` from top level, `skip`/`take` from `document` sub-object (default skip=0, take=50 if absent) | `{"documents":[{…},…],"total":N,"collection":"name"}` — each document is a `Document` object serialised as-is |
+| `stats` | `{"command":"stats","collection":""}` | Returns server stats. `collection` field is injected by wire format and must be ignored. | `{"version":"1.0.0","uptimeSeconds":123,"memoryUsageMB":50,"totalDocuments":100,"totalCollections":3,"activeConnections":2}` — all camelCase, matching the existing `/api/stats` REST response |
 
 These are additions to the existing switch statement only — no changes to other layers.
 
@@ -83,7 +85,7 @@ await client.ConnectAsync();        // TCP connect + SSL handshake + protocol ha
 await client.AuthenticateAsync(username, password);
 ```
 
-`AdvGenNoSqlClientOptions.ServerAddress` defaults to `localhost:9090` but is unused here because the address is passed directly to the constructor as a `"host:port"` string.
+Do not set `AdvGenNoSqlClientOptions.ServerAddress` — it has no effect; the constructor `serverAddress` parameter is the sole source of the address.
 
 ### State
 
@@ -100,11 +102,11 @@ await client.AuthenticateAsync(username, password);
 |---|---|---|
 | `ConnectAndAuthenticateAsync(host, port, username, password)` | `ConnectAsync()` + `AuthenticateAsync()` | See Construction above |
 | `DisconnectAsync()` | `DisconnectAsync()` | Resets state |
-| `GetStatsAsync()` | `ExecuteCommandAsync("stats", "")` | New server command required |
-| `GetCollectionsAsync()` | `ExecuteCommandAsync("listcollections", "")` | Returns collection names |
-| `CreateCollectionAsync(name)` | `ExecuteCommandAsync("createcollection", name)` | New server command required |
-| `DeleteCollectionAsync(name)` | `ExecuteCommandAsync("dropcollection", name)` | New server command required |
-| `GetDocumentsAsync(collection, skip, take)` | `ExecuteCommandAsync("listdocuments", collection, new { skip, take })` | New server command required |
+| `GetStatsAsync()` → stats record | `ExecuteCommandAsync("stats", "")` | Wire sends `collection:""` which the handler ignores. Parse response `data` as the 6-field stats object. |
+| `GetCollectionsAsync()` → `List<string>` | `ExecuteCommandAsync("listcollections", "")` | Parse `data.collections` array from response. Wire sends `collection:""` which the handler ignores. |
+| `CreateCollectionAsync(name)` → `bool` | `ExecuteCommandAsync("createcollection", name)` | New server command; returns `data.created`. |
+| `DeleteCollectionAsync(name)` → `bool` | `ExecuteCommandAsync("dropcollection", name)` | New server command; returns `data.dropped`. |
+| `GetDocumentsAsync(collection, skip, take)` → `List<Dictionary<string,object>>` | `ExecuteCommandAsync("listdocuments", collection, new { skip, take })` | New server command; parse `data.documents` array. |
 | `GetDocumentAsync(collection, id)` | `GetAsync(collection, id)` | Existing typed wrapper |
 | `UpsertDocumentAsync(collection, document)` | `SetAsync(collection, document)` | Upsert — insert and update both call this |
 | `DeleteDocumentAsync(collection, id)` | `DeleteAsync(collection, id)` | Existing typed wrapper |
