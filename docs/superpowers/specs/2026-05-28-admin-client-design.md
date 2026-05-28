@@ -35,7 +35,7 @@ The Host's TCP command handler currently supports: `get`, `set`, `delete`, `exis
 | `createcollection` | `{"command":"createcollection","collection":"name"}` | `DocumentStore.CreateCollectionAsync(collection)` — reads `collection` from top level | `{"created":true,"name":"collectionname"}` |
 | `dropcollection` | `{"command":"dropcollection","collection":"name"}` | `DocumentStore.DropCollectionAsync(collection)` — reads `collection` from top level | `{"dropped":true,"name":"collectionname"}` |
 | `listdocuments` | `{"command":"listdocuments","collection":"name","document":{"skip":0,"take":50}}` | `DocumentStore.GetAllAsync(collection).Skip(skip).Take(take)` — reads `collection` from top level, `skip`/`take` from `document` sub-object (default skip=0, take=50 if absent) | `{"documents":[{…},…],"total":N,"collection":"name"}` — each document is a `Document` object serialised as-is |
-| `stats` | `{"command":"stats","collection":""}` | Returns server stats. `collection` field is injected by wire format and must be ignored. | `{"version":"1.0.0","uptimeSeconds":123,"memoryUsageMB":50,"totalDocuments":100,"totalCollections":3,"activeConnections":2}` — all camelCase, matching the existing `/api/stats` REST response |
+| `stats` | `{"command":"stats","collection":""}` | Returns server stats. `collection` field is injected by wire format and must be ignored. | `{"version":"1.0.0","uptimeSeconds":123,"memoryUsageMB":50,"totalDocuments":100,"totalCollections":3,"activeConnections":2}` — exactly these 6 camelCase fields. Does **not** include `totalDatabases` (present in REST `/api/stats` but not needed here). |
 
 These are additions to the existing switch statement only — no changes to other layers.
 
@@ -107,8 +107,8 @@ Do not set `AdvGenNoSqlClientOptions.ServerAddress` — it has no effect; the co
 | `CreateCollectionAsync(name)` → `bool` | `ExecuteCommandAsync("createcollection", name)` | New server command; returns `data.created`. |
 | `DeleteCollectionAsync(name)` → `bool` | `ExecuteCommandAsync("dropcollection", name)` | New server command; returns `data.dropped`. |
 | `GetDocumentsAsync(collection, skip, take)` → `List<Dictionary<string,object>>` | `ExecuteCommandAsync("listdocuments", collection, new { skip, take })` | New server command; parse `data.documents` array. |
-| `GetDocumentAsync(collection, id)` | `GetAsync(collection, id)` | Existing typed wrapper |
-| `UpsertDocumentAsync(collection, document)` | `SetAsync(collection, document)` | Upsert — insert and update both call this |
+| `GetDocumentAsync(collection, id)` → `Dictionary<string,object>?` | `GetAsync(collection, id)` — **requires client fix** | `GetAsync` currently reads `data.value` but `HandleGetCommandAsync` returns `data.document`. Fix `AdvGenNoSqlClient.Commands.cs` line ~54: change `"value"` → `"document"` before use. |
+| `UpsertDocumentAsync(collection, document)` → `string` (confirmed ID) | `SetAsync(collection, document)` | Upsert — insert and update both call this. Returns the document ID confirmed by the server (`data.id`). |
 | `DeleteDocumentAsync(collection, id)` | `DeleteAsync(collection, id)` | Existing typed wrapper |
 | `ExecuteQueryAsync(query)` | `ExecuteQueryAsync(query)` | Raw query passthrough |
 
@@ -133,7 +133,9 @@ Lists all collections with document counts (one `count` command per collection).
 Auth guard applied in `OnInitializedAsync`.
 
 ### Documents (`/documents?collection=X`)
-Paginated table (50 per page). Shows document ID and a JSON preview. Per-row buttons: View (JSON in a MudDialog), Edit (JSON editor in a MudDialog, calls `UpsertDocumentAsync`), Delete (`ConfirmDialog`). Plus an Insert button (JSON editor with blank document).  
+Paginated table (50 per page). Shows document ID and a JSON preview. Per-row buttons: View (JSON in a MudDialog), Edit (JSON editor in a MudDialog, calls `UpsertDocumentAsync`), Delete (`ConfirmDialog`). Plus an Insert button (JSON editor with blank document — no `_id` pre-filled; server assigns a GUID).
+
+After Insert: `UpsertDocumentAsync` returns the confirmed ID. The page reloads the document list so the new document appears. After Edit: page reloads the current page. After Delete: page reloads.  
 Auth guard applied in `OnInitializedAsync`.
 
 ### Query (`/query`)
