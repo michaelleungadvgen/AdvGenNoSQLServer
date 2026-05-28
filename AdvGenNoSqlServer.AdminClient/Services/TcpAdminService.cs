@@ -27,10 +27,20 @@ public class TcpAdminService : IAsyncDisposable
             CheckCertificateRevocation = false
         };
 
-        _client = new AdvGenNoSqlClient($"{host}:{port}", options);
-        await _client.ConnectAsync();
-        await _client.AuthenticateAsync(username, password);
-
+        var newClient = new AdvGenNoSqlClient($"{host}:{port}", options);
+        try
+        {
+            await newClient.ConnectAsync();
+            var authenticated = await newClient.AuthenticateAsync(username, password);
+            if (!authenticated)
+                throw new InvalidOperationException("Authentication failed: invalid credentials.");
+        }
+        catch
+        {
+            await newClient.DisposeAsync();
+            throw;
+        }
+        _client = newClient;
         Host = host;
         Port = port;
         CurrentUser = username;
@@ -40,7 +50,6 @@ public class TcpAdminService : IAsyncDisposable
     {
         if (_client != null)
         {
-            await _client.DisconnectAsync();
             await _client.DisposeAsync();
             _client = null;
         }
@@ -54,7 +63,8 @@ public class TcpAdminService : IAsyncDisposable
         EnsureConnected();
         var response = await _client!.ExecuteCommandAsync("stats", "");
         EnsureSuccess(response, "stats");
-        var data = (JsonElement)response.Data!;
+        if (response.Data is not System.Text.Json.JsonElement data)
+            throw new InvalidOperationException($"Unexpected response data from server.");
         return new ServerStats
         {
             Version = data.GetProperty("version").GetString() ?? "",
@@ -71,7 +81,8 @@ public class TcpAdminService : IAsyncDisposable
         EnsureConnected();
         var response = await _client!.ExecuteCommandAsync("listcollections", "");
         EnsureSuccess(response, "listcollections");
-        var data = (JsonElement)response.Data!;
+        if (response.Data is not System.Text.Json.JsonElement data)
+            throw new InvalidOperationException($"Unexpected response data from server.");
         return data.GetProperty("collections")
             .EnumerateArray()
             .Select(e => e.GetString() ?? "")
@@ -83,7 +94,8 @@ public class TcpAdminService : IAsyncDisposable
         EnsureConnected();
         var response = await _client!.ExecuteCommandAsync("createcollection", name);
         EnsureSuccess(response, "createcollection");
-        var data = (JsonElement)response.Data!;
+        if (response.Data is not System.Text.Json.JsonElement data)
+            throw new InvalidOperationException($"Unexpected response data from server.");
         return data.GetProperty("created").GetBoolean();
     }
 
@@ -92,7 +104,8 @@ public class TcpAdminService : IAsyncDisposable
         EnsureConnected();
         var response = await _client!.ExecuteCommandAsync("dropcollection", name);
         EnsureSuccess(response, "dropcollection");
-        var data = (JsonElement)response.Data!;
+        if (response.Data is not System.Text.Json.JsonElement data)
+            throw new InvalidOperationException($"Unexpected response data from server.");
         return data.GetProperty("dropped").GetBoolean();
     }
 
@@ -101,7 +114,8 @@ public class TcpAdminService : IAsyncDisposable
         EnsureConnected();
         var response = await _client!.ExecuteCommandAsync("count", collection);
         EnsureSuccess(response, "count");
-        var data = (JsonElement)response.Data!;
+        if (response.Data is not System.Text.Json.JsonElement data)
+            throw new InvalidOperationException($"Unexpected response data from server.");
         return data.GetProperty("count").GetInt64();
     }
 
@@ -112,11 +126,14 @@ public class TcpAdminService : IAsyncDisposable
         var response = await _client!.ExecuteCommandAsync(
             "listdocuments", collection, new { skip, take });
         EnsureSuccess(response, "listdocuments");
-        var data = (JsonElement)response.Data!;
+        if (response.Data is not System.Text.Json.JsonElement data)
+            throw new InvalidOperationException($"Unexpected response data from server.");
 
         var documents = data.GetProperty("documents")
             .EnumerateArray()
-            .Select(e => JsonSerializer.Deserialize<Dictionary<string, object>>(e.GetRawText())!)
+            .Select(e => JsonSerializer.Deserialize<Dictionary<string, object>>(e.GetRawText()))
+            .Where(d => d != null)
+            .Select(d => d!)
             .ToList();
         var total = data.GetProperty("total").GetInt64();
         return (documents, total);
