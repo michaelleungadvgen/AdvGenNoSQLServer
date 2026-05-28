@@ -155,7 +155,8 @@ else
         {
             { x => x.Title, "Edit Document" },
             { x => x.Message, "Edit JSON (keep _id to update this document):" },
-            { x => x.Label, "JSON" }
+            { x => x.Label, "JSON" },
+            { x => x.InitialValue, json }
         };
         var dialog = await DialogService.ShowAsync<TextInputDialog>("Edit Document", parameters);
         var result = await dialog.Result;

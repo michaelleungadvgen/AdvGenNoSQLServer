@@ -22,8 +22,14 @@
     [Parameter] public string Title { get; set; } = "Input";
     [Parameter] public string Message { get; set; } = "Enter a value:";
     [Parameter] public string Label { get; set; } = "Value";
+    [Parameter] public string InitialValue { get; set; } = "";
 
     private string _inputValue = "";
+
+    protected override void OnInitialized()
+    {
+        _inputValue = InitialValue;
+    }
 
     private void Submit() => MudDialog.Close(DialogResult.Ok(_inputValue));
     private void Cancel() => MudDialog.Cancel();
