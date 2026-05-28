@@ -22,7 +22,20 @@ The key motivation: Blazor WASM cannot open TCP sockets (browser sandbox), forci
 | Browser → Admin app | Kestrel HTTPS, ASP.NET Core dev cert (`dotnet dev-certs https --trust`), fixed port `https://localhost:7210` |
 | Admin app → NoSQL server (TCP) | `AdvGenNoSqlClient` with `UseSsl = true` — always required, no toggle |
 
-The admin client always connects to the NoSQL TCP port (default 9191) with SSL. If the server is not configured for SSL the handshake fails and the login page shows a clear error.
+The admin client always connects to the NoSQL TCP port (default 9191) with SSL. If the server is not configured for SSL the handshake fails and the login page shows the exception message.
+
+## Server Changes Required (Host)
+
+The Host's TCP command handler currently supports: `get`, `set`, `delete`, `exists`, `count`, `listcollections`. Four new commands must be added to `AdvGenNoSqlServer.Host/Program.cs` (`HandleCommandAsync` switch) before the admin client can be fully functional:
+
+| New command | Payload | Server action |
+|---|---|---|
+| `createcollection` | `{ "collection": "name" }` | `DocumentStore.CreateCollectionAsync(name)` |
+| `dropcollection` | `{ "collection": "name" }` | `DocumentStore.DropCollectionAsync(name)` |
+| `listdocuments` | `{ "collection": "name", "skip": 0, "take": 50 }` | `DocumentStore.GetAllAsync(collection).Skip(skip).Take(take)` |
+| `stats` | `{}` | Returns version, uptimeSeconds, memoryUsageMB, totalDocuments, totalCollections, activeConnections |
+
+These are additions to the existing switch statement only — no changes to other layers.
 
 ## Project Structure
 
@@ -44,7 +57,6 @@ AdvGenNoSqlServer.AdminClient/
   Shared/
     MainLayout.razor
     NavMenu.razor
-    AuthGuard.razor                   ← redirects to /login if not authenticated
     ConfirmDialog.razor
     TextInputDialog.razor
 ```
@@ -55,7 +67,26 @@ AdvGenNoSqlServer.AdminClient/
 
 This is the only service. It owns the `AdvGenNoSqlClient` instance and exposes all server operations.
 
+### Construction
+
+`ConnectAndAuthenticateAsync` creates the client as follows:
+
+```csharp
+var options = new AdvGenNoSqlClientOptions
+{
+    UseSsl = true,
+    SslTargetHost = host,           // matches the cert CN; defaults to entered hostname
+    CheckCertificateRevocation = false  // dev certs are self-signed, no CRL
+};
+var client = new AdvGenNoSqlClient($"{host}:{port}", options);
+await client.ConnectAsync();        // TCP connect + SSL handshake + protocol handshake
+await client.AuthenticateAsync(username, password);
+```
+
+`AdvGenNoSqlClientOptions.ServerAddress` defaults to `localhost:9090` but is unused here because the address is passed directly to the constructor as a `"host:port"` string.
+
 ### State
+
 | Property | Type | Description |
 |---|---|---|
 | `IsConnected` | `bool` | TCP socket is open and authenticated |
@@ -63,21 +94,23 @@ This is the only service. It owns the `AdvGenNoSqlClient` instance and exposes a
 | `Host` | `string` | Connected server host |
 | `Port` | `int` | Connected server TCP port |
 
-### Key methods
-| Method | Description |
-|---|---|
-| `ConnectAndAuthenticateAsync(host, port, username, password)` | Creates `AdvGenNoSqlClient` with `UseSsl=true`, connects, handshakes, authenticates in one call |
-| `DisconnectAsync()` | Closes the TCP connection and resets state |
-| `GetStatsAsync()` | Returns server statistics |
-| `GetCollectionsAsync()` | Lists collections |
-| `CreateCollectionAsync(name)` | Creates a collection |
-| `DeleteCollectionAsync(name)` | Drops a collection |
-| `GetDocumentsAsync(collection, skip, take)` | Paginated document fetch |
-| `GetDocumentAsync(collection, id)` | Single document fetch |
-| `InsertDocumentAsync(collection, document)` | Insert with returned ID |
-| `UpdateDocumentAsync(collection, document)` | Update by ID |
-| `DeleteDocumentAsync(collection, id)` | Delete by ID |
-| `ExecuteQueryAsync(query)` | Run a query string |
+### Methods and TCP command mapping
+
+| Method | TCP command / client method | Notes |
+|---|---|---|
+| `ConnectAndAuthenticateAsync(host, port, username, password)` | `ConnectAsync()` + `AuthenticateAsync()` | See Construction above |
+| `DisconnectAsync()` | `DisconnectAsync()` | Resets state |
+| `GetStatsAsync()` | `ExecuteCommandAsync("stats", "")` | New server command required |
+| `GetCollectionsAsync()` | `ExecuteCommandAsync("listcollections", "")` | Returns collection names |
+| `CreateCollectionAsync(name)` | `ExecuteCommandAsync("createcollection", name)` | New server command required |
+| `DeleteCollectionAsync(name)` | `ExecuteCommandAsync("dropcollection", name)` | New server command required |
+| `GetDocumentsAsync(collection, skip, take)` | `ExecuteCommandAsync("listdocuments", collection, new { skip, take })` | New server command required |
+| `GetDocumentAsync(collection, id)` | `GetAsync(collection, id)` | Existing typed wrapper |
+| `UpsertDocumentAsync(collection, document)` | `SetAsync(collection, document)` | Upsert — insert and update both call this |
+| `DeleteDocumentAsync(collection, id)` | `DeleteAsync(collection, id)` | Existing typed wrapper |
+| `ExecuteQueryAsync(query)` | `ExecuteQueryAsync(query)` | Raw query passthrough |
+
+**Insert vs Update:** The TCP `set` command is always upsert. The UI presents separate "Insert" (new document, no ID pre-filled) and "Edit" (existing document, ID locked) buttons, but both call `UpsertDocumentAsync`. This is accurate to the server's behaviour.
 
 Implements `IAsyncDisposable` — the TCP socket is closed cleanly when the circuit disposes (browser tab closes).
 
@@ -85,24 +118,43 @@ Implements `IAsyncDisposable` — the TCP socket is closed cleanly when the circ
 
 ### Login (`/login`)
 Fields: Host (default `localhost`), Port (default `9191`), Username, Password.  
-On submit: calls `TcpAdminService.ConnectAndAuthenticateAsync`. On success, navigates to `/`. On failure, shows the exception message as a snackbar error.  
-Redirects to `/` if already authenticated.
+On submit: calls `TcpAdminService.ConnectAndAuthenticateAsync`. On success, navigates to `/`. On failure, shows the exception message as a snackbar error (e.g. "SSL handshake failed" if the server has `EnableSsl: false`).  
+Redirects to `/` immediately in `OnInitializedAsync` if already connected.
 
 ### Dashboard (`/`)
-Shows server stats: version, uptime, active connections, total documents, total collections, memory usage. Auto-refreshes every 30 seconds via a timer.
+Calls `GetStatsAsync()` on load. Shows: version, uptime, active connections, total documents, total collections, memory usage.  
+Auto-refreshes every 30 seconds using a `PeriodicTimer` in an async loop, calling `InvokeAsync(StateHasChanged)` after each tick.  
+Auth guard: `OnInitializedAsync` calls `NavigationManager.NavigateTo("/login")` if `!TcpAdminService.IsConnected`.
 
 ### Collections (`/collections`)
-Lists all collections with document counts. Buttons: Create (TextInputDialog for name), Delete (ConfirmDialog). Clicking a collection name navigates to `/documents?collection=X`.
+Lists all collections with document counts (one `count` command per collection). Create button → `TextInputDialog` → `CreateCollectionAsync`. Delete button → `ConfirmDialog` → `DeleteCollectionAsync`. Collection name links to `/documents?collection=X`.  
+Auth guard applied in `OnInitializedAsync`.
 
 ### Documents (`/documents?collection=X`)
-Paginated table (50 per page). Buttons per row: View (DocumentViewDialog), Edit (inline JSON editor), Delete (ConfirmDialog). Plus an Insert button.
+Paginated table (50 per page). Shows document ID and a JSON preview. Per-row buttons: View (JSON in a MudDialog), Edit (JSON editor in a MudDialog, calls `UpsertDocumentAsync`), Delete (`ConfirmDialog`). Plus an Insert button (JSON editor with blank document).  
+Auth guard applied in `OnInitializedAsync`.
 
 ### Query (`/query`)
-Text area for query input, Run button, results rendered as a JSON table.
+Text area for query input, Run button, results rendered as formatted JSON.  
+Auth guard applied in `OnInitializedAsync`.
 
-## AuthGuard
+## Auth Guard Pattern
 
-A Blazor component that wraps page content. If `TcpAdminService.IsConnected` is false, it immediately redirects to `/login`. Applied in `MainLayout.razor` so all pages except Login are guarded.
+Each page (except Login) guards itself in `OnInitializedAsync`:
+
+```csharp
+protected override async Task OnInitializedAsync()
+{
+    if (!TcpAdminService.IsConnected)
+    {
+        Navigation.NavigateTo("/login");
+        return;
+    }
+    // ... load page data
+}
+```
+
+`NavigationManager.NavigateTo` in `OnInitializedAsync` is the correct Blazor Server pattern. Redirecting from `MainLayout.razor` render logic causes a "Cannot redirect while rendering" exception and is not used.
 
 ## Server-Side SSL Setup (Host)
 
@@ -119,13 +171,13 @@ Export the dev cert once:
 dotnet dev-certs https -ep AdvGenNoSqlServer.Host/certs/advgen.pfx -p devpassword
 ```
 
-This is documented in the README. The `certs/` directory is added to `.gitignore`.
+The server must be **restarted** after adding these keys. If `EnableSsl` remains `false`, the server accepts plain TCP connections and the admin client's SSL handshake will fail with a clear exception on the login page. The `certs/` directory must be added to `.gitignore`.
 
 ## What Is Not In Scope
 
-- User management (create/delete users) — not supported by the TCP protocol
-- Multi-database switching — the TCP protocol targets a single store; database selection is a Host HTTP API concept
-- Replacing `AdvGenNoSqlServer.Admin` — both projects coexist
+- **User management** — no TCP command exists for creating/deleting users
+- **Multi-database switching** — no `selectdatabase` TCP command exists in the Host; adding one is out of scope for this project. All operations target the default database.
+- **Replacing `AdvGenNoSqlServer.Admin`** — both projects coexist
 
 ## Dependencies
 
