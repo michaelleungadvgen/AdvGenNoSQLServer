@@ -1,0 +1,131 @@
+@page "/collections"
+@inject TcpAdminService AdminService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Collections - AdvGenNoSQL Admin</PageTitle>
+
+<div class="d-flex align-center mb-4">
+    <MudText Typo="Typo.h4" Class="flex-grow-1">Collections</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+               OnClick="CreateCollection">New Collection</MudButton>
+</div>
+
+@if (_loading)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (_collections.Count == 0)
+{
+    <MudText>No collections found.</MudText>
+}
+else
+{
+    <MudTable Items="_collections" Hover="true" Dense="true">
+        <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>Documents</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>
+                <MudLink Href="@($"/documents?collection={Uri.EscapeDataString(context)}")">@context</MudLink>
+            </MudTd>
+            <MudTd>@(_counts.TryGetValue(context, out var c) ? c.ToString("N0") : "...")</MudTd>
+            <MudTd>
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                               OnClick="@(() => DeleteCollection(context))" />
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private List<string> _collections = new();
+    private Dictionary<string, long> _counts = new();
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AdminService.IsConnected)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+        await LoadCollectionsAsync();
+    }
+
+    private async Task LoadCollectionsAsync()
+    {
+        _loading = true;
+        try
+        {
+            _collections = await AdminService.GetCollectionsAsync();
+            _counts.Clear();
+            foreach (var col in _collections)
+            {
+                try { _counts[col] = await AdminService.CountAsync(col); }
+                catch { _counts[col] = -1; }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to load collections: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task CreateCollection()
+    {
+        var parameters = new DialogParameters<TextInputDialog>
+        {
+            { x => x.Title, "Create Collection" },
+            { x => x.Message, "Enter the collection name:" },
+            { x => x.Label, "Collection Name" }
+        };
+        var dialog = await DialogService.ShowAsync<TextInputDialog>("Create Collection", parameters);
+        var result = await dialog.Result;
+        if (result?.Canceled == false && result.Data is string name && !string.IsNullOrWhiteSpace(name))
+        {
+            try
+            {
+                await AdminService.CreateCollectionAsync(name);
+                Snackbar.Add($"Collection '{name}' created", Severity.Success);
+                await LoadCollectionsAsync();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Failed to create collection: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private async Task DeleteCollection(string name)
+    {
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.Title, "Delete Collection" },
+            { x => x.Message, $"Delete collection '{name}' and all its documents?" },
+            { x => x.ConfirmText, "Delete" }
+        };
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Delete Collection", parameters);
+        var result = await dialog.Result;
+        if (result?.Canceled == false)
+        {
+            try
+            {
+                await AdminService.DeleteCollectionAsync(name);
+                Snackbar.Add($"Collection '{name}' deleted", Severity.Success);
+                await LoadCollectionsAsync();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Failed to delete collection: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}
