@@ -830,6 +830,10 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
                 "exists" => await HandleExistsCommandAsync(doc.RootElement),
                 "count" => await HandleCountCommandAsync(doc.RootElement),
                 "listcollections" => await HandleListCollectionsCommandAsync(),
+                "createcollection" => await HandleCreateCollectionCommandAsync(doc.RootElement),
+                "dropcollection" => await HandleDropCollectionCommandAsync(doc.RootElement),
+                "listdocuments" => await HandleListDocumentsCommandAsync(doc.RootElement),
+                "stats" => await HandleStatsCommandAsync(),
                 _ => NoSqlMessage.CreateError("UNKNOWN_COMMAND", $"Unknown command: {command}")
             };
         }
@@ -976,6 +980,79 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
     {
         var collections = await _apiData.DocumentStore!.GetCollectionsAsync();
         return NoSqlMessage.CreateSuccess(new { collections });
+    }
+
+    private async Task<NoSqlMessage> HandleCreateCollectionCommandAsync(System.Text.Json.JsonElement commandElement)
+    {
+        if (!commandElement.TryGetProperty("collection", out var collectionProp))
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Missing collection");
+
+        var collection = collectionProp.GetString();
+        if (string.IsNullOrEmpty(collection))
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Collection name is required");
+
+        await _apiData.DocumentStore!.CreateCollectionAsync(collection);
+        return NoSqlMessage.CreateSuccess(new { created = true, name = collection });
+    }
+
+    private async Task<NoSqlMessage> HandleDropCollectionCommandAsync(System.Text.Json.JsonElement commandElement)
+    {
+        if (!commandElement.TryGetProperty("collection", out var collectionProp))
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Missing collection");
+
+        var collection = collectionProp.GetString();
+        if (string.IsNullOrEmpty(collection))
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Collection name is required");
+
+        var dropped = await _apiData.DocumentStore!.DropCollectionAsync(collection);
+        return NoSqlMessage.CreateSuccess(new { dropped, name = collection });
+    }
+
+    private async Task<NoSqlMessage> HandleListDocumentsCommandAsync(System.Text.Json.JsonElement commandElement)
+    {
+        if (!commandElement.TryGetProperty("collection", out var collectionProp))
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Missing collection");
+
+        var collection = collectionProp.GetString();
+        if (string.IsNullOrEmpty(collection))
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Collection name is required");
+
+        int skip = 0;
+        int take = 50;
+        if (commandElement.TryGetProperty("document", out var docProp) &&
+            docProp.ValueKind == System.Text.Json.JsonValueKind.Object)
+        {
+            if (docProp.TryGetProperty("skip", out var skipProp)) skip = skipProp.GetInt32();
+            if (docProp.TryGetProperty("take", out var takeProp)) take = takeProp.GetInt32();
+        }
+
+        var all = (await _apiData.DocumentStore!.GetAllAsync(collection)).ToList();
+        var page = all.Skip(skip).Take(take > 0 ? take : 50).ToList();
+        var total = all.Count;
+        return NoSqlMessage.CreateSuccess(new { documents = page, total, collection });
+    }
+
+    private async Task<NoSqlMessage> HandleStatsCommandAsync()
+    {
+        var uptime = DateTime.UtcNow - _apiData.StartTime;
+        var memMB = (int)(GC.GetTotalMemory(false) / 1_048_576);
+        long totalDocuments = 0;
+        int totalCollections = 0;
+        if (_apiData.DocumentStore != null)
+        {
+            var cols = (await _apiData.DocumentStore.GetCollectionsAsync()).ToList();
+            totalCollections = cols.Count;
+            foreach (var c in cols) totalDocuments += await _apiData.DocumentStore.CountAsync(c);
+        }
+        return NoSqlMessage.CreateSuccess(new
+        {
+            version = "1.0.0",
+            uptimeSeconds = (long)uptime.TotalSeconds,
+            memoryUsageMB = memMB,
+            totalDocuments,
+            totalCollections,
+            activeConnections = _apiData.TcpServer?.ActiveConnectionCount ?? 0
+        });
     }
 
     private Task<NoSqlMessage> HandleBulkOperationAsync(NoSqlMessage message, string connectionId)
