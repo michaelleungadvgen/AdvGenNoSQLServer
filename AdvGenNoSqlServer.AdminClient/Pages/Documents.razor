@@ -1,0 +1,203 @@
+@page "/documents"
+@inject TcpAdminService AdminService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Documents - AdvGenNoSQL Admin</PageTitle>
+
+<div class="d-flex align-center mb-4">
+    <MudText Typo="Typo.h4" Class="flex-grow-1">@_collection</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+               OnClick="InsertDocument">Insert</MudButton>
+</div>
+
+@if (_loading)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (_documents.Count == 0)
+{
+    <MudText>No documents found.</MudText>
+}
+else
+{
+    <MudTable Items="_documents" Hover="true" Dense="true">
+        <HeaderContent>
+            <MudTh>ID</MudTh>
+            <MudTh>Preview</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@GetId(context)</MudTd>
+            <MudTd Style="max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                @GetPreview(context)
+            </MudTd>
+            <MudTd>
+                <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small"
+                               OnClick="@(() => ViewDocument(context))" Title="View" />
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                               OnClick="@(() => EditDocument(context))" Title="Edit" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                               OnClick="@(() => DeleteDocument(context))" Title="Delete" />
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+
+    <div class="d-flex align-center mt-4">
+        <MudButton Disabled="_page == 0" OnClick="PreviousPage" Variant="Variant.Outlined">Previous</MudButton>
+        <MudText Class="mx-4">Page @(_page + 1) — @_total total</MudText>
+        <MudButton Disabled="(_page + 1) * _pageSize >= _total" OnClick="NextPage" Variant="Variant.Outlined">Next</MudButton>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "collection")]
+    public string? CollectionParam { get; set; }
+
+    private string _collection = "";
+    private List<Dictionary<string, object>> _documents = new();
+    private long _total;
+    private int _page;
+    private const int _pageSize = 50;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AdminService.IsConnected)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+        _collection = CollectionParam ?? "";
+        if (string.IsNullOrEmpty(_collection))
+        {
+            Navigation.NavigateTo("/collections");
+            return;
+        }
+        await LoadPageAsync();
+    }
+
+    private async Task LoadPageAsync()
+    {
+        _loading = true;
+        try
+        {
+            var (docs, total) = await AdminService.GetDocumentsAsync(_collection, _page * _pageSize, _pageSize);
+            _documents = docs;
+            _total = total;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to load documents: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task PreviousPage() { _page--; await LoadPageAsync(); }
+    private async Task NextPage() { _page++; await LoadPageAsync(); }
+
+    private static string GetId(Dictionary<string, object> doc)
+        => doc.TryGetValue("_id", out var id) ? id?.ToString() ?? "" : "";
+
+    private static string GetPreview(Dictionary<string, object> doc)
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(doc);
+        return json.Length > 120 ? json[..120] + "…" : json;
+    }
+
+    private async Task ViewDocument(Dictionary<string, object> doc)
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(doc, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        await DialogService.ShowAsync<ConfirmDialog>("Document", new DialogParameters<ConfirmDialog>
+        {
+            { x => x.Title, "View Document" },
+            { x => x.Message, json },
+            { x => x.ConfirmText, "Close" },
+            { x => x.CancelText, "" }
+        });
+    }
+
+    private async Task InsertDocument()
+    {
+        var parameters = new DialogParameters<TextInputDialog>
+        {
+            { x => x.Title, "Insert Document" },
+            { x => x.Message, "Enter JSON document (without _id — server assigns one):" },
+            { x => x.Label, "JSON" }
+        };
+        var dialog = await DialogService.ShowAsync<TextInputDialog>("Insert Document", parameters);
+        var result = await dialog.Result;
+        if (result?.Canceled == false && result.Data is string json && !string.IsNullOrWhiteSpace(json))
+        {
+            try
+            {
+                var doc = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(json)
+                    ?? throw new InvalidOperationException("Invalid JSON");
+                var id = await AdminService.UpsertDocumentAsync(_collection, doc);
+                Snackbar.Add($"Document inserted with ID: {id}", Severity.Success);
+                await LoadPageAsync();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Failed to insert document: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private async Task EditDocument(Dictionary<string, object> doc)
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(doc, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        var parameters = new DialogParameters<TextInputDialog>
+        {
+            { x => x.Title, "Edit Document" },
+            { x => x.Message, "Edit JSON (keep _id to update this document):" },
+            { x => x.Label, "JSON" }
+        };
+        var dialog = await DialogService.ShowAsync<TextInputDialog>("Edit Document", parameters);
+        var result = await dialog.Result;
+        if (result?.Canceled == false && result.Data is string updatedJson && !string.IsNullOrWhiteSpace(updatedJson))
+        {
+            try
+            {
+                var updatedDoc = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(updatedJson)
+                    ?? throw new InvalidOperationException("Invalid JSON");
+                await AdminService.UpsertDocumentAsync(_collection, updatedDoc);
+                Snackbar.Add("Document updated", Severity.Success);
+                await LoadPageAsync();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Failed to update document: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private async Task DeleteDocument(Dictionary<string, object> doc)
+    {
+        var id = GetId(doc);
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.Message, $"Delete document '{id}'?" },
+            { x => x.ConfirmText, "Delete" }
+        };
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Delete Document", parameters);
+        var result = await dialog.Result;
+        if (result?.Canceled == false)
+        {
+            try
+            {
+                await AdminService.DeleteDocumentAsync(_collection, id);
+                Snackbar.Add("Document deleted", Severity.Success);
+                await LoadPageAsync();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Failed to delete document: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}
