@@ -83,3 +83,6 @@ Thumbs.db
 *.csx
 .claude/
 .worktrees/
+
+# SSL dev certs — never commit private keys
+AdvGenNoSqlServer.Host/certs/
