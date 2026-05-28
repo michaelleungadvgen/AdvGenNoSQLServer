@@ -52,11 +52,10 @@
     private string _password = "";
     private bool _isLoading;
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
         if (AdminService.IsConnected)
             Navigation.NavigateTo("/");
-        await Task.CompletedTask;
     }
 
     private async Task HandleLogin()

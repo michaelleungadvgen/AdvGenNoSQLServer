@@ -32,7 +32,7 @@ else
             <MudTd>
                 <MudLink Href="@($"/documents?collection={Uri.EscapeDataString(context)}")">@context</MudLink>
             </MudTd>
-            <MudTd>@(_counts.TryGetValue(context, out var c) ? c.ToString("N0") : "...")</MudTd>
+            <MudTd>@(_counts.TryGetValue(context, out var c) ? (c >= 0 ? c.ToString("N0") : "-") : "...")</MudTd>
             <MudTd>
                 <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
                                OnClick="@(() => DeleteCollection(context))" />
@@ -66,7 +66,7 @@ else
             foreach (var col in _collections)
             {
                 try { _counts[col] = await AdminService.CountAsync(col); }
-                catch { _counts[col] = -1; }
+                catch (Exception) { _counts[col] = -1; }
             }
         }
         catch (Exception ex)

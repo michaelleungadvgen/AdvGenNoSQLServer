@@ -27,14 +27,10 @@
     private string? _result;
     private bool _running;
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
         if (!AdminService.IsConnected)
-        {
             Navigation.NavigateTo("/login");
-            return;
-        }
-        await Task.CompletedTask;
     }
 
     private async Task RunQuery()
@@ -50,8 +46,7 @@
         }
         catch (Exception ex)
         {
-            _result = $"Error: {ex.Message}";
-            Snackbar.Add(ex.Message, Severity.Error);
+            Snackbar.Add($"Query failed: {ex.Message}", Severity.Error);
         }
         finally
         {

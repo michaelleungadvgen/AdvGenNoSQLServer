@@ -95,8 +95,11 @@ else
         {
             while (_timer != null && await _timer.WaitForNextTickAsync())
             {
-                await LoadStatsAsync();
-                await InvokeAsync(StateHasChanged);
+                await InvokeAsync(async () =>
+                {
+                    await LoadStatsAsync();
+                    StateHasChanged();
+                });
             }
         }
         catch (OperationCanceledException) { }
@@ -114,6 +117,11 @@ else
     {
         _timer?.Dispose();
         _timer = null;
-        if (_timerTask != null) await _timerTask.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+        if (_timerTask != null)
+        {
+            try { await _timerTask.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false); }
+            catch (TimeoutException) { }
+            catch (OperationCanceledException) { }
+        }
     }
 }

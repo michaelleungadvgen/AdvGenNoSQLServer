@@ -111,7 +111,7 @@ else
 
     private async Task ViewDocument(Dictionary<string, object> doc)
     {
-        var json = System.Text.Json.JsonSerializer.Serialize(doc, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        var json = System.Text.Json.JsonSerializer.Serialize(doc);
         await DialogService.ShowAsync<ConfirmDialog>("Document", new DialogParameters<ConfirmDialog>
         {
             { x => x.Title, "View Document" },
@@ -180,6 +180,11 @@ else
     private async Task DeleteDocument(Dictionary<string, object> doc)
     {
         var id = GetId(doc);
+        if (string.IsNullOrEmpty(id))
+        {
+            Snackbar.Add("Cannot delete: document has no _id", Severity.Warning);
+            return;
+        }
         var parameters = new DialogParameters<ConfirmDialog>
         {
             { x => x.Message, $"Delete document '{id}'?" },
