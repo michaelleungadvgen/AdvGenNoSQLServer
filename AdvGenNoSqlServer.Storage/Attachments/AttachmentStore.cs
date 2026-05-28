@@ -5,6 +5,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using AdvGenNoSqlServer.Core.Attachments;
+using AdvGenNoSqlServer.Core.Security;
 
 namespace AdvGenNoSqlServer.Storage.Attachments;
 
@@ -363,12 +364,14 @@ public class AttachmentStore : IAttachmentStore, IDisposable
 
     private string GetDocumentPath(string collectionName, string documentId)
     {
-        return Path.Combine(_options.BasePath, SanitizeFileName(collectionName), SanitizeFileName(documentId));
+        var collectionPath = PathValidator.GetSafePath(_options.BasePath, Path.Combine(_options.BasePath, SanitizeFileName(collectionName)));
+        return PathValidator.GetSafePath(collectionPath, Path.Combine(collectionPath, SanitizeFileName(documentId)));
     }
 
     private string GetAttachmentPath(string collectionName, string documentId, string attachmentName)
     {
-        return Path.Combine(GetDocumentPath(collectionName, documentId), SanitizeFileName(attachmentName));
+        var documentPath = GetDocumentPath(collectionName, documentId);
+        return PathValidator.GetSafePath(documentPath, Path.Combine(documentPath, SanitizeFileName(attachmentName)));
     }
 
     private static string SanitizeFileName(string name)
