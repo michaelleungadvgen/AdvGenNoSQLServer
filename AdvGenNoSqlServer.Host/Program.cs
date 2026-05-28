@@ -1019,15 +1019,18 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
 
         int skip = 0;
         int take = 50;
+        const int MaxTake = 200;
         if (commandElement.TryGetProperty("document", out var docProp) &&
             docProp.ValueKind == System.Text.Json.JsonValueKind.Object)
         {
             if (docProp.TryGetProperty("skip", out var skipProp)) skip = skipProp.GetInt32();
             if (docProp.TryGetProperty("take", out var takeProp)) take = takeProp.GetInt32();
         }
+        if (skip < 0) skip = 0;
+        if (take <= 0 || take > MaxTake) take = 50;
 
         var all = (await _apiData.DocumentStore!.GetAllAsync(collection)).ToList();
-        var page = all.Skip(skip).Take(take > 0 ? take : 50).ToList();
+        var page = all.Skip(skip).Take(take).ToList();
         var total = all.Count;
         return NoSqlMessage.CreateSuccess(new { documents = page, total, collection });
     }
