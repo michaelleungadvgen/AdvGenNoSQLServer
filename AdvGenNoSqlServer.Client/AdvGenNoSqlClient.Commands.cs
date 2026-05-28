@@ -51,11 +51,11 @@ namespace AdvGenNoSqlServer.Client
             // Extract the value from the response
             if (result.Data is System.Text.Json.JsonElement dataElement)
             {
-                if (dataElement.TryGetProperty("value", out var valueElement) &&
-                    valueElement.ValueKind != System.Text.Json.JsonValueKind.Null)
+                if (dataElement.TryGetProperty("document", out var documentElement) &&
+                    documentElement.ValueKind != System.Text.Json.JsonValueKind.Null)
                 {
                     // Convert JsonElement to Dictionary<string, object> to avoid disposal issues
-                    return System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(valueElement.GetRawText());
+                    return System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(documentElement.GetRawText());
                 }
             }
 
