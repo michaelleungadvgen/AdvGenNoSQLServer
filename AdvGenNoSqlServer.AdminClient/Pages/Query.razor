@@ -1,0 +1,61 @@
+@page "/query"
+@inject TcpAdminService AdminService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>Query - AdvGenNoSQL Admin</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Query</MudText>
+
+<MudTextField T="string" @bind-Value="_query" Label="Query" Variant="Variant.Outlined"
+              Lines="5" Class="mb-3" Placeholder="SELECT * FROM myCollection WHERE ..." />
+
+<MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="RunQuery"
+           Disabled="_running" StartIcon="@Icons.Material.Filled.PlayArrow">
+    @(_running ? "Running..." : "Run Query")
+</MudButton>
+
+@if (_result != null)
+{
+    <MudPaper Elevation="1" Class="pa-4 mt-4" Style="background:#1e1e1e;">
+        <MudText Typo="Typo.body2" Style="font-family:monospace;white-space:pre-wrap;color:#d4d4d4;">@_result</MudText>
+    </MudPaper>
+}
+
+@code {
+    private string _query = "";
+    private string? _result;
+    private bool _running;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AdminService.IsConnected)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+        await Task.CompletedTask;
+    }
+
+    private async Task RunQuery()
+    {
+        if (string.IsNullOrWhiteSpace(_query)) return;
+        _running = true;
+        _result = null;
+        try
+        {
+            var response = await AdminService.ExecuteQueryAsync(_query);
+            _result = System.Text.Json.JsonSerializer.Serialize(response.Data,
+                new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        }
+        catch (Exception ex)
+        {
+            _result = $"Error: {ex.Message}";
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _running = false;
+        }
+    }
+}
