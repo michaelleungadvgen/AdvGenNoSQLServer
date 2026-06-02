@@ -114,9 +114,9 @@ public class GarbageCollectedDocumentStore : PersistentDocumentStore, IDisposabl
     /// </summary>
     private string GetDocumentPathInternal(string collectionName, string documentId)
     {
-        var collectionPath = Path.Combine(DataPath, SanitizeFileName(collectionName));
+        var collectionPath = AdvGenNoSqlServer.Core.Security.PathValidator.GetSafePath(DataPath, Path.Combine(DataPath, SanitizeFileName(collectionName)));
         var sanitizedId = SanitizeFileName(documentId);
-        return Path.Combine(collectionPath, $"{sanitizedId}.json");
+        return AdvGenNoSqlServer.Core.Security.PathValidator.GetSafePath(collectionPath, Path.Combine(collectionPath, $"{sanitizedId}.json"));
     }
 
     private string SanitizeFileName(string name)
