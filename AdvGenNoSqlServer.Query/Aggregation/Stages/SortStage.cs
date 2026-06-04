@@ -92,25 +92,50 @@ public class SortStage : IAggregationStage
     /// <inheritdoc />
     public IEnumerable<Document> Execute(IEnumerable<Document> documents)
     {
-        try
+        if (!_sortSpecs.Any())
         {
-            if (!_sortSpecs.Any())
-                return documents;
-
-            var sorted = documents.OrderBy(d => GetFieldValue(d, _sortSpecs[0].FieldPath), new ObjectComparer(_sortSpecs[0].Ascending));
-
-            for (int i = 1; i < _sortSpecs.Count; i++)
+            using var enumDocs = documents.GetEnumerator();
+            while (true)
             {
-                var spec = _sortSpecs[i];
-                var index = i; // Capture for closure
-                sorted = sorted.ThenBy(d => GetFieldValue(d, spec.FieldPath), new ObjectComparer(spec.Ascending));
+                bool hasNext;
+                try
+                {
+                    hasNext = enumDocs.MoveNext();
+                }
+                catch (Exception ex)
+                {
+                    throw new AggregationStageException(StageType, $"Failed to execute sort stage: {ex.Message}", ex);
+                }
+
+                if (!hasNext) break;
+                yield return enumDocs.Current;
+            }
+            yield break;
+        }
+
+        IEnumerable<Document> sorted = documents.OrderBy(d => GetFieldValue(d, _sortSpecs[0].FieldPath), new ObjectComparer(_sortSpecs[0].Ascending));
+
+        for (int i = 1; i < _sortSpecs.Count; i++)
+        {
+            var spec = _sortSpecs[i];
+            sorted = ((IOrderedEnumerable<Document>)sorted).ThenBy(d => GetFieldValue(d, spec.FieldPath), new ObjectComparer(spec.Ascending));
+        }
+
+        using var enumerator = sorted.GetEnumerator();
+        while (true)
+        {
+            bool hasNext;
+            try
+            {
+                hasNext = enumerator.MoveNext();
+            }
+            catch (Exception ex)
+            {
+                throw new AggregationStageException(StageType, $"Failed to execute sort stage: {ex.Message}", ex);
             }
 
-            return sorted.ToList();
-        }
-        catch (Exception ex)
-        {
-            throw new AggregationStageException(StageType, $"Failed to execute sort stage: {ex.Message}", ex);
+            if (!hasNext) break;
+            yield return enumerator.Current;
         }
     }
 
