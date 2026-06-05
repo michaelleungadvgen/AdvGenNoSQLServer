@@ -1,5 +1,11 @@
-1. **Analyze Security Issue**: In `AdvGenNoSqlServer.Core/Authentication/JwtTokenProvider.cs`, the methods `ExtractUsername(string token)` and `GetExpirationTime(string token)` simply split the token and decode the payload without validating the HMAC signature. This can allow attackers to forge a token, parse it through these methods, and potentially trigger logic based on untrusted data.
-2. **Implement Fix**: Modify `ExtractUsername` and `GetExpirationTime` in `JwtTokenProvider.cs` to verify the signature of the token before trusting its contents. We can extract the signature verification logic from `ValidateToken` into a reusable private method, or duplicate the small fixed-time equality check, or just call `ValidateToken` directly. Since `ExtractUsername` and `GetExpirationTime` don't necessarily want to check expiration (e.g. `ExtractUsername` might be used for revoking a token), we should do a bare signature check. Alternatively, the simplest fix is to compute the expected signature from parts[0] and parts[1], and compare it with parts[2] using `CryptographicOperations.FixedTimeEquals`.
-3. **Write/Run Tests**: Verify `JwtTokenProviderTests.cs` using `DOTNET_ROLL_FORWARD=Major dotnet test AdvGenNoSqlServer.Tests/AdvGenNoSqlServer.Tests.csproj --filter JwtTokenProviderTests -c Release`. There might be existing tests checking that `ExtractUsername` *doesn't* validate the signature (e.g. `ExtractUsername_DoesNotValidateSignature`). If so, we'll need to update that test.
-4. **Complete pre-commit steps to ensure proper testing, verification, review, and reflection are done.**
-5. **Submit**: Create PR with title "🛡️ Sentinel: [LOW] Fix missing JWT signature validation".
+1. **Optimize `ActiveLockCount` and `WaitingRequestCount` in `LockManager.cs`**
+   - Replace the `_resourceLocks.Values.Sum(...)` and `_waitingQueues.Values.Sum(...)` with simple `foreach` loops that iterate directly over the respective dictionaries. This avoids multiple enumerations and internal array allocations.
+
+2. **Optimize `GetCollectionStats` in `MvccDocumentStore.cs`**
+   - In `GetCollectionStats`, iterate directly over `collection` in a `foreach` loop to sum the version counts instead of calling `.Values.Sum(c => c.VersionCount)`. This eliminates the O(N) allocation of the `Values` property.
+
+3. **Complete pre-commit steps to ensure proper testing, verification, review, and reflection are done.**
+   - Run relevant tests and update the Bolt journal.
+
+4. **Submit PR**
+   - Submit the PR with the required Bolt format.
