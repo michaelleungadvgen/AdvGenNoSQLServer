@@ -92,25 +92,48 @@ public class SortStage : IAggregationStage
     /// <inheritdoc />
     public IEnumerable<Document> Execute(IEnumerable<Document> documents)
     {
+        IEnumerator<Document> enumerator;
         try
         {
             if (!_sortSpecs.Any())
-                return documents;
-
-            var sorted = documents.OrderBy(d => GetFieldValue(d, _sortSpecs[0].FieldPath), new ObjectComparer(_sortSpecs[0].Ascending));
-
-            for (int i = 1; i < _sortSpecs.Count; i++)
             {
-                var spec = _sortSpecs[i];
-                var index = i; // Capture for closure
-                sorted = sorted.ThenBy(d => GetFieldValue(d, spec.FieldPath), new ObjectComparer(spec.Ascending));
+                enumerator = documents.GetEnumerator();
             }
+            else
+            {
+                var sorted = documents.OrderBy(d => GetFieldValue(d, _sortSpecs[0].FieldPath), new ObjectComparer(_sortSpecs[0].Ascending));
 
-            return sorted.ToList();
+                for (int i = 1; i < _sortSpecs.Count; i++)
+                {
+                    var spec = _sortSpecs[i];
+                    var index = i; // Capture for closure
+                    sorted = sorted.ThenBy(d => GetFieldValue(d, spec.FieldPath), new ObjectComparer(spec.Ascending));
+                }
+                enumerator = sorted.GetEnumerator();
+            }
         }
         catch (Exception ex)
         {
             throw new AggregationStageException(StageType, $"Failed to execute sort stage: {ex.Message}", ex);
+        }
+
+        using (enumerator)
+        {
+            while (true)
+            {
+                Document current;
+                try
+                {
+                    if (!enumerator.MoveNext())
+                        break;
+                    current = enumerator.Current;
+                }
+                catch (Exception ex)
+                {
+                    throw new AggregationStageException(StageType, $"Failed to execute sort stage: {ex.Message}", ex);
+                }
+                yield return current;
+            }
         }
     }
 
