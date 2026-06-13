@@ -575,7 +575,7 @@ public class QueryExecutor : IQueryExecutor
             // Apply filter if provided
             if (filter != null)
             {
-                documents = _filterEngine.Filter(documents, filter).ToList();
+                documents = _filterEngine.Filter(documents, filter);
             }
 
             // Extract distinct values

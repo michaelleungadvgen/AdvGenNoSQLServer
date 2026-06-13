@@ -92,25 +92,47 @@ public class SortStage : IAggregationStage
     /// <inheritdoc />
     public IEnumerable<Document> Execute(IEnumerable<Document> documents)
     {
+        IEnumerable<Document> sorted;
         try
         {
             if (!_sortSpecs.Any())
                 return documents;
 
-            var sorted = documents.OrderBy(d => GetFieldValue(d, _sortSpecs[0].FieldPath), new ObjectComparer(_sortSpecs[0].Ascending));
+            var ordered = documents.OrderBy(d => GetFieldValue(d, _sortSpecs[0].FieldPath), new ObjectComparer(_sortSpecs[0].Ascending));
 
             for (int i = 1; i < _sortSpecs.Count; i++)
             {
                 var spec = _sortSpecs[i];
-                var index = i; // Capture for closure
-                sorted = sorted.ThenBy(d => GetFieldValue(d, spec.FieldPath), new ObjectComparer(spec.Ascending));
+                ordered = ordered.ThenBy(d => GetFieldValue(d, spec.FieldPath), new ObjectComparer(spec.Ascending));
             }
 
-            return sorted.ToList();
+            sorted = ordered;
         }
         catch (Exception ex)
         {
-            throw new AggregationStageException(StageType, $"Failed to execute sort stage: {ex.Message}", ex);
+            throw new AggregationStageException(StageType, $"Failed to setup sort stage: {ex.Message}", ex);
+        }
+
+        return ExecuteDeferred(sorted);
+    }
+
+    private IEnumerable<Document> ExecuteDeferred(IEnumerable<Document> sorted)
+    {
+        using var enumerator = sorted.GetEnumerator();
+        while (true)
+        {
+            Document doc;
+            try
+            {
+                if (!enumerator.MoveNext())
+                    break;
+                doc = enumerator.Current;
+            }
+            catch (Exception ex)
+            {
+                throw new AggregationStageException(StageType, $"Failed to execute sort stage: {ex.Message}", ex);
+            }
+            yield return doc;
         }
     }
 
