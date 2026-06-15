@@ -58,7 +58,14 @@ public sealed class GeospatialIndexManager
     /// </summary>
     public IEnumerable<IGeospatialIndex> GetCollectionIndexes(string collectionName)
     {
-        return _indexes.Values.Where(i => i.CollectionName == collectionName);
+        // Iterate dictionary directly to avoid .Values snapshot allocation
+        foreach (var kvp in _indexes)
+        {
+            if (kvp.Value.CollectionName == collectionName)
+            {
+                yield return kvp.Value;
+            }
+        }
     }
 
     /// <summary>
@@ -95,9 +102,10 @@ public sealed class GeospatialIndexManager
     /// </summary>
     public void ClearAll()
     {
-        foreach (var index in _indexes.Values)
+        // Iterate dictionary directly to avoid .Values snapshot allocation
+        foreach (var kvp in _indexes)
         {
-            index.Clear();
+            kvp.Value.Clear();
         }
         _indexes.Clear();
     }
@@ -107,7 +115,11 @@ public sealed class GeospatialIndexManager
     /// </summary>
     public IEnumerable<GeospatialIndexStats> GetAllStats()
     {
-        return _indexes.Values.Select(i => i.GetStats());
+        // Iterate dictionary directly to avoid .Values snapshot allocation
+        foreach (var kvp in _indexes)
+        {
+            yield return kvp.Value.GetStats();
+        }
     }
 
     private static string GetIndexKey(string collectionName, string fieldName)
