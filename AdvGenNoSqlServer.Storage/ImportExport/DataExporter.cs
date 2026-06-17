@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 // See LICENSE.txt for license information.
 
+using AdvGenNoSqlServer.Core.Security;
 using System.Globalization;
 using System.Text;
 using System.Text.Encodings.Web;
@@ -115,7 +116,7 @@ public class DataExporter : IDataExporter
         {
             options.CancellationToken.ThrowIfCancellationRequested();
 
-            var outputPath = Path.Combine(outputDirectory, $"{collectionName}{extension}");
+            var outputPath = PathValidator.GetSafePath(outputDirectory, Path.Combine(outputDirectory, $"{collectionName}{extension}"));
             var result = await ExportCollectionAsync(store, collectionName, outputPath, options);
             results[collectionName] = result;
 

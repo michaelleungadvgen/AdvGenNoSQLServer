@@ -1,6 +1,7 @@
 // Copyright (c) 2026 AdvanGeneration Pty. Ltd.
 // Licensed under the MIT License.
 // See LICENSE.txt for license information.
+using AdvGenNoSqlServer.Core.Security;
 
 namespace AdvGenNoSqlServer.Storage;
 
@@ -82,7 +83,7 @@ public class DatabaseManager : IDatabaseManager
             return false;
         }
 
-        var dbPath = Path.Combine(_baseStoragePath, name);
+        var dbPath = PathValidator.GetSafePath(_baseStoragePath, Path.Combine(_baseStoragePath, name));
         if (Directory.Exists(dbPath))
         {
             return false; // Already exists
@@ -114,7 +115,7 @@ public class DatabaseManager : IDatabaseManager
         {
             await store.DisposeAsync();
 
-            var dbPath = Path.Combine(_baseStoragePath, name);
+            var dbPath = PathValidator.GetSafePath(_baseStoragePath, Path.Combine(_baseStoragePath, name));
             try
             {
                 Directory.Delete(dbPath, recursive: true);
