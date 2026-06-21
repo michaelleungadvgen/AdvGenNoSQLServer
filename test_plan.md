@@ -1,5 +1,22 @@
-1. **Analyze Security Issue**: In `AdvGenNoSqlServer.Core/Authentication/JwtTokenProvider.cs`, the methods `ExtractUsername(string token)` and `GetExpirationTime(string token)` simply split the token and decode the payload without validating the HMAC signature. This can allow attackers to forge a token, parse it through these methods, and potentially trigger logic based on untrusted data.
-2. **Implement Fix**: Modify `ExtractUsername` and `GetExpirationTime` in `JwtTokenProvider.cs` to verify the signature of the token before trusting its contents. We can extract the signature verification logic from `ValidateToken` into a reusable private method, or duplicate the small fixed-time equality check, or just call `ValidateToken` directly. Since `ExtractUsername` and `GetExpirationTime` don't necessarily want to check expiration (e.g. `ExtractUsername` might be used for revoking a token), we should do a bare signature check. Alternatively, the simplest fix is to compute the expected signature from parts[0] and parts[1], and compare it with parts[2] using `CryptographicOperations.FixedTimeEquals`.
-3. **Write/Run Tests**: Verify `JwtTokenProviderTests.cs` using `DOTNET_ROLL_FORWARD=Major dotnet test AdvGenNoSqlServer.Tests/AdvGenNoSqlServer.Tests.csproj --filter JwtTokenProviderTests -c Release`. There might be existing tests checking that `ExtractUsername` *doesn't* validate the signature (e.g. `ExtractUsername_DoesNotValidateSignature`). If so, we'll need to update that test.
-4. **Complete pre-commit steps to ensure proper testing, verification, review, and reflection are done.**
-5. **Submit**: Create PR with title "🛡️ Sentinel: [LOW] Fix missing JWT signature validation".
+1. **Identify and review `AuthenticationManager.cs`**
+   - The method `Authenticate` does not track failed attempts or lock out users, making it vulnerable to brute force attacks.
+
+2. **Implement Rate Limiting in `AuthenticationManager.cs`**
+   - Add fields to track failed attempts:
+     ```csharp
+     private readonly ConcurrentDictionary<string, (int attempts, DateTime lastAttempt)> _failedAttempts = new();
+     private const int MaxFailedAttempts = 5;
+     private static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
+     ```
+   - Modify the `Authenticate` method to check and update failed attempts:
+     - Check if the user is locked out.
+     - Always call `VerifyPassword` even if locked out to prevent timing attacks.
+     - If password verification fails or user is locked out, increment failed attempts.
+     - If authentication is successful and user is not locked out, reset failed attempts.
+   - Implement an `IDisposable` interface and add a `Timer` to periodically clean up `_failedAttempts`.
+
+3. **Complete pre-commit steps**
+   - Complete pre-commit steps to ensure proper testing, verification, review, and reflection are done.
+
+4. **Verify tests pass**
+   - Run the relevant test suites to ensure the modifications do not break any existing functionality and the security vulnerability is resolved.
