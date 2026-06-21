@@ -7,7 +7,7 @@ using AdvGenNoSqlServer.Core.Configuration;
 
 namespace AdvGenNoSqlServer.Tests;
 
-public class AuthenticationServiceTests
+public class AuthenticationServiceTests : IDisposable
 {
     private readonly AuthenticationService _authService;
     private readonly ServerConfiguration _config;
@@ -462,4 +462,9 @@ public class AuthenticationServiceTests
     }
 
     #endregion
+
+    public void Dispose()
+    {
+        _authService?.Dispose();
+    }
 }

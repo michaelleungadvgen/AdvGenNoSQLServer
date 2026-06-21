@@ -9,7 +9,7 @@ namespace AdvGenNoSqlServer.Core.Authentication;
 /// <summary>
 /// Integrated authentication and authorization service combining user authentication with RBAC
 /// </summary>
-public class AuthenticationService
+public class AuthenticationService : IDisposable
 {
     private readonly AuthenticationManager _authManager;
     private readonly RoleManager _roleManager;
@@ -236,6 +236,11 @@ public class AuthenticationService
     }
 
     #endregion
+
+    public void Dispose()
+    {
+        _authManager?.Dispose();
+    }
 }
 
 /// <summary>

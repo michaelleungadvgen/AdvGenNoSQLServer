@@ -186,9 +186,9 @@ public class SecurityPenetrationTests
         // Assert - All should fail
         Assert.Equal(5, failedAttempts);
 
-        // Even with correct password after many failed attempts
+        // Even with correct password after many failed attempts, it should now fail due to lockout
         var finalResult = authService.Authenticate("testuser", "correctpassword");
-        Assert.NotNull(finalResult); // System should still work (no lockout in basic implementation)
+        Assert.Null(finalResult); // System should lock out after 5 failed attempts
     }
 
     [Fact]

@@ -12,28 +12,49 @@ namespace AdvGenNoSqlServer.Core.Authentication;
 /// <summary>
 /// Manages user authentication with secure password hashing using PBKDF2.
 /// </summary>
-public class AuthenticationManager
+public class AuthenticationManager : IDisposable
 {
     private readonly ConcurrentDictionary<string, UserCredentials> _users = new();
     private readonly ConcurrentDictionary<string, AuthToken> _activeSessions = new();
+    private readonly ConcurrentDictionary<string, (int attempts, DateTime lastAttempt)> _failedAttempts = new();
     private readonly TimeSpan _tokenExpiration;
     private readonly ServerConfiguration _configuration;
+    private readonly System.Threading.Timer _cleanupTimer;
 
     // PBKDF2 configuration - OWASP recommends 600k iterations for SHA256 in 2023
     private const int Pbkdf2Iterations = 100000;
     private const int SaltSizeBytes = 32;
     private const int HashSizeBytes = 32;
+    private const int MaxFailedAttempts = 5;
+    private static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
 
     public AuthenticationManager(ServerConfiguration configuration)
     {
         _configuration = configuration;
         _tokenExpiration = TimeSpan.FromHours(configuration.TokenExpirationHours);
 
+        _cleanupTimer = new System.Threading.Timer(CleanupFailedAttempts, null, LockoutDuration, LockoutDuration);
+
         // Initialize master admin user if master password is set
         if (!string.IsNullOrEmpty(configuration.MasterPassword))
         {
             RegisterUser("admin", configuration.MasterPassword);
         }
+    }
+
+    private void CleanupFailedAttempts(object? state)
+    {
+        var now = DateTime.UtcNow;
+        var expiredKeys = _failedAttempts.Where(kvp => now - kvp.Value.lastAttempt > LockoutDuration).Select(kvp => kvp.Key).ToList();
+        foreach (var key in expiredKeys)
+        {
+            _failedAttempts.TryRemove(key, out _);
+        }
+    }
+
+    public void Dispose()
+    {
+        _cleanupTimer?.Dispose();
     }
 
     /// <summary>
@@ -65,12 +86,50 @@ public class AuthenticationManager
     /// </summary>
     public AuthToken? Authenticate(string username, string password)
     {
-        if (!_users.TryGetValue(username, out var credentials))
-            return null;
+        bool isLockedOut = false;
+        if (_failedAttempts.TryGetValue(username, out var attemptInfo))
+        {
+            if (attemptInfo.attempts >= MaxFailedAttempts)
+            {
+                if (DateTime.UtcNow - attemptInfo.lastAttempt < LockoutDuration)
+                {
+                    isLockedOut = true;
+                }
+                else
+                {
+                    _failedAttempts.TryRemove(username, out _);
+                }
+            }
+        }
 
-        // Verify password using constant-time comparison to prevent timing attacks
-        if (!VerifyPassword(password, credentials.Salt, credentials.PasswordHash))
+        if (!_users.TryGetValue(username, out var credentials))
+        {
+            // Simulate password verification to prevent timing attacks for non-existent users
+            VerifyPassword(password, Convert.ToBase64String(new byte[SaltSizeBytes]), Convert.ToBase64String(new byte[HashSizeBytes]));
+
+            if (!isLockedOut)
+            {
+                _failedAttempts.AddOrUpdate(username, (1, DateTime.UtcNow), (_, current) => (current.attempts + 1, DateTime.UtcNow));
+            }
             return null;
+        }
+
+        // Always verify password to prevent timing attacks, even if locked out
+        bool isPasswordValid = VerifyPassword(password, credentials.Salt, credentials.PasswordHash);
+
+        if (isLockedOut)
+        {
+            return null;
+        }
+
+        if (!isPasswordValid)
+        {
+            _failedAttempts.AddOrUpdate(username, (1, DateTime.UtcNow), (_, current) => (current.attempts + 1, DateTime.UtcNow));
+            return null;
+        }
+
+        // Reset failed attempts on successful login
+        _failedAttempts.TryRemove(username, out _);
 
         var token = new AuthToken
         {
