@@ -21,3 +21,8 @@
 **Vulnerability:** Regular Expression Denial of Service (ReDoS) vulnerability in `AdvGenNoSqlServer.Core/Validation/DocumentValidator.cs` when evaluating the string "pattern" property and the email, ipv4, and hostname formats using `Regex.IsMatch`.
 **Learning:** Hardcoding regular expression checks on user-supplied strings using `Regex.IsMatch` without providing a `TimeSpan` timeout makes the application vulnerable to excessive CPU consumption, especially for inherently complex regex patterns.
 **Prevention:** For `Regex.IsMatch` calls evaluating external inputs against patterns (even static/precompiled ones for formats), always inject a static readonly timeout configuration (e.g. `RegexTimeout = TimeSpan.FromMilliseconds(100)`) and safely handle the resulting `RegexMatchTimeoutException`.
+
+## 2026-03-05 - [Memory Exhaustion via Dynamic RegexOptions.Compiled]
+**Vulnerability:** Memory leak and Denial of Service caused by using `RegexOptions.Compiled` dynamically inside a frequently called method in `FullTextIndex.cs`.
+**Learning:** Using `RegexOptions.Compiled` on a local variable inside a method generates a new dynamic assembly on every execution, rapidly exhausting server memory. Combined with unbounded regex evaluation times, it creates a severe DoS vector.
+**Prevention:** Always declare `RegexOptions.Compiled` instances as `static readonly` fields so they are compiled exactly once per app domain. Additionally, always provide a `TimeSpan` timeout to all `Regex` instances to prevent ReDoS.

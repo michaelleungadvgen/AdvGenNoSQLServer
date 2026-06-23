@@ -307,8 +307,15 @@ public class FullTextIndex : IFullTextIndex
             foreach (var token in queryTokens)
             {
                 // Simple case-insensitive replacement
-                var regex = new Regex($@"\b{Regex.Escape(token)}\b", RegexOptions.IgnoreCase);
-                snippet = regex.Replace(snippet, match => $"{options.HighlightPrefix}{match.Value}{options.HighlightSuffix}");
+                try
+                {
+                    var regex = new Regex($@"\b{Regex.Escape(token)}\b", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(100));
+                    snippet = regex.Replace(snippet, match => $"{options.HighlightPrefix}{match.Value}{options.HighlightSuffix}");
+                }
+                catch (RegexMatchTimeoutException)
+                {
+                    // Skip highlighting for this token on timeout
+                }
             }
 
             // Add ellipsis
@@ -321,17 +328,26 @@ public class FullTextIndex : IFullTextIndex
         return highlights;
     }
 
+    private static readonly Regex TokenPattern = new(@"[a-zA-Z0-9]+", RegexOptions.Compiled, TimeSpan.FromMilliseconds(100));
+
     private static int FindCharPosition(string text, IReadOnlyList<TokenPosition> tokens, int tokenIndex)
     {
         // This is a simplified implementation
         // In a real implementation, we'd track character positions during tokenization
-        var tokenPattern = new Regex(@"[a-zA-Z0-9]+", RegexOptions.Compiled);
-        var matches = tokenPattern.Matches(text);
-        
-        if (tokenIndex < matches.Count)
+        try
         {
-            return matches[tokenIndex].Index;
+            var matches = TokenPattern.Matches(text);
+
+            if (tokenIndex < matches.Count)
+            {
+                return matches[tokenIndex].Index;
+            }
         }
+        catch (RegexMatchTimeoutException)
+        {
+            // Fallback gracefully on timeout
+        }
+
         return text.Length;
     }
 
