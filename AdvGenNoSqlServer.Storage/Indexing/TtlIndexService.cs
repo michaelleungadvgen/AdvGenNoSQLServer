@@ -257,7 +257,7 @@ public class TtlIndexService : ITtlIndexService
         return new TtlIndexStatistics
         {
             DocumentsExpired = Interlocked.Read(ref _documentsExpired),
-            DocumentsTracked = _documentExpirationTimes.Values.Sum(d => d.Count),
+            DocumentsTracked = _documentExpirationTimes.Sum(kvp => kvp.Value.Count),
             LastCleanupTime = _lastCleanupTime,
             CleanupRuns = runs,
             AverageCleanupTimeMs = runs > 0 ? (double)Interlocked.Read(ref _totalCleanupTimeMs) / runs : 0
@@ -327,8 +327,8 @@ public class TtlIndexService : ITtlIndexService
         _isRunning = true;
 
         // Start the cleanup timer with the shortest interval from all TTL indexes
-        var shortestInterval = _ttlIndexes.Values.Count > 0
-            ? _ttlIndexes.Values.Min(c => c.CleanupInterval)
+        var shortestInterval = !_ttlIndexes.IsEmpty
+            ? _ttlIndexes.Min(kvp => kvp.Value.CleanupInterval)
             : _defaultCleanupInterval;
 
         // Use a simple background task approach instead of timer for async operations
@@ -380,9 +380,9 @@ public class TtlIndexService : ITtlIndexService
 
         _cleanupTimer?.Dispose();
 
-        foreach (var lockObj in _collectionLocks.Values)
+        foreach (var kvp in _collectionLocks)
         {
-            lockObj.Dispose();
+            kvp.Value.Dispose();
         }
     }
 }

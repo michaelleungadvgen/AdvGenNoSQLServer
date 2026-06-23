@@ -12,3 +12,7 @@
 ## 2026-05-04 - Avoid repeated enumeration on deferred Distinct queries
 **Learning:** When replacing `.ToList()` with deferred execution (lazy evaluation) on LINQ queries that contain stateful or expensive operators like `.Distinct()`, verify that the caller does not enumerate the result multiple times. Repeated enumeration of deferred pipelines re-executes the O(N) logic and re-allocates internal structures (like HashSets) every time, which can cause severe performance regressions.
 **Action:** If a deferred collection with a stateful operator is going to be iterated over multiple times, materialized snapshot evaluation (like `.ToList()`) might still be necessary. Always balance the memory savings of lazy evaluation against the CPU cost of re-evaluating the pipeline.
+
+## 2026-10-23 - Avoid ConcurrentDictionary.Values allocations
+**Learning:** Accessing `.Values` (or `.Keys`) on a `ConcurrentDictionary` takes a snapshot of the entire dictionary. To do this, it acquires all internal bucket locks (blocking all concurrent writes) and allocates a new `ReadOnlyCollection` and `List<T>` containing all elements. This causes severe memory allocations (garbage collection pressure) and thread-blocking lock contention in hot paths.
+**Action:** Always iterate directly over the `ConcurrentDictionary` (e.g., `foreach (var kvp in _dictionary)`) or use LINQ directly on the dictionary instead of `.Values`. This ensures lock-free, weakly-consistent enumeration and zero allocations.

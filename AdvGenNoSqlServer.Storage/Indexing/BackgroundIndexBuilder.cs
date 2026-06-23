@@ -37,7 +37,7 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
     /// <summary>
     /// Current number of running builds
     /// </summary>
-    public int RunningBuildCount => _jobs.Values.Count(j => j.Status == BackgroundIndexBuildStatus.Running);
+    public int RunningBuildCount => _jobs.Count(kvp => kvp.Value.Status == BackgroundIndexBuildStatus.Running);
     
     /// <summary>
     /// Creates a new background index builder
@@ -432,7 +432,7 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
     public IReadOnlyList<BackgroundIndexBuildJob> GetAllJobs()
     {
         ThrowIfDisposed();
-        return _jobs.Values.ToList();
+        return _jobs.Select(kvp => kvp.Value).ToList();
     }
     
     /// <summary>
@@ -441,7 +441,7 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
     public IReadOnlyList<BackgroundIndexBuildJob> GetJobsByStatus(BackgroundIndexBuildStatus status)
     {
         ThrowIfDisposed();
-        return _jobs.Values.Where(j => j.Status == status).ToList();
+        return _jobs.Where(kvp => kvp.Value.Status == status).Select(kvp => kvp.Value).ToList();
     }
     
     /// <summary>
@@ -534,15 +534,15 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
         _disposed = true;
         
         // Cancel all running jobs
-        foreach (var job in _jobs.Values.Where(j => j.IsRunning))
+        foreach (var kvp in _jobs.Where(kvp => kvp.Value.IsRunning))
         {
-            job.CancellationTokenSource?.Cancel();
+            kvp.Value.CancellationTokenSource?.Cancel();
         }
         
         // Wait for jobs to complete (with timeout)
-        var runningTasks = _jobs.Values
-            .Where(j => j.BuildTask != null && !j.BuildTask.IsCompleted)
-            .Select(j => j.BuildTask!)
+        var runningTasks = _jobs
+            .Where(kvp => kvp.Value.BuildTask != null && !kvp.Value.BuildTask.IsCompleted)
+            .Select(kvp => kvp.Value.BuildTask!)
             .ToArray();
         
         if (runningTasks.Length > 0)
@@ -560,9 +560,9 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
         _concurrencySemaphore.Dispose();
         
         // Dispose cancellation token sources
-        foreach (var job in _jobs.Values)
+        foreach (var kvp in _jobs)
         {
-            job.CancellationTokenSource?.Dispose();
+            kvp.Value.CancellationTokenSource?.Dispose();
         }
     }
 }
