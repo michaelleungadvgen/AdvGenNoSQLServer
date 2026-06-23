@@ -338,7 +338,16 @@ public class FullTextIndex : IFullTextIndex
     private double GetAverageDocumentLength()
     {
         if (_documents.IsEmpty) return 1.0;
-        return _documents.Values.Average(d => (double)d.TokenCount);
+
+        long totalTokens = 0;
+        int count = 0;
+        foreach (var kvp in _documents)
+        {
+            totalTokens += kvp.Value.TokenCount;
+            count++;
+        }
+
+        return count == 0 ? 1.0 : (double)totalTokens / count;
     }
 
     /// <inheritdoc />
@@ -359,8 +368,14 @@ public class FullTextIndex : IFullTextIndex
     /// <inheritdoc />
     public FullTextIndexStats GetStats()
     {
-        long totalTokens = _documents.Values.Sum(d => (long)d.TokenCount);
-        double avgLength = _documents.IsEmpty ? 0 : _documents.Values.Average(d => (double)d.TokenCount);
+        long totalTokens = 0;
+        int count = 0;
+        foreach (var kvp in _documents)
+        {
+            totalTokens += kvp.Value.TokenCount;
+            count++;
+        }
+        double avgLength = count == 0 ? 0 : (double)totalTokens / count;
 
         return new FullTextIndexStats(
             IndexName,
