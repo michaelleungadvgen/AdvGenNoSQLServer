@@ -12,3 +12,7 @@
 ## 2026-05-04 - Avoid repeated enumeration on deferred Distinct queries
 **Learning:** When replacing `.ToList()` with deferred execution (lazy evaluation) on LINQ queries that contain stateful or expensive operators like `.Distinct()`, verify that the caller does not enumerate the result multiple times. Repeated enumeration of deferred pipelines re-executes the O(N) logic and re-allocates internal structures (like HashSets) every time, which can cause severe performance regressions.
 **Action:** If a deferred collection with a stateful operator is going to be iterated over multiple times, materialized snapshot evaluation (like `.ToList()`) might still be necessary. Always balance the memory savings of lazy evaluation against the CPU cost of re-evaluating the pipeline.
+
+## 2024-05-18 - Replacing O(N) LINQ Allocations in ConcurrentDictionary Enumeration
+**Learning:** In C#, using `.Values.Sum()` or `.Values.Average()` on a `ConcurrentDictionary` acquires all internal bucket locks and allocates a snapshot array (`ReadOnlyCollection<T>`), causing O(N) memory allocation and GC pressure. This is detrimental in performance-critical paths such as retrieving statistics.
+**Action:** Replace `.Values.Sum()` and `.Values.Average()` with manual `foreach` iteration over the `ConcurrentDictionary`'s key-value pairs (e.g. `foreach (var kvp in dictionary)`), which uses a struct enumerator and is zero-allocation.

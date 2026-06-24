@@ -83,7 +83,13 @@ public static class MemoryProfilerExtensions
     /// </summary>
     public static long GetTotalUsage(this IReadOnlyDictionary<string, MemoryAllocationInfo> allocations)
     {
-        return allocations.Values.Sum(a => a.CurrentUsage);
+        // ⚡ Bolt: Iterate key-value pairs to avoid O(N) snapshot allocation from .Values.Sum
+        long total = 0;
+        foreach (var kvp in allocations)
+        {
+            total += kvp.Value.CurrentUsage;
+        }
+        return total;
     }
 
     /// <summary>
