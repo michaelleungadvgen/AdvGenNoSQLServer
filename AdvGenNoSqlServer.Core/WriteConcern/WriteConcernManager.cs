@@ -134,11 +134,23 @@ public class WriteConcernManager : IWriteConcernManager
     /// <inheritdoc />
     public WriteConcernStatistics GetStatistics()
     {
-        var total = _operationCounts.Values.Sum();
-        var unacknowledged = _operationCounts.GetValueOrDefault("unacknowledged");
-        var acknowledged = _operationCounts.GetValueOrDefault("acknowledged");
-        var journaled = _operationCounts.GetValueOrDefault("journaled");
-        var majority = _operationCounts.GetValueOrDefault("majority");
+        long total = 0;
+        long unacknowledged = 0;
+        long acknowledged = 0;
+        long journaled = 0;
+        long majority = 0;
+
+        foreach (var kvp in _operationCounts)
+        {
+            total += kvp.Value;
+            switch (kvp.Key)
+            {
+                case "unacknowledged": unacknowledged = kvp.Value; break;
+                case "acknowledged": acknowledged = kvp.Value; break;
+                case "journaled": journaled = kvp.Value; break;
+                case "majority": majority = kvp.Value; break;
+            }
+        }
 
         return new WriteConcernStatistics
         {
