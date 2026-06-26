@@ -256,8 +256,9 @@ public class GarbageCollector : IGarbageCollector, IDisposable
         var cleanedCount = 0;
         var bytesFreed = 0L;
         var cutoffTime = DateTime.UtcNow.Subtract(_options.RetentionPeriod);
-        var tombstonesToProcess = _tombstones.Values
-            .Where(t => t.DeletedAt < cutoffTime)
+        var tombstonesToProcess = _tombstones
+            .Where(kvp => kvp.Value.DeletedAt < cutoffTime)
+            .Select(kvp => kvp.Value)
             .Take(_options.MaxTombstonesPerRun)
             .ToList();
 
@@ -341,7 +342,7 @@ public class GarbageCollector : IGarbageCollector, IDisposable
     /// <inheritdoc />
     public IEnumerable<Tombstone> GetTombstones()
     {
-        return _tombstones.Values.ToList();
+        return _tombstones.Select(kvp => kvp.Value).ToList();
     }
 
     /// <inheritdoc />
@@ -350,8 +351,9 @@ public class GarbageCollector : IGarbageCollector, IDisposable
         if (string.IsNullOrWhiteSpace(collectionName))
             return Enumerable.Empty<Tombstone>();
 
-        return _tombstones.Values
-            .Where(t => t.CollectionName.Equals(collectionName, StringComparison.OrdinalIgnoreCase))
+        return _tombstones
+            .Where(kvp => kvp.Value.CollectionName.Equals(collectionName, StringComparison.OrdinalIgnoreCase))
+            .Select(kvp => kvp.Value)
             .ToList();
     }
 
