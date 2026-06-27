@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 // See LICENSE.txt for license information.
 
+using System.Linq;
 using System.Collections.Concurrent;
 using AdvGenNoSqlServer.Core.Abstractions;
 using AdvGenNoSqlServer.Core.Models;
@@ -287,18 +288,12 @@ public class CappedDocumentStore : IDocumentStore
     /// <inheritdoc />
     public async Task<IEnumerable<string>> GetCollectionsAsync(CancellationToken cancellationToken = default)
     {
-        var collections = (await _underlyingStore.GetCollectionsAsync(cancellationToken)).ToList();
-        
-        // Add any capped collections that might not be in the underlying store
-        foreach (var cappedCollectionName in _cappedCollections.Keys)
-        {
-            if (!collections.Contains(cappedCollectionName))
-            {
-                collections.Add(cappedCollectionName);
-            }
-        }
-
-        return collections;
+        // Optimization: Use Concat + Distinct instead of eager materialization and O(N) loop containing .Contains.
+        // Distinct() uses an O(1) HashSet internally, reducing time complexity from O(N*M) to O(N+M)
+        return (await _underlyingStore.GetCollectionsAsync(cancellationToken))
+            .Concat(_cappedCollections.Keys)
+            .Distinct()
+            .ToList();
     }
 
     /// <inheritdoc />
