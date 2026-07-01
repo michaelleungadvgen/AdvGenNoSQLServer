@@ -266,9 +266,9 @@ public class LruCache<TValue> : IDisposable
         _lock.EnterWriteLock();
         try
         {
-            foreach (var entry in _cache.Values)
+            foreach (var kvp in _cache)
             {
-                OnItemEvicted(entry.Key, entry.Value, EvictionReason.Cleared);
+                OnItemEvicted(kvp.Key, kvp.Value.Value, EvictionReason.Cleared);
             }
 
             _lruList.Clear();
@@ -384,20 +384,41 @@ public class LruCache<TValue> : IDisposable
 
     private void CleanupExpiredItems(object? state)
     {
-        _lock.EnterWriteLock();
-        try
-        {
-            var nowTicks = Stopwatch.GetTimestamp();
-            var expiredEntries = _cache.Values.Where(e => nowTicks > e.ExpirationTicks).ToList();
+        var nowTicks = Stopwatch.GetTimestamp();
+        var expiredEntries = new List<LruCacheEntry<TValue>>();
 
-            foreach (var entry in expiredEntries)
+        // Iterate without holding the write lock to avoid blocking other operations
+        foreach (var kvp in _cache)
+        {
+            if (nowTicks > kvp.Value.ExpirationTicks)
             {
-                RemoveEntry(entry);
+                expiredEntries.Add(kvp.Value);
             }
         }
-        finally
+
+        // Process removals in small batches under the write lock
+        const int BatchSize = 100;
+        for (int i = 0; i < expiredEntries.Count; i += BatchSize)
         {
-            _lock.ExitWriteLock();
+            _lock.EnterWriteLock();
+            try
+            {
+                int count = Math.Min(BatchSize, expiredEntries.Count - i);
+                for (int j = 0; j < count; j++)
+                {
+                    var entry = expiredEntries[i + j];
+                    // Verify the entry is still in the cache and hasn't been updated
+                    if (_cache.TryGetValue(entry.Key, out var currentEntry) &&
+                        currentEntry.ExpirationTicks == entry.ExpirationTicks)
+                    {
+                        RemoveEntry(currentEntry);
+                    }
+                }
+            }
+            finally
+            {
+                _lock.ExitWriteLock();
+            }
         }
     }
 
