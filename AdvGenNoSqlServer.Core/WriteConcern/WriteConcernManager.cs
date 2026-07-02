@@ -134,7 +134,12 @@ public class WriteConcernManager : IWriteConcernManager
     /// <inheritdoc />
     public WriteConcernStatistics GetStatistics()
     {
-        var total = _operationCounts.Values.Sum();
+        long total = 0;
+        foreach (var kvp in _operationCounts)
+        {
+            total += kvp.Value;
+        }
+
         var unacknowledged = _operationCounts.GetValueOrDefault("unacknowledged");
         var acknowledged = _operationCounts.GetValueOrDefault("acknowledged");
         var journaled = _operationCounts.GetValueOrDefault("journaled");
