@@ -4,6 +4,7 @@
 
 using AdvGenNoSqlServer.Core.Abstractions;
 using AdvGenNoSqlServer.Core.Models;
+using AdvGenNoSqlServer.Core.Security;
 
 namespace AdvGenNoSqlServer.Storage;
 
@@ -114,9 +115,9 @@ public class GarbageCollectedDocumentStore : PersistentDocumentStore, IDisposabl
     /// </summary>
     private string GetDocumentPathInternal(string collectionName, string documentId)
     {
-        var collectionPath = Path.Combine(DataPath, SanitizeFileName(collectionName));
+        var collectionPath = PathValidator.GetSafePath(DataPath, Path.Combine(DataPath, SanitizeFileName(collectionName)));
         var sanitizedId = SanitizeFileName(documentId);
-        return Path.Combine(collectionPath, $"{sanitizedId}.json");
+        return PathValidator.GetSafePath(collectionPath, Path.Combine(collectionPath, $"{sanitizedId}.json"));
     }
 
     private string SanitizeFileName(string name)
