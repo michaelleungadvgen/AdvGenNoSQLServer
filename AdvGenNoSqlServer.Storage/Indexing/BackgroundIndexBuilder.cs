@@ -37,7 +37,21 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
     /// <summary>
     /// Current number of running builds
     /// </summary>
-    public int RunningBuildCount => _jobs.Values.Count(j => j.Status == BackgroundIndexBuildStatus.Running);
+    public int RunningBuildCount
+    {
+        get
+        {
+            int count = 0;
+            foreach (var kvp in _jobs)
+            {
+                if (kvp.Value.Status == BackgroundIndexBuildStatus.Running)
+                {
+                    count++;
+                }
+            }
+            return count;
+        }
+    }
     
     /// <summary>
     /// Creates a new background index builder
@@ -432,7 +446,12 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
     public IReadOnlyList<BackgroundIndexBuildJob> GetAllJobs()
     {
         ThrowIfDisposed();
-        return _jobs.Values.ToList();
+        var jobs = new List<BackgroundIndexBuildJob>(_jobs.Count);
+        foreach (var kvp in _jobs)
+        {
+            jobs.Add(kvp.Value);
+        }
+        return jobs;
     }
     
     /// <summary>
@@ -441,7 +460,15 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
     public IReadOnlyList<BackgroundIndexBuildJob> GetJobsByStatus(BackgroundIndexBuildStatus status)
     {
         ThrowIfDisposed();
-        return _jobs.Values.Where(j => j.Status == status).ToList();
+        var jobs = new List<BackgroundIndexBuildJob>();
+        foreach (var kvp in _jobs)
+        {
+            if (kvp.Value.Status == status)
+            {
+                jobs.Add(kvp.Value);
+            }
+        }
+        return jobs;
     }
     
     /// <summary>
@@ -534,16 +561,24 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
         _disposed = true;
         
         // Cancel all running jobs
-        foreach (var job in _jobs.Values.Where(j => j.IsRunning))
+        foreach (var kvp in _jobs)
         {
-            job.CancellationTokenSource?.Cancel();
+            if (kvp.Value.IsRunning)
+            {
+                kvp.Value.CancellationTokenSource?.Cancel();
+            }
         }
         
         // Wait for jobs to complete (with timeout)
-        var runningTasks = _jobs.Values
-            .Where(j => j.BuildTask != null && !j.BuildTask.IsCompleted)
-            .Select(j => j.BuildTask!)
-            .ToArray();
+        var runningTasksList = new List<Task>();
+        foreach (var kvp in _jobs)
+        {
+            if (kvp.Value.BuildTask != null && !kvp.Value.BuildTask.IsCompleted)
+            {
+                runningTasksList.Add(kvp.Value.BuildTask);
+            }
+        }
+        var runningTasks = runningTasksList.ToArray();
         
         if (runningTasks.Length > 0)
         {
@@ -560,9 +595,9 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
         _concurrencySemaphore.Dispose();
         
         // Dispose cancellation token sources
-        foreach (var job in _jobs.Values)
+        foreach (var kvp in _jobs)
         {
-            job.CancellationTokenSource?.Dispose();
+            kvp.Value.CancellationTokenSource?.Dispose();
         }
     }
 }
