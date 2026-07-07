@@ -8,6 +8,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using AdvGenNoSqlServer.Core.Abstractions;
 using AdvGenNoSqlServer.Core.Models;
+using AdvGenNoSqlServer.Core.Security;
 
 namespace AdvGenNoSqlServer.Storage.ImportExport;
 
@@ -115,7 +116,8 @@ public class DataExporter : IDataExporter
         {
             options.CancellationToken.ThrowIfCancellationRequested();
 
-            var outputPath = Path.Combine(outputDirectory, $"{collectionName}{extension}");
+            // Security: Prevent path traversal by structurally validating the combined export path against the intended output directory
+            var outputPath = PathValidator.GetSafePath(outputDirectory, Path.Combine(outputDirectory, $"{collectionName}{extension}"));
             var result = await ExportCollectionAsync(store, collectionName, outputPath, options);
             results[collectionName] = result;
 
