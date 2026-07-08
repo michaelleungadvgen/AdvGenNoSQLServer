@@ -21,3 +21,7 @@
 **Vulnerability:** Regular Expression Denial of Service (ReDoS) vulnerability in `AdvGenNoSqlServer.Core/Validation/DocumentValidator.cs` when evaluating the string "pattern" property and the email, ipv4, and hostname formats using `Regex.IsMatch`.
 **Learning:** Hardcoding regular expression checks on user-supplied strings using `Regex.IsMatch` without providing a `TimeSpan` timeout makes the application vulnerable to excessive CPU consumption, especially for inherently complex regex patterns.
 **Prevention:** For `Regex.IsMatch` calls evaluating external inputs against patterns (even static/precompiled ones for formats), always inject a static readonly timeout configuration (e.g. `RegexTimeout = TimeSpan.FromMilliseconds(100)`) and safely handle the resulting `RegexMatchTimeoutException`.
+## 2026-03-05 - [Hardcoded Secrets in Configuration]
+**Vulnerability:** Critical secrets like `MasterPassword` and `JwtSecretKey` were hardcoded in plaintext within `appsettings.json`, exposing them via source control.
+**Learning:** Storing default passwords and JWT signing keys directly in configuration files distributed with the application allows attackers to easily compromise the server if they obtain the repository or default config file.
+**Prevention:** Never commit sensitive credentials or cryptographic keys in configuration files. Default them to empty or null and require runtime generation or injection via secure environment variables.
