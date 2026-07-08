@@ -1,0 +1,7 @@
+🛡️ Sentinel: [CRITICAL] Fix hardcoded secrets in appsettings.json
+
+🚨 Severity: CRITICAL
+💡 Vulnerability: `MasterPassword` and `JwtSecretKey` were hardcoded in plaintext within `AdvGenNoSqlServer.Host/appsettings.json`.
+🎯 Impact: Exposes sensitive credentials via source control, allowing attackers to authenticate as admin or forge JWT tokens if they gain access to the repository or default config file.
+🔧 Fix: Removed hardcoded secrets and defaulted them to empty strings to enforce secure runtime generation or environment injection.
+✅ Verification: Ensure `appsettings.json` has empty strings for these fields.
