@@ -49,8 +49,8 @@ Non-goals (this iteration): Redis data structures (hashes, lists, sets), RESP pr
 - Startup selects the store:
   - `Hybrid` → `HybridDocumentStore(storagePath)` + `InitializeAsync()` — current behavior, unchanged.
   - `CacheOnly` → `new DocumentStore()` — no storage path resolution, no disk I/O. Startup logs a prominent warning: data is volatile and lost on restart.
-- Shutdown: persistence-only calls (`FlushAsync`, async dispose of the hybrid store) are guarded by capability checks (`is IPersistentDocumentStore` / `is IAsyncDisposable`), so Hybrid keeps its flush-on-stop behavior and CacheOnly skips it.
-- `ApiDataService.DocumentStore` (and any other consumer typed to `HybridDocumentStore`) is retyped to `IDocumentStore`; HTTP endpoints that expose persistence-specific stats degrade gracefully (report mode instead).
+- Shutdown: persistence-only calls are guarded by concrete-type checks — `if (_documentStore is HybridDocumentStore hybrid) await hybrid.FlushAsync();` followed by an `is IAsyncDisposable` dispose — so Hybrid keeps its flush-on-stop behavior and CacheOnly skips it. (`IPersistentDocumentStore` is not the right guard: `HybridDocumentStore` does not implement it.)
+- `ApiDataService.DocumentStore` is already typed `IDocumentStore?` — no retyping needed there. HTTP endpoints that expose persistence-specific stats degrade gracefully (report mode instead).
 
 **Document API in CacheOnly mode:** all existing document commands (insert, get, find, count, collections, etc.) work unchanged against the in-memory store. No command is disabled.
 
@@ -87,7 +87,9 @@ public interface IIntrospectableMemoryStorageEngine : IMemoryStorageEngine
 
 **Memory pressure.** `SET` never fails for capacity — the engine evicts per its configured policy, matching Redis `maxmemory-policy` behavior.
 
-**Lifetime.** One `CacheStore` per server, created at startup in both modes from the `MemoryManagement` config, disposed on shutdown. It is independent of the document store (no shared keyspace).
+**Lifetime.** One `CacheStore` per server, created at startup in both modes from the `MemoryManagement` config, disposed on shutdown. It is independent of the server's document store (no shared keyspace).
+
+**Mixed plan cold tier.** `MixedMemoryStorageEngine` spills cold entries into an `IDocumentStore`. For the KV cache this cold tier binds to a **dedicated private in-memory `DocumentStore` owned by `CacheStore`** — never the server's document store. This keeps the keyspace isolated (no `_cache_cold` collection visible to document commands) and guarantees cache values are never persisted to disk in any mode. `MemoryEngineFactory` currently only exposes a DI registration extension; it gains a plain construction method (config + optional cold-tier store in, `IMemoryStorageEngine` out) that `CacheStore` calls directly.
 
 ### 3. Protocol: binary CacheOperation frame
 
@@ -105,6 +107,17 @@ Response payload:
 [valueLen: int32 (-1 = none)] [value: raw bytes]
 (INCR family returns the counter as int64 value; batch returns repeated records)
 ```
+
+Per-op response encodings (removing guesswork):
+
+- `Get`: `Ok` + value bytes, or `NotFound` with no value.
+- `Set`: `Ok` (value absent); `NX`/`XX` condition not met → `NotFound`.
+- `Del`/`Exists`/`Expire`: `Ok` with a single byte value `0`/`1`.
+- `Ttl`: `Ok` + int64 remaining seconds; `-1` = key exists with no expiry; missing key → `NotFound`.
+- `Incr`/`Decr`/`IncrBy`: `Ok` + int64 new counter value; non-numeric existing value → `WrongType`.
+- `MGet`: `Ok` + `[count][repeated: valueLen(-1 = miss) + bytes]` in request key order; `MSet`: `Ok`.
+- `Keys`/`Scan`: `Ok` + `[nextCursor: int64 (0 = done, Keys always 0)][count][repeated: keyLen + key bytes]`.
+- `Flush`: `Ok`. `Stats`: `Ok` + JSON-encoded `MemoryEngineStats` bytes (stats is not a hot path).
 
 - Op codes: `Get=1, Set=2, Del=3, Exists=4, Expire=5, Ttl=6, Incr=7, Decr=8, IncrBy=9, MGet=10, MSet=11, Keys=12, Scan=13, Flush=14, Stats=15`.
 - Values are raw bytes end to end — no base64, no JSON allocation per op.
@@ -126,7 +139,7 @@ long hits   = await client.Cache.IncrAsync("hits:page1");
 bool ok     = await client.Cache.ExpireAsync("user:42", TimeSpan.FromMinutes(10));
 TimeSpan? t = await client.Cache.TtlAsync("user:42");
 IReadOnlyDictionary<string, byte[]?> m = await client.Cache.MGetAsync(keys);
-IReadOnlyList<string> ks = await client.Cache.ScanAsync("user:*");
+IReadOnlyList<string> ks = await client.Cache.ScanAsync("user:*");   // auto-iterates the server cursor to completion
 await client.Cache.FlushAsync();
 CacheStats st = await client.Cache.StatsAsync();
 ```
