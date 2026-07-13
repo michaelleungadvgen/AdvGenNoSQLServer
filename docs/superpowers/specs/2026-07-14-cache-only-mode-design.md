@@ -120,6 +120,7 @@ Per-op response encodings (removing guesswork):
 - `Flush`: `Ok`. `Stats`: `Ok` + JSON-encoded `MemoryEngineStats` bytes (stats is not a hot path).
 
 - Op codes: `Get=1, Set=2, Del=3, Exists=4, Expire=5, Ttl=6, Incr=7, Decr=8, IncrBy=9, MGet=10, MSet=11, Keys=12, Scan=13, Flush=14, Stats=15`.
+- Ops without a natural value reuse the value field for their argument: `IncrBy` carries the int64 delta as the value bytes; `Scan` carries `[cursor: int64][count: int32]` as the value bytes (`Keys` sends only the pattern as key); `Expire` uses the `ttlSeconds` header field.
 - Values are raw bytes end to end — no base64, no JSON allocation per op.
 - Limits: key ≤ 1 KB and non-empty; value ≤ configurable max (default 16 MB). Violations → `Error` status with message, connection stays open.
 - Malformed frames → `Error` response; the connection is not terminated unless framing itself is corrupt (existing behavior).
@@ -131,7 +132,7 @@ Per-op response encodings (removing guesswork):
 `NoSqlClient` gains a `Cache` property returning a `CacheClient` that encodes/decodes the binary frames:
 
 ```csharp
-await client.Cache.SetAsync("user:42", bytes, TimeSpan.FromMinutes(5));
+bool set    = await client.Cache.SetAsync("user:42", bytes, TimeSpan.FromMinutes(5));  // false only when NX/XX condition not met
 await client.Cache.SetStringAsync("greeting", "hello", ttl);           // UTF-8 convenience
 byte[]? v   = await client.Cache.GetAsync("user:42");                  // null on miss
 string? s   = await client.Cache.GetStringAsync("greeting");
