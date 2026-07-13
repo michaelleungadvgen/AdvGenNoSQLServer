@@ -54,12 +54,16 @@ namespace AdvGenNoSqlServer.Tests;
 public class StatsCommandCacheTests
 {
     private static ServerNoSql CreateServer(string storageMode, int port)
+        => CreateServer(storageMode, port, out _);
+
+    private static ServerNoSql CreateServer(string storageMode, int port, out string storagePath)
     {
+        storagePath = Path.Combine(Path.GetTempPath(), "advgen-stats-test-" + Guid.NewGuid().ToString("N"));
         var config = new ServerConfiguration
         {
             Host = "127.0.0.1", Port = port,
             StorageMode = storageMode,
-            StoragePath = Path.Combine(Path.GetTempPath(), "advgen-stats-test-" + Guid.NewGuid().ToString("N")),
+            StoragePath = storagePath,
             RequireAuthentication = false,
             MemoryManagement = new() { Plan = "Managed", MaxMemoryMB = 64, MaxMemoryPercent = 0 }
         };
@@ -103,7 +107,7 @@ public class StatsCommandCacheTests
     [Fact]
     public async Task Stats_HybridMode_ReportsHybrid()
     {
-        var server = CreateServer("Hybrid", 19299);
+        var server = CreateServer("Hybrid", 19299, out var storagePath);
         await server.StartAsync(CancellationToken.None);
         try
         {
@@ -112,7 +116,11 @@ public class StatsCommandCacheTests
             using var doc = JsonDocument.Parse(response.GetPayloadAsString());
             Assert.Equal("Hybrid", doc.RootElement.GetProperty("data").GetProperty("storageMode").GetString());
         }
-        finally { await server.DisposeAsync(); }
+        finally
+        {
+            await server.DisposeAsync();
+            if (Directory.Exists(storagePath)) Directory.Delete(storagePath, recursive: true);
+        }
     }
 }
 ```
