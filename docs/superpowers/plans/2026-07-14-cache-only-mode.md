@@ -1486,7 +1486,9 @@ public class CacheOperationHandlerTests : IAsyncLifetime
 }
 ```
 
-Note: pick whichever internal-access mechanism `ClusterCommandTests.InvokeHandleCommandAsync` already uses (reflection helper or `InternalsVisibleTo`) and mirror it as `HandleMessageForTestsAsync`. If it uses reflection, write the same reflection helper here instead of adding a new public method.
+Note: pick whichever internal-access mechanism `ClusterCommandTests.InvokeHandleCommandAsync` already uses (reflection helper or `InternalsVisibleTo`) and mirror it as `HandleMessageForTestsAsync`. `ClusterCommandTests` uses a reflection helper on the private `HandleMessageAsync` — so write the same reflection helper here and **rewrite the `_server.HandleMessageForTestsAsync(...)` calls shown in the test code above to use it**; don't paste the shown code verbatim.
+
+Auth note: the spec says cache ops "require the same authenticated session state as document commands." Today the server enforces **no per-message auth on document commands** (`HandleCommandAsync` never checks session state; `HandleAuthenticationAsync` only issues a token). Parity therefore means adding **no auth gate** to the cache handler — do not invent one.
 
 - [ ] **Step 6.2: Write failing CacheOnly-mode integration tests**
 
@@ -1567,6 +1569,30 @@ public class CacheOnlyModeTests
         await server.StartAsync(CancellationToken.None);
         try { Assert.True(Directory.Exists(storagePath)); }
         finally { await server.DisposeAsync(); Directory.Delete(storagePath, true); }
+    }
+
+    [Fact]
+    public async Task CacheOnly_RestartLosesDocuments()
+    {
+        var (server, storagePath) = CreateServer("CacheOnly", 19297);
+        await server.StartAsync(CancellationToken.None);
+        var insert = NoSqlMessage.Create(MessageType.Command,
+            JsonSerializer.Serialize(new { command = "insert", collection = "c", document = new { name = "x" } }));
+        await server.HandleMessageForTestsAsync(insert, "t");
+        await server.DisposeAsync();
+
+        var (server2, _) = CreateServer("CacheOnly", 19297);
+        await server2.StartAsync(CancellationToken.None);
+        try
+        {
+            var count = NoSqlMessage.Create(MessageType.Command,
+                JsonSerializer.Serialize(new { command = "count", collection = "c" }));
+            var response = await server2.HandleMessageForTestsAsync(count, "t");
+            var json = JsonDocument.Parse(response.GetPayloadAsString());
+            // count must be 0 — data did not survive the restart
+            Assert.Contains("0", json.RootElement.GetProperty("data").ToString());
+        }
+        finally { await server2.DisposeAsync(); }
     }
 
     [Fact]
