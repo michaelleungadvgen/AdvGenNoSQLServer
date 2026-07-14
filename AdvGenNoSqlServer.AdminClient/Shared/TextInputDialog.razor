@@ -6,6 +6,8 @@
                       Label="@Label"
                       Variant="Variant.Outlined"
                       Immediate="true"
+                      Lines="@Lines"
+                      Style="@(Lines > 1 ? "font-family:monospace;" : null)"
                       Required="true" />
     </DialogContent>
     <DialogActions>
@@ -23,6 +25,7 @@
     [Parameter] public string Message { get; set; } = "Enter a value:";
     [Parameter] public string Label { get; set; } = "Value";
     [Parameter] public string InitialValue { get; set; } = "";
+    [Parameter] public int Lines { get; set; } = 1;
 
     private string _inputValue = "";
 

@@ -3,29 +3,57 @@
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 
-<PageTitle>Query - AdvGenNoSQL Admin</PageTitle>
+<PageTitle>Command Console - AdvGenNoSQL Admin</PageTitle>
 
-<MudText Typo="Typo.h4" Class="mb-4">Query</MudText>
+<MudText Typo="Typo.h4" Class="mb-2">Command Console</MudText>
+<MudText Typo="Typo.body2" Class="mb-4" Color="Color.Secondary">
+    Sends a raw JSON command to the server over TCP. Pick a template or write your own —
+    the payload must be a JSON object with a <code>command</code> property.
+</MudText>
 
-<MudTextField T="string" @bind-Value="_query" Label="Query" Variant="Variant.Outlined"
-              Lines="5" Class="mb-3" Placeholder="SELECT * FROM myCollection WHERE ..." />
+<MudSelect T="string" Label="Template" Value="_template" ValueChanged="ApplyTemplate" Class="mb-3" Clearable="true">
+    @foreach (var name in Templates.Keys)
+    {
+        <MudSelectItem Value="@name">@name</MudSelectItem>
+    }
+</MudSelect>
 
-<MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="RunQuery"
+<MudTextField T="string" @bind-Value="_commandJson" Label="Command JSON" Variant="Variant.Outlined"
+              Lines="8" Class="mb-3" Style="font-family:monospace;" />
+
+<MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="RunCommand"
            Disabled="_running" StartIcon="@Icons.Material.Filled.PlayArrow">
-    @(_running ? "Running..." : "Run Query")
+    @(_running ? "Running..." : "Send Command")
 </MudButton>
 
 @if (_result != null)
 {
-    <MudPaper Elevation="1" Class="pa-4 mt-4" Style="background:#1e1e1e;">
-        <MudText Typo="Typo.body2" Style="font-family:monospace;white-space:pre-wrap;color:#d4d4d4;">@_result</MudText>
+    <MudPaper Elevation="1" Class="pa-4 mt-4" Style="overflow-x:auto;">
+        <pre style="font-family:monospace;white-space:pre-wrap;margin:0;">@_result</pre>
     </MudPaper>
 }
 
 @code {
-    private string _query = "";
+    private string _template = "";
+    private string _commandJson = "";
     private string? _result;
     private bool _running;
+
+    private static readonly Dictionary<string, string> Templates = new()
+    {
+        ["stats"] = """{"command":"stats"}""",
+        ["listcollections"] = """{"command":"listcollections"}""",
+        ["count"] = """{"command":"count","collection":"myCollection"}""",
+        ["listdocuments"] = """{"command":"listdocuments","collection":"myCollection","document":{"skip":0,"take":50}}""",
+        ["get"] = """{"command":"get","collection":"myCollection","id":"documentId"}""",
+        ["set (insert/update)"] = """{"command":"set","collection":"myCollection","document":{"_id":"documentId","field":"value"}}""",
+        ["exists"] = """{"command":"exists","collection":"myCollection","id":"documentId"}""",
+        ["delete"] = """{"command":"delete","collection":"myCollection","id":"documentId"}""",
+        ["find_one"] = """{"command":"find_one","collection":"myCollection","filter":{"field":"value"}}""",
+        ["createcollection"] = """{"command":"createcollection","collection":"newCollection"}""",
+        ["dropcollection"] = """{"command":"dropcollection","collection":"oldCollection"}""",
+        ["cluster info"] = """{"command":"cluster","subcommand":"info"}""",
+    };
 
     protected override void OnInitialized()
     {
@@ -33,24 +61,61 @@
             Navigation.NavigateTo("/login");
     }
 
-    private async Task RunQuery()
+    private void ApplyTemplate(string name)
     {
-        if (string.IsNullOrWhiteSpace(_query)) return;
+        _template = name;
+        if (!string.IsNullOrEmpty(name) && Templates.TryGetValue(name, out var json))
+            _commandJson = PrettyPrint(json);
+    }
+
+    private async Task RunCommand()
+    {
+        if (string.IsNullOrWhiteSpace(_commandJson)) return;
+
+        // Validate client-side before sending: must be a JSON object with a "command" property
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(_commandJson);
+            if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object ||
+                !doc.RootElement.TryGetProperty("command", out _))
+            {
+                Snackbar.Add("Payload must be a JSON object with a \"command\" property.", Severity.Warning);
+                return;
+            }
+        }
+        catch (System.Text.Json.JsonException ex)
+        {
+            Snackbar.Add($"Invalid JSON: {ex.Message}", Severity.Warning);
+            return;
+        }
+
         _running = true;
         _result = null;
         try
         {
-            var response = await AdminService.ExecuteQueryAsync(_query);
-            _result = System.Text.Json.JsonSerializer.Serialize(response.Data,
-                new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            var response = await AdminService.ExecuteQueryAsync(_commandJson);
+            _result = response.Success
+                ? PrettyPrint(System.Text.Json.JsonSerializer.Serialize(response.Data))
+                : $"ERROR {response.Error?.Code}: {response.Error?.Message}";
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Query failed: {ex.Message}", Severity.Error);
+            Snackbar.Add($"Command failed: {ex.Message}", Severity.Error);
         }
         finally
         {
             _running = false;
         }
+    }
+
+    private static string PrettyPrint(string json)
+    {
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            return System.Text.Json.JsonSerializer.Serialize(doc.RootElement,
+                new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        }
+        catch { return json; }
     }
 }
