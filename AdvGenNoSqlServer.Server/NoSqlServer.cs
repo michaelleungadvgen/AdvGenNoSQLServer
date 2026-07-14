@@ -335,10 +335,17 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
         var document = await _documentStore.GetAsync(collection, id);
         if (document == null)
         {
-            return NoSqlMessage.CreateSuccess(new { found = false, value = (object?)null });
+            return NoSqlMessage.CreateSuccess(new { found = false, document = (object?)null, value = (object?)null });
         }
 
-        return NoSqlMessage.CreateSuccess(new { found = true, value = document });
+        var flat = new Dictionary<string, object?>(document.Data.Count + 1) { ["_id"] = document.Id };
+        foreach (var kv in document.Data)
+        {
+            flat[kv.Key] = kv.Value;
+        }
+
+        // "document" (flat) is the contract clients read; "value" retained for backward compatibility
+        return NoSqlMessage.CreateSuccess(new { found = true, document = flat, value = document });
     }
 
     private async Task<NoSqlMessage> HandleSetCommand(JsonElement commandElement)
