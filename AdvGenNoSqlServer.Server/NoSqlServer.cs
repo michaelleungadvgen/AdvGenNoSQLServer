@@ -295,6 +295,9 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
                 "find_one" => HandleFindOneCommand(doc.RootElement),
                 "touch" => HandleTouchCommand(doc.RootElement),
                 "listcollections" => HandleListCollectionsCommand(doc.RootElement),
+                "createcollection" => HandleCreateCollectionCommand(doc.RootElement),
+                "dropcollection" => HandleDropCollectionCommand(doc.RootElement),
+                "listdocuments" => HandleListDocumentsCommand(doc.RootElement),
                 "count" => HandleCountCommand(doc.RootElement),
                 "stats" => HandleStatsCommand(),
                 "cluster" => HandleClusterCommand(doc.RootElement),
@@ -832,6 +835,109 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
         {
             _logger.LogError(ex, "Error listing collections");
             return NoSqlMessage.CreateError("STORAGE_ERROR", $"Failed to list collections: {ex.Message}");
+        }
+    }
+
+    private async Task<NoSqlMessage> HandleCreateCollectionCommand(JsonElement commandElement)
+    {
+        if (_documentStore == null)
+        {
+            return NoSqlMessage.CreateError("STORAGE_ERROR", "Storage not initialized");
+        }
+
+        if (!commandElement.TryGetProperty("collection", out var collectionProp) ||
+            string.IsNullOrEmpty(collectionProp.GetString()))
+        {
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Missing collection property");
+        }
+
+        var collection = collectionProp.GetString()!;
+        try
+        {
+            var existing = await _documentStore.GetCollectionsAsync();
+            bool created = !existing.Contains(collection);
+            if (created)
+            {
+                await _documentStore.CreateCollectionAsync(collection);
+            }
+            return NoSqlMessage.CreateSuccess(new { created, collection });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating collection {Collection}", collection);
+            return NoSqlMessage.CreateError("STORAGE_ERROR", $"Failed to create collection: {ex.Message}");
+        }
+    }
+
+    private async Task<NoSqlMessage> HandleDropCollectionCommand(JsonElement commandElement)
+    {
+        if (_documentStore == null)
+        {
+            return NoSqlMessage.CreateError("STORAGE_ERROR", "Storage not initialized");
+        }
+
+        if (!commandElement.TryGetProperty("collection", out var collectionProp) ||
+            string.IsNullOrEmpty(collectionProp.GetString()))
+        {
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Missing collection property");
+        }
+
+        var collection = collectionProp.GetString()!;
+        try
+        {
+            var dropped = await _documentStore.DropCollectionAsync(collection);
+            return NoSqlMessage.CreateSuccess(new { dropped, collection });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error dropping collection {Collection}", collection);
+            return NoSqlMessage.CreateError("STORAGE_ERROR", $"Failed to drop collection: {ex.Message}");
+        }
+    }
+
+    private async Task<NoSqlMessage> HandleListDocumentsCommand(JsonElement commandElement)
+    {
+        if (_documentStore == null)
+        {
+            return NoSqlMessage.CreateError("STORAGE_ERROR", "Storage not initialized");
+        }
+
+        if (!commandElement.TryGetProperty("collection", out var collectionProp) ||
+            string.IsNullOrEmpty(collectionProp.GetString()))
+        {
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Missing collection property");
+        }
+
+        var collection = collectionProp.GetString()!;
+        int skip = 0, take = 50;
+        if (commandElement.TryGetProperty("document", out var optionsProp) &&
+            optionsProp.ValueKind == JsonValueKind.Object)
+        {
+            if (optionsProp.TryGetProperty("skip", out var skipProp)) skip = Math.Max(skipProp.GetInt32(), 0);
+            if (optionsProp.TryGetProperty("take", out var takeProp)) take = Math.Clamp(takeProp.GetInt32(), 1, 500);
+        }
+
+        try
+        {
+            var total = await _documentStore.CountAsync(collection);
+            var all = await _documentStore.GetAllAsync(collection);
+            var page = all
+                .OrderBy(d => d.Id, StringComparer.Ordinal)
+                .Skip(skip).Take(take)
+                .Select(d =>
+                {
+                    var flat = new Dictionary<string, object?>(d.Data.Count + 1) { ["_id"] = d.Id };
+                    foreach (var kv in d.Data) flat[kv.Key] = kv.Value;
+                    return flat;
+                })
+                .ToList();
+
+            return NoSqlMessage.CreateSuccess(new { documents = page, total });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error listing documents in {Collection}", collection);
+            return NoSqlMessage.CreateError("STORAGE_ERROR", $"Failed to list documents: {ex.Message}");
         }
     }
 
