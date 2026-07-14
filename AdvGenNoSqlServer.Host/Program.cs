@@ -866,7 +866,36 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
             return NoSqlMessage.CreateSuccess(new { found = false, document = (object?)null });
         }
 
-        return NoSqlMessage.CreateSuccess(new { found = true, document });
+        // Flat shape ({_id, ...data}) is the contract clients read
+        return NoSqlMessage.CreateSuccess(new { found = true, document = FlattenDocument(document) });
+    }
+
+    private static Dictionary<string, object?> FlattenDocument(Core.Models.Document document)
+    {
+        var flat = new Dictionary<string, object?>((document.Data?.Count ?? 0) + 1) { ["_id"] = document.Id };
+        if (document.Data != null)
+        {
+            foreach (var kvp in document.Data)
+            {
+                flat[kvp.Key] = kvp.Value;
+            }
+        }
+        return flat;
+    }
+
+    private static object JsonElementToObject(System.Text.Json.JsonElement element)
+    {
+        return element.ValueKind switch
+        {
+            System.Text.Json.JsonValueKind.String => element.GetString() ?? "",
+            System.Text.Json.JsonValueKind.Number => element.TryGetInt64(out var l) ? l : element.GetDouble(),
+            System.Text.Json.JsonValueKind.True => true,
+            System.Text.Json.JsonValueKind.False => false,
+            System.Text.Json.JsonValueKind.Null => null!,
+            System.Text.Json.JsonValueKind.Array => element.EnumerateArray().Select(JsonElementToObject).ToList(),
+            System.Text.Json.JsonValueKind.Object => element.EnumerateObject().ToDictionary(p => p.Name, p => JsonElementToObject(p.Value)),
+            _ => element.GetRawText()
+        };
     }
 
     private async Task<NoSqlMessage> HandleSetCommandAsync(System.Text.Json.JsonElement commandElement)
@@ -884,18 +913,32 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
             return NoSqlMessage.CreateError("INVALID_COMMAND", "Collection is required");
         }
 
-        var json = documentProp.GetRawText();
-        var document = System.Text.Json.JsonSerializer.Deserialize<Core.Models.Document>(json);
-
-        if (document == null)
+        if (documentProp.ValueKind != System.Text.Json.JsonValueKind.Object)
         {
-            return NoSqlMessage.CreateError("INVALID_DOCUMENT", "Failed to parse document");
+            return NoSqlMessage.CreateError("INVALID_DOCUMENT", "Document must be a JSON object");
         }
 
-        if (string.IsNullOrEmpty(document.Id))
+        // Wire contract is a flat document: {_id, ...fields}. Deserializing into
+        // Core.Models.Document fails here (required Id, no _id mapping) — parse manually.
+        string? id = null;
+        var data = new Dictionary<string, object>();
+        foreach (var prop in documentProp.EnumerateObject())
         {
-            document.Id = Guid.NewGuid().ToString("N");
+            if (prop.Name == "_id")
+            {
+                id = prop.Value.GetString();
+            }
+            else
+            {
+                data[prop.Name] = JsonElementToObject(prop.Value);
+            }
         }
+
+        var document = new Core.Models.Document
+        {
+            Id = string.IsNullOrEmpty(id) ? Guid.NewGuid().ToString("N") : id,
+            Data = data
+        };
 
         var exists = await _apiData.DocumentStore!.ExistsAsync(collection, document.Id);
         if (exists)
@@ -991,8 +1034,13 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
         if (string.IsNullOrEmpty(collection))
             return NoSqlMessage.CreateError("INVALID_COMMAND", "Collection name is required");
 
-        await _apiData.DocumentStore!.CreateCollectionAsync(collection);
-        return NoSqlMessage.CreateSuccess(new { created = true, name = collection });
+        var existing = await _apiData.DocumentStore!.GetCollectionsAsync();
+        bool created = !existing.Contains(collection);
+        if (created)
+        {
+            await _apiData.DocumentStore.CreateCollectionAsync(collection);
+        }
+        return NoSqlMessage.CreateSuccess(new { created, name = collection });
     }
 
     private async Task<NoSqlMessage> HandleDropCollectionCommandAsync(System.Text.Json.JsonElement commandElement)
@@ -1030,7 +1078,11 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
         if (take <= 0 || take > MaxTake) take = 50;
 
         var all = (await _apiData.DocumentStore!.GetAllAsync(collection)).ToList();
-        var page = all.Skip(skip).Take(take).ToList();
+        var page = all
+            .OrderBy(d => d.Id, StringComparer.Ordinal)
+            .Skip(skip).Take(take)
+            .Select(FlattenDocument)
+            .ToList();
         var total = all.Count;
         return NoSqlMessage.CreateSuccess(new { documents = page, total, collection });
     }

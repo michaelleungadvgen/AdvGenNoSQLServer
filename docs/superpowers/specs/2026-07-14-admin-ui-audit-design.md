@@ -57,6 +57,15 @@ Rename UI copy to "Command Console". A dropdown of command templates (`get`, `se
 ### F5 — Multiline JSON dialogs + theme-aware output
 `TextInputDialog` gains a `Lines` parameter (default 1); Documents Insert/Edit pass `Lines=12`. The results panel drops the hardcoded colors and uses `MudPaper` defaults + `<pre>` styling.
 
+## 3.5 Execution discovery — D6: the Host runs its own duplicated dispatcher
+
+Found during end-to-end verification (2026-07-14): `AdvGenNoSqlServer.Host` does **not** host `AdvGenNoSqlServer.Server.NoSqlServer`. Its internal `NoSqlServerHost` class (`Host/Program.cs:506`) implements its own TCP command dispatcher backed by `IDatabaseManager`, and that is what production (`dotnet run --project Host`) actually serves. The two dispatchers had diverged:
+
+- The Host **already had** `createcollection`/`dropcollection`/`listdocuments` — but with broken contracts: `set` crashed on every flat wire document (`JsonSerializer.Deserialize<Document>` throws because `Document.Id` is `required` and has no `_id` mapping), `get` and `listdocuments` returned PascalCase `Document` objects instead of flat `{_id, ...fields}` (so the Documents page could not read IDs), and `createcollection` always reported `created=true`.
+- The Server project's dispatcher (used by the test suite and this audit's §1 table) was missing those commands entirely.
+
+**Resolution:** the same contract fixes (F1/F2 shapes) were applied to both dispatchers, verified end-to-end against the running Host over TCP+SSL. **Tech debt flagged:** two hand-duplicated dispatchers is the root cause here; consolidating the Host onto the Server project's `NoSqlServer` (or extracting a shared command-handler component) should be a future work item.
+
 ## 4. Known limitations accepted as-is (documented, not fixed here)
 
 - **Session lifetime:** `TcpAdminService` is circuit-scoped; a browser refresh drops the TCP connection and returns to login. Acceptable for an admin tool; a reconnect/session-persistence layer is future work.

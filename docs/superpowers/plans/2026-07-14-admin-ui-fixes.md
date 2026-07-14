@@ -650,6 +650,10 @@ Use @superpowers:verification-before-completion, then @superpowers:finishing-a-d
 
 ---
 
+## Execution addendum (2026-07-14, branch `feature/admin-ui-fixes`)
+
+All tasks executed and verified. One discovery beyond the plan (audit doc §3.5, defect D6): the Host runs its own duplicated TCP dispatcher (`NoSqlServerHost` in `Host/Program.cs`), which had the same class of contract bugs — `set` crashed on all flat documents, `get`/`listdocuments` returned non-flat `Document` objects, `createcollection` always reported `created=true`. The same contract fixes were applied there. End-to-end verification ran a harness replicating `TcpAdminService` against the live Host over TCP+SSL: connect/auth, create/duplicate-create/drop collection, set/list/get(flat)/delete document, special-character collection name, stats — **all checks passed**. AdminClient serves at https://localhost:7210 (HTTP 200). Full suite: 3,199 passed / 1 pre-existing flake (`BackgroundIndexBuilderTests.StartBuildAsync_MultipleConcurrentBuilds_RespectsMaxConcurrent`, fails identically on master).
+
 ## Execution notes
 
 - Task order: 1 → 2 → 3 → 4 → 5 → 6. Tasks 1–4 are server/protocol fixes each independently valuable; Task 5 depends on nothing but is best last so the console templates can exercise the new commands.
