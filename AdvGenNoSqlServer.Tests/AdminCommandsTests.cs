@@ -113,4 +113,55 @@ public class AdminCommandsTests : IAsyncLifetime
         var response = await SendCommandAsync("""{"command":"dropcollection"}""");
         Assert.Equal(MessageType.Error, response.MessageType);
     }
+
+    [Fact]
+    public async Task ListDocuments_ReturnsPagedFlattenedDocumentsAndTotal()
+    {
+        for (int i = 0; i < 12; i++)
+        {
+            var setJson = JsonSerializer.Serialize(new
+            {
+                command = "set",
+                collection = "pagecol",
+                document = new Dictionary<string, object> { ["_id"] = $"doc{i:D2}", ["n"] = i }
+            });
+            await SendCommandAsync(setJson);
+        }
+
+        var response = await SendCommandAsync(
+            """{"command":"listdocuments","collection":"pagecol","document":{"skip":10,"take":5}}""");
+        Assert.Equal(MessageType.Response, response.MessageType);
+        var data = Data(response);
+
+        Assert.Equal(12, data.GetProperty("total").GetInt64());
+        var docs = data.GetProperty("documents").EnumerateArray().ToList();
+        Assert.Equal(2, docs.Count);                       // 12 total, skip 10
+        Assert.True(docs[0].TryGetProperty("_id", out _)); // flattened shape
+        Assert.True(docs[0].TryGetProperty("n", out _));   // data fields at top level
+    }
+
+    [Fact]
+    public async Task ListDocuments_DefaultsAndEmptyCollection()
+    {
+        var response = await SendCommandAsync("""{"command":"listdocuments","collection":"emptycol"}""");
+        Assert.Equal(MessageType.Response, response.MessageType);
+        var data = Data(response);
+        Assert.Equal(0, data.GetProperty("total").GetInt64());
+        Assert.Empty(data.GetProperty("documents").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task ListDocuments_MissingCollection_ReturnsError()
+    {
+        var response = await SendCommandAsync("""{"command":"listdocuments"}""");
+        Assert.Equal(MessageType.Error, response.MessageType);
+    }
+
+    [Fact]
+    public async Task ListDocuments_TakeIsCappedAt500()
+    {
+        var response = await SendCommandAsync(
+            """{"command":"listdocuments","collection":"emptycol","document":{"skip":0,"take":99999}}""");
+        Assert.Equal(MessageType.Response, response.MessageType); // capped, not rejected
+    }
 }
