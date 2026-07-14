@@ -162,20 +162,17 @@ namespace AdvGenNoSqlServer.Network
         /// </summary>
         public static NoSqlMessage CreateCommand(string command, string collection, object? document = null)
         {
-            var sb = new StringBuilder();
-            sb.Append("{");
-            sb.Append($"\"command\":\"{command}\",");
-            sb.Append($"\"collection\":\"{collection}\"");
-
+            var payload = new System.Collections.Generic.Dictionary<string, object?>
+            {
+                ["command"] = command,
+                ["collection"] = collection
+            };
             if (document != null)
             {
-                sb.Append(",");
-                sb.Append($"\"document\":{System.Text.Json.JsonSerializer.Serialize(document)}");
+                payload["document"] = document;
             }
 
-            sb.Append("}");
-
-            return Create(MessageType.Command, sb.ToString());
+            return Create(MessageType.Command, System.Text.Json.JsonSerializer.Serialize(payload));
         }
 
         /// <summary>
