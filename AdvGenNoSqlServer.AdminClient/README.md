@@ -15,7 +15,7 @@ Both admin applications coexist in the solution; this one is not a replacement.
 
 - **Dashboard** — server stats with auto-refresh.
 - **Collections** — list, create, delete collections.
-- **Documents** — paged browse, insert/edit (multiline JSON), delete.
+- **Documents** — paged browse, insert/edit (multiline JSON), delete, and a paperclip per row that opens an **Attachments** dialog (list files with name/type/size/hash, upload, download, delete). Upload/delete are hidden for the `readonly` role. The Dashboard shows total attachment storage in a "Files" tile.
 - **Console** — send raw JSON commands from templates.
 - **Users** *(admin role only)* — list users, create, change role, reset password, delete. The nav link appears only when the logged-in user has the `admin` role. Every user also has a "change my password" button in the top bar. Roles (`admin`/`readwrite`/`readonly`) are enforced server-side per command when the server runs with `RequireAuthentication: true`; against a dev server (`RequireAuthentication: false`) the session is treated as `admin` so all pages remain usable.
 

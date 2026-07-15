@@ -18,6 +18,7 @@ This repository contains the AdvGen NoSQL Server — a prototype NoSQL-like serv
 - **Web Admin Dashboard**: Blazor WebAssembly-based management UI
 - **Full-Text Search**: Built-in text indexing and search capabilities
 - **User Management + RBAC**: Persistent user accounts (PBKDF2-hashed in `users.json`) with three built-in roles — `admin`, `readwrite`, `readonly` — enforced per TCP command when `RequireAuthentication` is enabled. Managed from the Admin UI Users page or the `createuser`/`setrole`/`setpassword`/`deleteuser`/`listusers`/`changepassword` commands.
+- **Document Attachments**: attach binary files to documents over TCP (`uploadattachment`/`downloadattachment`/`listattachments`/`attachmentinfo`/`deleteattachment`/`totalstorage`, bytes base64-encoded, SHA-256 verified, size-capped by `MaxAttachmentSizeMB`). RBAC-gated (view/download = Read, upload/delete = Write). Managed from the Admin UI via a paperclip on each Documents row, with total storage on the Dashboard.
 
 ## Installation
 
