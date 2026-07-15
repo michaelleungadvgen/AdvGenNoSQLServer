@@ -383,12 +383,18 @@ public class Program
             return new AuditLogger(config);
         });
 
-        // Add authentication manager
+        // Add authentication manager (backed by a persistent user store)
         services.AddSingleton<AuthenticationManager>(provider =>
         {
             var configManager = provider.GetRequiredService<Core.Configuration.IConfigurationManager>();
             var config = configManager.Configuration;
-            return new AuthenticationManager(config);
+            var storagePath = string.IsNullOrEmpty(config.StoragePath) ? "data" : config.StoragePath;
+            if (!System.IO.Path.IsPathRooted(storagePath))
+                storagePath = System.IO.Path.Combine(AppContext.BaseDirectory, storagePath);
+            var userPath = string.IsNullOrEmpty(config.UserStorePath)
+                ? System.IO.Path.Combine(storagePath, "users.json")
+                : config.UserStorePath;
+            return new AuthenticationManager(config, new FileUserStore(userPath));
         });
 
         // Add JWT token provider
@@ -511,6 +517,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
     private readonly AuthenticationManager _authManager;
     private readonly IDatabaseManager _databaseManager;
     private readonly ApiDataService _apiData;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string Username, string Role)> _authConnections = new();
     private TcpServer? _tcpServer;
     private bool _disposed;
 
@@ -646,6 +653,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
     private void OnConnectionClosed(object? sender, ConnectionEventArgs e)
     {
         _logger.LogDebug("Connection closed: {ConnectionId}", e.ConnectionId);
+        _authConnections.TryRemove(e.ConnectionId, out _);
 
         _auditLogger.Log(new AuditEvent
         {
@@ -712,7 +720,10 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
     {
         if (!_configManager.Configuration.RequireAuthentication)
         {
-            return Task.FromResult(NoSqlMessage.CreateSuccess(new { authenticated = true, token = "anonymous" }));
+            // Dev mode: grant an anonymous admin identity so gating is bypassed and the admin UI works.
+            _authConnections[connectionId] = ("anonymous", UserRole.Admin);
+            return Task.FromResult(NoSqlMessage.CreateSuccess(
+                new { authenticated = true, token = "anonymous", username = "anonymous", role = UserRole.Admin }));
         }
 
         if (message.Payload == null || message.PayloadLength == 0)
@@ -759,6 +770,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
 
             if (result != null)
             {
+                _authConnections[connectionId] = (result.Username, result.Role);
                 _auditLogger.Log(new AuditEvent
                 {
                     EventType = AuditEventType.AuthenticationSuccess,
@@ -768,7 +780,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
                     SessionId = connectionId,
                     Timestamp = DateTime.UtcNow
                 });
-                return Task.FromResult(NoSqlMessage.CreateSuccess(new { authenticated = true, token = result.TokenId, username }));
+                return Task.FromResult(NoSqlMessage.CreateSuccess(new { authenticated = true, token = result.TokenId, username, role = result.Role }));
             }
             else
             {
@@ -822,6 +834,17 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
 
             var command = commandProp.GetString()?.ToLowerInvariant();
 
+            // Role-based authorization (only enforced when authentication is required)
+            if (_configManager.Configuration.RequireAuthentication && command != null)
+            {
+                if (!_authConnections.TryGetValue(connectionId, out var identity))
+                    return NoSqlMessage.CreateError("AUTH_REQUIRED", "Authenticate before sending commands");
+                if (command == "changepassword" && identity.Username == "anonymous")
+                    return NoSqlMessage.CreateError("AUTH_REQUIRED", "changepassword requires an authenticated user");
+                if (!CommandAuthorizer.IsAllowed(command, identity.Role))
+                    return NoSqlMessage.CreateError("FORBIDDEN", $"Role '{identity.Role}' may not run '{command}'");
+            }
+
             return command switch
             {
                 "get" => await HandleGetCommandAsync(doc.RootElement),
@@ -834,6 +857,12 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
                 "dropcollection" => await HandleDropCollectionCommandAsync(doc.RootElement),
                 "listdocuments" => await HandleListDocumentsCommandAsync(doc.RootElement),
                 "stats" => await HandleStatsCommandAsync(),
+                "listusers" => HandleListUsersCommand(),
+                "createuser" => HandleCreateUserCommand(doc.RootElement),
+                "deleteuser" => HandleDeleteUserCommand(doc.RootElement),
+                "setpassword" => HandleSetPasswordCommand(doc.RootElement),
+                "setrole" => HandleSetRoleCommand(doc.RootElement),
+                "changepassword" => HandleChangePasswordCommand(doc.RootElement, connectionId),
                 _ => NoSqlMessage.CreateError("UNKNOWN_COMMAND", $"Unknown command: {command}")
             };
         }
@@ -1108,6 +1137,85 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
             totalCollections,
             activeConnections = _apiData.TcpServer?.ActiveConnectionCount ?? 0
         });
+    }
+
+    private NoSqlMessage HandleListUsersCommand()
+        => NoSqlMessage.CreateSuccess(new
+        {
+            users = _authManager.ListUsers()
+                .Select(u => new { username = u.Username, role = u.Role, createdAt = u.CreatedAt })
+        });
+
+    private NoSqlMessage HandleCreateUserCommand(System.Text.Json.JsonElement e)
+    {
+        var username = e.TryGetProperty("username", out var u) ? u.GetString() : null;
+        var password = e.TryGetProperty("password", out var p) ? p.GetString() : null;
+        var role = e.TryGetProperty("role", out var r) ? r.GetString() : UserRole.ReadWrite;
+        if (string.IsNullOrWhiteSpace(username) || username.Length > 64)
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Username required (<= 64 chars)");
+        if (string.IsNullOrEmpty(password) || password.Length < 6)
+            return NoSqlMessage.CreateError("WEAK_PASSWORD", "Password must be at least 6 characters");
+        if (!UserRole.IsValid(role))
+            return NoSqlMessage.CreateError("INVALID_ROLE", $"Invalid role '{role}'");
+        if (!_authManager.RegisterUser(username, password, role!))
+            return NoSqlMessage.CreateError("USER_EXISTS", $"User '{username}' already exists");
+        return NoSqlMessage.CreateSuccess(new { created = true, username });
+    }
+
+    private NoSqlMessage HandleDeleteUserCommand(System.Text.Json.JsonElement e)
+    {
+        var username = e.TryGetProperty("username", out var u) ? u.GetString() : null;
+        if (string.IsNullOrWhiteSpace(username))
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Username required");
+        return _authManager.RemoveUserGuarded(username) switch
+        {
+            UserOperationResult.Ok => NoSqlMessage.CreateSuccess(new { deleted = true }),
+            UserOperationResult.NotFound => NoSqlMessage.CreateError("USER_NOT_FOUND", $"User '{username}' not found"),
+            UserOperationResult.LastAdmin => NoSqlMessage.CreateError("LAST_ADMIN", "Cannot delete the last admin"),
+            _ => NoSqlMessage.CreateError("COMMAND_ERROR", "Delete failed")
+        };
+    }
+
+    private NoSqlMessage HandleSetPasswordCommand(System.Text.Json.JsonElement e)
+    {
+        var username = e.TryGetProperty("username", out var u) ? u.GetString() : null;
+        var password = e.TryGetProperty("password", out var p) ? p.GetString() : null;
+        if (string.IsNullOrWhiteSpace(username))
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Username required");
+        if (string.IsNullOrEmpty(password) || password.Length < 6)
+            return NoSqlMessage.CreateError("WEAK_PASSWORD", "Password must be at least 6 characters");
+        return _authManager.SetPassword(username, password)
+            ? NoSqlMessage.CreateSuccess(new { changed = true })
+            : NoSqlMessage.CreateError("USER_NOT_FOUND", $"User '{username}' not found");
+    }
+
+    private NoSqlMessage HandleSetRoleCommand(System.Text.Json.JsonElement e)
+    {
+        var username = e.TryGetProperty("username", out var u) ? u.GetString() : null;
+        var role = e.TryGetProperty("role", out var r) ? r.GetString() : null;
+        if (string.IsNullOrWhiteSpace(username))
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Username required");
+        return _authManager.SetRoleGuarded(username, role ?? "") switch
+        {
+            UserOperationResult.Ok => NoSqlMessage.CreateSuccess(new { changed = true }),
+            UserOperationResult.NotFound => NoSqlMessage.CreateError("USER_NOT_FOUND", $"User '{username}' not found"),
+            UserOperationResult.InvalidRole => NoSqlMessage.CreateError("INVALID_ROLE", $"Invalid role '{role}'"),
+            UserOperationResult.LastAdmin => NoSqlMessage.CreateError("LAST_ADMIN", "Cannot demote the last admin"),
+            _ => NoSqlMessage.CreateError("COMMAND_ERROR", "Set role failed")
+        };
+    }
+
+    private NoSqlMessage HandleChangePasswordCommand(System.Text.Json.JsonElement e, string connectionId)
+    {
+        if (!_authConnections.TryGetValue(connectionId, out var identity) || identity.Username == "anonymous")
+            return NoSqlMessage.CreateError("AUTH_REQUIRED", "changepassword requires an authenticated user");
+        var oldPw = e.TryGetProperty("oldPassword", out var o) ? o.GetString() : null;
+        var newPw = e.TryGetProperty("newPassword", out var n) ? n.GetString() : null;
+        if (string.IsNullOrEmpty(newPw) || newPw.Length < 6)
+            return NoSqlMessage.CreateError("WEAK_PASSWORD", "Password must be at least 6 characters");
+        return _authManager.ChangePassword(identity.Username, oldPw ?? "", newPw)
+            ? NoSqlMessage.CreateSuccess(new { changed = true })
+            : NoSqlMessage.CreateError("AUTH_FAILED", "Old password is incorrect");
     }
 
     private Task<NoSqlMessage> HandleBulkOperationAsync(NoSqlMessage message, string connectionId)
