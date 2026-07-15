@@ -3,12 +3,14 @@
 // See LICENSE.txt for license information.
 
 using AdvGenNoSqlServer.Core.Abstractions;
+using AdvGenNoSqlServer.Core.Authentication;
 using AdvGenNoSqlServer.Core.Clustering;
 using AdvGenNoSqlServer.Core.Models;
 using AdvGenNoSqlServer.Network;
 using AdvGenNoSqlServer.Storage;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text.Json;
 using IConfigurationManager = AdvGenNoSqlServer.Core.Configuration.IConfigurationManager;
@@ -26,6 +28,8 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
     private readonly ApiDataService _apiData;
     private HybridDocumentStore? _documentStore;
     private TcpServer? _tcpServer;
+    private AuthenticationManager? _authManager;
+    private readonly ConcurrentDictionary<string, (string Username, string Role)> _authConnections = new();
     private bool _disposed;
     private readonly DateTime _startTime = DateTime.UtcNow;
 
@@ -76,6 +80,12 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
         _documentStore = new HybridDocumentStore(storagePath);
         await _documentStore.InitializeAsync();
         _logger.LogInformation("Hybrid storage initialized successfully");
+
+        // Initialize authentication (persistent user store)
+        var userPath = string.IsNullOrEmpty(config.UserStorePath)
+            ? Path.Combine(storagePath, "users.json")
+            : config.UserStorePath;
+        _authManager = new AuthenticationManager(config, new FileUserStore(userPath));
 
         // Create and configure the TCP server
         _tcpServer = new TcpServer(config);
@@ -133,6 +143,7 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
     private void OnConnectionClosed(object? sender, ConnectionEventArgs e)
     {
         _logger.LogDebug("Connection closed: {ConnectionId}", e.ConnectionId);
+        _authConnections.TryRemove(e.ConnectionId, out _);
     }
 
     private async void OnMessageReceivedAsync(object? sender, MessageReceivedEventArgs e)
@@ -240,17 +251,26 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
 
             var config = _configurationManager.Configuration;
 
-            // Simple authentication check
+            // In dev mode (no auth required) grant an anonymous admin identity so that
+            // command gating is bypassed and the admin UI can still manage users.
             if (!config.RequireAuthentication)
             {
-                return Task.FromResult(NoSqlMessage.CreateSuccess(new { authenticated = true, token = "anonymous" }));
+                _authConnections[connectionId] = ("anonymous", UserRole.Admin);
+                return Task.FromResult(NoSqlMessage.CreateSuccess(
+                    new { authenticated = true, token = "anonymous", username = "anonymous", role = UserRole.Admin }));
             }
 
-            // Check against master password (simplified for now)
-            if (username == "admin" && password == config.MasterPassword)
+            if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
             {
-                var token = Guid.NewGuid().ToString("N");
-                return Task.FromResult(NoSqlMessage.CreateSuccess(new { authenticated = true, token }));
+                return Task.FromResult(NoSqlMessage.CreateError("AUTH_FAILED", "Missing username or password"));
+            }
+
+            var authToken = _authManager?.Authenticate(username, password);
+            if (authToken != null)
+            {
+                _authConnections[connectionId] = (authToken.Username, authToken.Role);
+                return Task.FromResult(NoSqlMessage.CreateSuccess(
+                    new { authenticated = true, token = authToken.TokenId, username = authToken.Username, role = authToken.Role }));
             }
 
             return Task.FromResult(NoSqlMessage.CreateError("AUTH_FAILED", "Invalid credentials"));
@@ -283,6 +303,23 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
 
             var command = commandProp.GetString()?.ToLowerInvariant();
 
+            // Role-based authorization (only enforced when authentication is required)
+            if (_configurationManager.Configuration.RequireAuthentication && command != null)
+            {
+                if (!_authConnections.TryGetValue(connectionId, out var identity))
+                {
+                    return Task.FromResult(NoSqlMessage.CreateError("AUTH_REQUIRED", "Authenticate before sending commands"));
+                }
+                if (command == "changepassword" && identity.Username == "anonymous")
+                {
+                    return Task.FromResult(NoSqlMessage.CreateError("AUTH_REQUIRED", "changepassword requires an authenticated user"));
+                }
+                if (!CommandAuthorizer.IsAllowed(command, identity.Role))
+                {
+                    return Task.FromResult(NoSqlMessage.CreateError("FORBIDDEN", $"Role '{identity.Role}' may not run '{command}'"));
+                }
+            }
+
             return command switch
             {
                 "get" => HandleGetCommand(doc.RootElement),
@@ -301,6 +338,12 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
                 "count" => HandleCountCommand(doc.RootElement),
                 "stats" => HandleStatsCommand(),
                 "cluster" => HandleClusterCommand(doc.RootElement),
+                "listusers" => Task.FromResult(HandleListUsersCommand()),
+                "createuser" => Task.FromResult(HandleCreateUserCommand(doc.RootElement)),
+                "deleteuser" => Task.FromResult(HandleDeleteUserCommand(doc.RootElement)),
+                "setpassword" => Task.FromResult(HandleSetPasswordCommand(doc.RootElement)),
+                "setrole" => Task.FromResult(HandleSetRoleCommand(doc.RootElement)),
+                "changepassword" => Task.FromResult(HandleChangePasswordCommand(doc.RootElement, connectionId)),
                 _ => Task.FromResult(NoSqlMessage.CreateError("UNKNOWN_COMMAND", $"Unknown command: {command}"))
             };
         }
@@ -309,6 +352,99 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
             _logger.LogWarning(ex, "Command parsing error for connection {ConnectionId}", connectionId);
             return Task.FromResult(NoSqlMessage.CreateError("INVALID_COMMAND", "Invalid command format"));
         }
+    }
+
+    private NoSqlMessage HandleListUsersCommand()
+    {
+        if (_authManager == null)
+            return NoSqlMessage.CreateError("NOT_INITIALIZED", "Authentication not initialized");
+        return NoSqlMessage.CreateSuccess(new
+        {
+            users = _authManager.ListUsers()
+                .Select(u => new { username = u.Username, role = u.Role, createdAt = u.CreatedAt })
+        });
+    }
+
+    private NoSqlMessage HandleCreateUserCommand(JsonElement e)
+    {
+        if (_authManager == null)
+            return NoSqlMessage.CreateError("NOT_INITIALIZED", "Authentication not initialized");
+        var username = e.TryGetProperty("username", out var u) ? u.GetString() : null;
+        var password = e.TryGetProperty("password", out var p) ? p.GetString() : null;
+        var role = e.TryGetProperty("role", out var r) ? r.GetString() : UserRole.ReadWrite;
+        if (string.IsNullOrWhiteSpace(username) || username.Length > 64)
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Username required (<= 64 chars)");
+        if (string.IsNullOrEmpty(password) || password.Length < 6)
+            return NoSqlMessage.CreateError("WEAK_PASSWORD", "Password must be at least 6 characters");
+        if (!UserRole.IsValid(role))
+            return NoSqlMessage.CreateError("INVALID_ROLE", $"Invalid role '{role}'");
+        if (!_authManager.RegisterUser(username, password, role!))
+            return NoSqlMessage.CreateError("USER_EXISTS", $"User '{username}' already exists");
+        return NoSqlMessage.CreateSuccess(new { created = true, username });
+    }
+
+    private NoSqlMessage HandleDeleteUserCommand(JsonElement e)
+    {
+        if (_authManager == null)
+            return NoSqlMessage.CreateError("NOT_INITIALIZED", "Authentication not initialized");
+        var username = e.TryGetProperty("username", out var u) ? u.GetString() : null;
+        if (string.IsNullOrWhiteSpace(username))
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Username required");
+        return _authManager.RemoveUserGuarded(username) switch
+        {
+            UserOperationResult.Ok => NoSqlMessage.CreateSuccess(new { deleted = true }),
+            UserOperationResult.NotFound => NoSqlMessage.CreateError("USER_NOT_FOUND", $"User '{username}' not found"),
+            UserOperationResult.LastAdmin => NoSqlMessage.CreateError("LAST_ADMIN", "Cannot delete the last admin"),
+            _ => NoSqlMessage.CreateError("COMMAND_ERROR", "Delete failed")
+        };
+    }
+
+    private NoSqlMessage HandleSetPasswordCommand(JsonElement e)
+    {
+        if (_authManager == null)
+            return NoSqlMessage.CreateError("NOT_INITIALIZED", "Authentication not initialized");
+        var username = e.TryGetProperty("username", out var u) ? u.GetString() : null;
+        var password = e.TryGetProperty("password", out var p) ? p.GetString() : null;
+        if (string.IsNullOrWhiteSpace(username))
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Username required");
+        if (string.IsNullOrEmpty(password) || password.Length < 6)
+            return NoSqlMessage.CreateError("WEAK_PASSWORD", "Password must be at least 6 characters");
+        return _authManager.SetPassword(username, password)
+            ? NoSqlMessage.CreateSuccess(new { changed = true })
+            : NoSqlMessage.CreateError("USER_NOT_FOUND", $"User '{username}' not found");
+    }
+
+    private NoSqlMessage HandleSetRoleCommand(JsonElement e)
+    {
+        if (_authManager == null)
+            return NoSqlMessage.CreateError("NOT_INITIALIZED", "Authentication not initialized");
+        var username = e.TryGetProperty("username", out var u) ? u.GetString() : null;
+        var role = e.TryGetProperty("role", out var r) ? r.GetString() : null;
+        if (string.IsNullOrWhiteSpace(username))
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Username required");
+        return _authManager.SetRoleGuarded(username, role ?? "") switch
+        {
+            UserOperationResult.Ok => NoSqlMessage.CreateSuccess(new { changed = true }),
+            UserOperationResult.NotFound => NoSqlMessage.CreateError("USER_NOT_FOUND", $"User '{username}' not found"),
+            UserOperationResult.InvalidRole => NoSqlMessage.CreateError("INVALID_ROLE", $"Invalid role '{role}'"),
+            UserOperationResult.LastAdmin => NoSqlMessage.CreateError("LAST_ADMIN", "Cannot demote the last admin"),
+            _ => NoSqlMessage.CreateError("COMMAND_ERROR", "Set role failed")
+        };
+    }
+
+    private NoSqlMessage HandleChangePasswordCommand(JsonElement e, string connectionId)
+    {
+        if (_authManager == null)
+            return NoSqlMessage.CreateError("NOT_INITIALIZED", "Authentication not initialized");
+        if (!_authConnections.TryGetValue(connectionId, out var identity) || identity.Username == "anonymous")
+            return NoSqlMessage.CreateError("AUTH_REQUIRED", "changepassword requires an authenticated user");
+        var oldPw = e.TryGetProperty("oldPassword", out var o) ? o.GetString() : null;
+        var newPw = e.TryGetProperty("newPassword", out var n) ? n.GetString() : null;
+        if (string.IsNullOrEmpty(newPw) || newPw.Length < 6)
+            return NoSqlMessage.CreateError("WEAK_PASSWORD", "Password must be at least 6 characters");
+        return _authManager.ChangePassword(identity.Username, oldPw ?? "", newPw)
+            ? NoSqlMessage.CreateSuccess(new { changed = true })
+            : NoSqlMessage.CreateError("AUTH_FAILED", "Old password is incorrect");
     }
 
     private async Task<NoSqlMessage> HandleGetCommand(JsonElement commandElement)
