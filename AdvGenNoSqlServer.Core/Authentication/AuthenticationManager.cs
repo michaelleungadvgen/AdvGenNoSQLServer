@@ -18,6 +18,8 @@ public class AuthenticationManager
     private readonly ConcurrentDictionary<string, AuthToken> _activeSessions = new();
     private readonly TimeSpan _tokenExpiration;
     private readonly ServerConfiguration _configuration;
+    private readonly IUserStore? _userStore;
+    private readonly object _mutationLock = new();
 
     // PBKDF2 configuration - OWASP recommends 600k iterations for SHA256 in 2023
     private const int Pbkdf2Iterations = 100000;
@@ -25,39 +27,73 @@ public class AuthenticationManager
     private const int HashSizeBytes = 32;
 
     public AuthenticationManager(ServerConfiguration configuration)
+        : this(configuration, null)
+    {
+    }
+
+    public AuthenticationManager(ServerConfiguration configuration, IUserStore? userStore)
     {
         _configuration = configuration;
         _tokenExpiration = TimeSpan.FromHours(configuration.TokenExpirationHours);
+        _userStore = userStore;
 
-        // Initialize master admin user if master password is set
-        if (!string.IsNullOrEmpty(configuration.MasterPassword))
+        // Load persisted users first
+        if (_userStore != null)
         {
-            RegisterUser("admin", configuration.MasterPassword);
+            foreach (var u in _userStore.Load())
+            {
+                _users[u.Username] = new UserCredentials
+                {
+                    Username = u.Username,
+                    PasswordHash = u.PasswordHash,
+                    Salt = u.Salt,
+                    Role = u.Role,
+                    CreatedAt = u.CreatedAt
+                };
+            }
+        }
+
+        // Seed admin from MasterPassword only if no admin-role user exists
+        if (!string.IsNullOrEmpty(configuration.MasterPassword) &&
+            !_users.Values.Any(c => c.Role == UserRole.Admin))
+        {
+            RegisterUser("admin", configuration.MasterPassword, UserRole.Admin);
         }
     }
 
     /// <summary>
-    /// Registers a new user with secure password hashing.
+    /// Registers a new user with the default (readwrite) role.
     /// </summary>
     public bool RegisterUser(string username, string password)
+        => RegisterUser(username, password, UserRole.ReadWrite);
+
+    /// <summary>
+    /// Registers a new user with secure password hashing and the given role.
+    /// </summary>
+    public bool RegisterUser(string username, string password, string role)
     {
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
             return false;
 
-        if (_users.ContainsKey(username))
-            return false;
-
-        var (salt, hashedPassword) = HashPassword(password);
-
-        _users[username] = new UserCredentials
+        lock (_mutationLock)
         {
-            Username = username,
-            PasswordHash = hashedPassword,
-            Salt = salt,
-            CreatedAt = DateTime.UtcNow
-        };
+            if (_users.ContainsKey(username))
+                return false;
 
-        return true;
+            var (salt, hashedPassword) = HashPassword(password);
+
+            _users[username] = new UserCredentials
+            {
+                Username = username,
+                PasswordHash = hashedPassword,
+                Salt = salt,
+                Role = UserRole.IsValid(role) ? role : UserRole.ReadWrite,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            Persist();
+            return true;
+        }
     }
 
     /// <summary>
@@ -76,6 +112,7 @@ public class AuthenticationManager
         {
             TokenId = Guid.NewGuid().ToString(),
             Username = username,
+            Role = credentials.Role,
             IssuedAt = DateTime.UtcNow,
             ExpiresAt = DateTime.UtcNow.Add(_tokenExpiration)
         };
@@ -151,6 +188,7 @@ public class AuthenticationManager
         credentials.Salt = newSalt;
 
         RevokeAllUserTokens(username);
+        Persist();
         return true;
     }
 
@@ -163,7 +201,96 @@ public class AuthenticationManager
             return false;
 
         RevokeAllUserTokens(username);
+        Persist();
         return true;
+    }
+
+    /// <summary>
+    /// Sets a user's password without requiring the old password (admin reset).
+    /// Revokes the user's active tokens.
+    /// </summary>
+    public bool SetPassword(string username, string newPassword)
+    {
+        lock (_mutationLock)
+        {
+            if (!_users.TryGetValue(username, out var c)) return false;
+            var (salt, hash) = HashPassword(newPassword);
+            c.Salt = salt;
+            c.PasswordHash = hash;
+            RevokeAllUserTokens(username);
+            Persist();
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Changes a user's role. Takes effect on the user's next authentication.
+    /// </summary>
+    public bool SetRole(string username, string role)
+    {
+        lock (_mutationLock)
+        {
+            if (!UserRole.IsValid(role)) return false;
+            if (!_users.TryGetValue(username, out var c)) return false;
+            c.Role = role;
+            Persist();
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Lists users as (username, role, createdAt) projections. Never exposes hashes.
+    /// </summary>
+    public IReadOnlyList<(string Username, string Role, DateTime CreatedAt)> ListUsers()
+        => _users.Values.Select(c => (c.Username, c.Role, c.CreatedAt)).ToList();
+
+    /// <summary>
+    /// Removes a user, refusing to delete the last admin. Returns a precise result code.
+    /// </summary>
+    public UserOperationResult RemoveUserGuarded(string username)
+    {
+        lock (_mutationLock)
+        {
+            if (!_users.ContainsKey(username)) return UserOperationResult.NotFound;
+            if (IsLastAdmin(username)) return UserOperationResult.LastAdmin;
+            _users.TryRemove(username, out _);
+            RevokeAllUserTokens(username);
+            Persist();
+            return UserOperationResult.Ok;
+        }
+    }
+
+    /// <summary>
+    /// Changes a user's role, refusing to demote the last admin. Returns a precise result code.
+    /// </summary>
+    public UserOperationResult SetRoleGuarded(string username, string role)
+    {
+        lock (_mutationLock)
+        {
+            if (!UserRole.IsValid(role)) return UserOperationResult.InvalidRole;
+            if (!_users.TryGetValue(username, out var c)) return UserOperationResult.NotFound;
+            if (c.Role == UserRole.Admin && role != UserRole.Admin && IsLastAdmin(username))
+                return UserOperationResult.LastAdmin;
+            c.Role = role;
+            Persist();
+            return UserOperationResult.Ok;
+        }
+    }
+
+    private bool IsLastAdmin(string username)
+        => _users.TryGetValue(username, out var c) && c.Role == UserRole.Admin
+           && _users.Values.Count(x => x.Role == UserRole.Admin) == 1;
+
+    private void Persist()
+    {
+        _userStore?.Save(_users.Values.Select(c => new PersistedUser
+        {
+            Username = c.Username,
+            PasswordHash = c.PasswordHash,
+            Salt = c.Salt,
+            Role = c.Role,
+            CreatedAt = c.CreatedAt
+        }));
     }
 
     /// <summary>
@@ -244,8 +371,14 @@ public class UserCredentials
     public required string Username { get; set; }
     public required string PasswordHash { get; set; }
     public required string Salt { get; set; }
+    public string Role { get; set; } = UserRole.ReadWrite;
     public DateTime CreatedAt { get; set; }
 }
+
+/// <summary>
+/// Result of a guarded user-management operation.
+/// </summary>
+public enum UserOperationResult { Ok, NotFound, LastAdmin, InvalidRole }
 
 /// <summary>
 /// Represents an authentication token.
@@ -254,6 +387,7 @@ public class AuthToken
 {
     public required string TokenId { get; set; }
     public required string Username { get; set; }
+    public string Role { get; set; } = UserRole.ReadWrite;
     public DateTime IssuedAt { get; set; }
     public DateTime ExpiresAt { get; set; }
 }
