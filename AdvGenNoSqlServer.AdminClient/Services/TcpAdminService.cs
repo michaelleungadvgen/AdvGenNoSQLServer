@@ -202,6 +202,36 @@ public class TcpAdminService : IAsyncDisposable
         return _client!.ChangeMyPasswordAsync(oldPassword, newPassword);
     }
 
+    public async Task<List<AttachmentMetadata>> ListAttachmentsAsync(string collection, string id)
+    {
+        EnsureConnected();
+        return (await _client!.Attachments.ListAsync(collection, id)).ToList();
+    }
+
+    public Task<AttachmentMetadata> UploadAttachmentAsync(string collection, string id, string name, string contentType, byte[] content)
+    {
+        EnsureConnected();
+        return _client!.Attachments.UploadAsync(collection, id, name, contentType, content);
+    }
+
+    public Task<byte[]?> DownloadAttachmentAsync(string collection, string id, string name)
+    {
+        EnsureConnected();
+        return _client!.Attachments.DownloadAsync(collection, id, name);
+    }
+
+    public Task<bool> DeleteAttachmentAsync(string collection, string id, string name)
+    {
+        EnsureConnected();
+        return _client!.Attachments.DeleteAsync(collection, id, name);
+    }
+
+    public Task<long> GetTotalAttachmentStorageAsync()
+    {
+        EnsureConnected();
+        return _client!.Attachments.TotalStorageBytesAsync();
+    }
+
     private void EnsureConnected()
     {
         if (!IsConnected)
