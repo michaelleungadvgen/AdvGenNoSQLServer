@@ -97,6 +97,12 @@ namespace AdvGenNoSqlServer.Client
         public bool IsSecure => _sslStream?.IsAuthenticated == true;
 
         /// <summary>
+        /// Gets the role reported by the server at the last successful authentication
+        /// (null when not authenticated). "anonymous" dev-mode sessions report "admin".
+        /// </summary>
+        public string? CurrentRole { get; private set; }
+
+        /// <summary>
         /// Gets SSL/TLS connection information (null if not using SSL)
         /// </summary>
         public SslStream? SslStream => _sslStream;
@@ -334,6 +340,11 @@ namespace AdvGenNoSqlServer.Client
             if (response.MessageType == MessageType.Response)
             {
                 var result = ParseResponse(response);
+                if (result.Success && result.Data is System.Text.Json.JsonElement data &&
+                    data.TryGetProperty("role", out var roleEl))
+                {
+                    CurrentRole = roleEl.GetString();
+                }
                 return result.Success;
             }
 
