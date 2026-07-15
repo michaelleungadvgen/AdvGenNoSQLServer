@@ -3,6 +3,7 @@
 // See LICENSE.txt for license information.
 
 using AdvGenNoSqlServer.Core.Abstractions;
+using AdvGenNoSqlServer.Core.Attachments;
 using AdvGenNoSqlServer.Core.Caching;
 using AdvGenNoSqlServer.Core.Configuration;
 using AdvGenNoSqlServer.Core.Authentication;
@@ -11,6 +12,7 @@ using AdvGenNoSqlServer.Core.Metrics;
 using AdvGenNoSqlServer.Core.Models;
 using AdvGenNoSqlServer.Core.Transactions;
 using AdvGenNoSqlServer.Storage;
+using AdvGenNoSqlServer.Storage.Attachments;
 using AdvGenNoSqlServer.Network;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.DependencyInjection;
@@ -518,6 +520,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
     private readonly IDatabaseManager _databaseManager;
     private readonly ApiDataService _apiData;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string Username, string Role)> _authConnections = new();
+    private AttachmentStore? _attachmentStore;
     private TcpServer? _tcpServer;
     private bool _disposed;
 
@@ -546,6 +549,16 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
 
         // Ensure data directories exist
         EnsureDirectoriesExist(config);
+
+        // Initialize attachment storage
+        var attachStoragePath = string.IsNullOrEmpty(config.StoragePath) ? "data" : config.StoragePath;
+        if (!System.IO.Path.IsPathRooted(attachStoragePath))
+            attachStoragePath = System.IO.Path.Combine(AppContext.BaseDirectory, attachStoragePath);
+        _attachmentStore = new AttachmentStore(new AttachmentStoreOptions
+        {
+            BasePath = System.IO.Path.Combine(attachStoragePath, "attachments"),
+            MaxAttachmentSize = (long)Math.Max(config.MaxAttachmentSizeMB, 1) * 1024 * 1024
+        });
 
         _logger.LogInformation("Initializing database manager...");
         // DatabaseManager is already initialized via DI
@@ -863,6 +876,12 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
                 "setpassword" => HandleSetPasswordCommand(doc.RootElement),
                 "setrole" => HandleSetRoleCommand(doc.RootElement),
                 "changepassword" => HandleChangePasswordCommand(doc.RootElement, connectionId),
+                "listattachments" => await HandleListAttachmentsCommand(doc.RootElement),
+                "attachmentinfo" => await HandleAttachmentInfoCommand(doc.RootElement),
+                "uploadattachment" => await HandleUploadAttachmentCommand(doc.RootElement),
+                "downloadattachment" => await HandleDownloadAttachmentCommand(doc.RootElement),
+                "deleteattachment" => await HandleDeleteAttachmentCommand(doc.RootElement),
+                "totalstorage" => await HandleTotalStorageCommand(),
                 _ => NoSqlMessage.CreateError("UNKNOWN_COMMAND", $"Unknown command: {command}")
             };
         }
@@ -1218,6 +1237,91 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
             : NoSqlMessage.CreateError("AUTH_FAILED", "Old password is incorrect");
     }
 
+    private async Task<NoSqlMessage> HandleListAttachmentsCommand(System.Text.Json.JsonElement e)
+    {
+        if (_attachmentStore == null) return NoSqlMessage.CreateError("NOT_INITIALIZED", "Attachments not initialized");
+        if (!e.TryGetProperty("collection", out var col) || !e.TryGetProperty("id", out var id) ||
+            string.IsNullOrEmpty(col.GetString()) || string.IsNullOrEmpty(id.GetString()))
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Missing collection or id");
+        var list = await _attachmentStore.ListAsync(col.GetString()!, id.GetString()!);
+        return NoSqlMessage.CreateSuccess(new
+        {
+            attachments = list.Select(a => new { name = a.Name, contentType = a.ContentType, size = a.Size, hash = a.Hash, createdAt = a.CreatedAt, updatedAt = a.UpdatedAt })
+        });
+    }
+
+    private async Task<NoSqlMessage> HandleAttachmentInfoCommand(System.Text.Json.JsonElement e)
+    {
+        if (_attachmentStore == null) return NoSqlMessage.CreateError("NOT_INITIALIZED", "Attachments not initialized");
+        if (!e.TryGetProperty("collection", out var col) || !e.TryGetProperty("id", out var id) || !e.TryGetProperty("name", out var nm) ||
+            string.IsNullOrEmpty(col.GetString()) || string.IsNullOrEmpty(id.GetString()) || string.IsNullOrEmpty(nm.GetString()))
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Missing collection, id or name");
+        var info = await _attachmentStore.GetInfoAsync(col.GetString()!, id.GetString()!, nm.GetString()!);
+        if (info == null) return NoSqlMessage.CreateSuccess(new { found = false, info = (object?)null });
+        return NoSqlMessage.CreateSuccess(new { found = true, info = new { name = info.Name, contentType = info.ContentType, size = info.Size, hash = info.Hash, createdAt = info.CreatedAt, updatedAt = info.UpdatedAt } });
+    }
+
+    private async Task<NoSqlMessage> HandleUploadAttachmentCommand(System.Text.Json.JsonElement e)
+    {
+        if (_attachmentStore == null) return NoSqlMessage.CreateError("NOT_INITIALIZED", "Attachments not initialized");
+        var collection = e.TryGetProperty("collection", out var col) ? col.GetString() : null;
+        var id = e.TryGetProperty("id", out var idp) ? idp.GetString() : null;
+        var name = e.TryGetProperty("name", out var nm) ? nm.GetString() : null;
+        var contentType = e.TryGetProperty("contentType", out var ct) ? ct.GetString() : null;
+        var b64 = e.TryGetProperty("contentBase64", out var cb) ? cb.GetString() : null;
+        if (string.IsNullOrEmpty(collection) || string.IsNullOrEmpty(id) || string.IsNullOrEmpty(name) || b64 == null)
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Missing collection, id, name or contentBase64");
+        if (name.Length > 255)
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Attachment name too long (max 255)");
+        if (string.IsNullOrEmpty(contentType)) contentType = "application/octet-stream";
+
+        byte[] content;
+        try { content = Convert.FromBase64String(b64); }
+        catch (FormatException) { return NoSqlMessage.CreateError("INVALID_CONTENT", "contentBase64 is not valid base64"); }
+
+        int maxMb = _configManager.Configuration.MaxAttachmentSizeMB;
+        long maxBytes = (long)Math.Max(maxMb, 1) * 1024 * 1024;
+        if (content.Length > maxBytes)
+            return NoSqlMessage.CreateError("ATTACHMENT_TOO_LARGE", $"Attachment exceeds {maxMb} MB limit");
+
+        var result = await _attachmentStore.StoreAsync(collection, id, name, contentType, content);
+        if (!result.Success)
+        {
+            var msg = result.ErrorMessage ?? "Upload failed";
+            if (msg.Contains("not allowed")) return NoSqlMessage.CreateError("CONTENT_TYPE_BLOCKED", msg);
+            return NoSqlMessage.CreateError("COMMAND_ERROR", msg);
+        }
+        return NoSqlMessage.CreateSuccess(new { stored = true, name = result.Info!.Name, hash = result.Info.Hash, size = result.Info.Size });
+    }
+
+    private async Task<NoSqlMessage> HandleDownloadAttachmentCommand(System.Text.Json.JsonElement e)
+    {
+        if (_attachmentStore == null) return NoSqlMessage.CreateError("NOT_INITIALIZED", "Attachments not initialized");
+        if (!e.TryGetProperty("collection", out var col) || !e.TryGetProperty("id", out var id) || !e.TryGetProperty("name", out var nm) ||
+            string.IsNullOrEmpty(col.GetString()) || string.IsNullOrEmpty(id.GetString()) || string.IsNullOrEmpty(nm.GetString()))
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Missing collection, id or name");
+        var att = await _attachmentStore.GetAsync(col.GetString()!, id.GetString()!, nm.GetString()!);
+        if (att == null) return NoSqlMessage.CreateSuccess(new { found = false });
+        return NoSqlMessage.CreateSuccess(new { found = true, name = att.Name, contentType = att.ContentType, size = att.Size, contentBase64 = Convert.ToBase64String(att.Content) });
+    }
+
+    private async Task<NoSqlMessage> HandleDeleteAttachmentCommand(System.Text.Json.JsonElement e)
+    {
+        if (_attachmentStore == null) return NoSqlMessage.CreateError("NOT_INITIALIZED", "Attachments not initialized");
+        if (!e.TryGetProperty("collection", out var col) || !e.TryGetProperty("id", out var id) || !e.TryGetProperty("name", out var nm) ||
+            string.IsNullOrEmpty(col.GetString()) || string.IsNullOrEmpty(id.GetString()) || string.IsNullOrEmpty(nm.GetString()))
+            return NoSqlMessage.CreateError("INVALID_COMMAND", "Missing collection, id or name");
+        var deleted = await _attachmentStore.DeleteAsync(col.GetString()!, id.GetString()!, nm.GetString()!);
+        return NoSqlMessage.CreateSuccess(new { deleted });
+    }
+
+    private async Task<NoSqlMessage> HandleTotalStorageCommand()
+    {
+        if (_attachmentStore == null) return NoSqlMessage.CreateError("NOT_INITIALIZED", "Attachments not initialized");
+        var bytes = await _attachmentStore.GetTotalStorageSizeAsync();
+        return NoSqlMessage.CreateSuccess(new { bytes });
+    }
+
     private Task<NoSqlMessage> HandleBulkOperationAsync(NoSqlMessage message, string connectionId)
     {
         return Task.FromResult(NoSqlMessage.CreateSuccess(new
@@ -1234,6 +1338,8 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
             return;
 
         _disposed = true;
+        _attachmentStore?.Dispose();
+        _attachmentStore = null;
         _tcpServer?.Dispose();
     }
 }
