@@ -9,6 +9,7 @@ public class TcpAdminService : IAsyncDisposable
 
     public bool IsConnected => _client?.IsConnected == true;
     public string? CurrentUser { get; private set; }
+    public string? CurrentRole { get; private set; }
     public string Host { get; private set; } = string.Empty;
     public int Port { get; private set; }
 
@@ -44,6 +45,7 @@ public class TcpAdminService : IAsyncDisposable
         Host = host;
         Port = port;
         CurrentUser = username;
+        CurrentRole = newClient.CurrentRole;
     }
 
     public async Task DisconnectAsync()
@@ -54,6 +56,7 @@ public class TcpAdminService : IAsyncDisposable
             _client = null;
         }
         CurrentUser = null;
+        CurrentRole = null;
         Host = string.Empty;
         Port = 0;
     }
@@ -161,6 +164,42 @@ public class TcpAdminService : IAsyncDisposable
     {
         EnsureConnected();
         return await _client!.ExecuteQueryAsync(query);
+    }
+
+    public async Task<List<UserInfo>> ListUsersAsync()
+    {
+        EnsureConnected();
+        return (await _client!.ListUsersAsync()).ToList();
+    }
+
+    public Task<bool> CreateUserAsync(string username, string password, string role)
+    {
+        EnsureConnected();
+        return _client!.CreateUserAsync(username, password, role);
+    }
+
+    public Task<bool> DeleteUserAsync(string username)
+    {
+        EnsureConnected();
+        return _client!.DeleteUserAsync(username);
+    }
+
+    public Task<bool> SetUserPasswordAsync(string username, string password)
+    {
+        EnsureConnected();
+        return _client!.SetUserPasswordAsync(username, password);
+    }
+
+    public Task<bool> SetUserRoleAsync(string username, string role)
+    {
+        EnsureConnected();
+        return _client!.SetUserRoleAsync(username, role);
+    }
+
+    public Task<bool> ChangeMyPasswordAsync(string oldPassword, string newPassword)
+    {
+        EnsureConnected();
+        return _client!.ChangeMyPasswordAsync(oldPassword, newPassword);
     }
 
     private void EnsureConnected()
