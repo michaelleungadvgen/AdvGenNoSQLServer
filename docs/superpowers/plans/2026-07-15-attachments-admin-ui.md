@@ -169,9 +169,9 @@ public class AttachmentCommandsTests : IAsyncLifetime
         var content = Encoding.UTF8.GetBytes("hello attachment");
         var up = await Send(Upload("greeting.txt", "text/plain", content));
         Assert.True(Data(up).GetProperty("stored").GetBoolean());
-        var expectedHash = Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
-        // hash comparison is case-insensitive; assert size
         Assert.Equal(content.Length, Data(up).GetProperty("size").GetInt64());
+        var expectedHash = Convert.ToHexString(SHA256.HashData(content));
+        Assert.Equal(expectedHash, Data(up).GetProperty("hash").GetString(), ignoreCase: true);
 
         var list = await Send("""{"command":"listattachments","collection":"c","id":"doc1"}""");
         var items = Data(list).GetProperty("attachments").EnumerateArray().ToList();
@@ -267,18 +267,18 @@ public class AttachmentCommandsTests : IAsyncLifetime
 ```
 
 4. In the shutdown path (where `_authManager`/stores are cleaned up in `StopAsync`/`DisposeAsync`), add `_attachmentStore?.Dispose(); _attachmentStore = null;` (guard both places, mirroring how the cache/hybrid stores are handled).
-5. Add switch arms (after the user-management arms):
+5. Add switch arms (after the user-management arms). **The Server `HandleCommandAsync` is NOT async** — it returns the `command switch` expression directly and every existing arm returns a `Task<NoSqlMessage>` un-awaited. So the attachment arms must be un-awaited too:
 
 ```csharp
-                "listattachments" => await HandleListAttachmentsCommand(doc.RootElement),
-                "attachmentinfo" => await HandleAttachmentInfoCommand(doc.RootElement),
-                "uploadattachment" => await HandleUploadAttachmentCommand(doc.RootElement),
-                "downloadattachment" => await HandleDownloadAttachmentCommand(doc.RootElement),
-                "deleteattachment" => await HandleDeleteAttachmentCommand(doc.RootElement),
-                "totalstorage" => await HandleTotalStorageCommand(),
+                "listattachments" => HandleListAttachmentsCommand(doc.RootElement),
+                "attachmentinfo" => HandleAttachmentInfoCommand(doc.RootElement),
+                "uploadattachment" => HandleUploadAttachmentCommand(doc.RootElement),
+                "downloadattachment" => HandleDownloadAttachmentCommand(doc.RootElement),
+                "deleteattachment" => HandleDeleteAttachmentCommand(doc.RootElement),
+                "totalstorage" => HandleTotalStorageCommand(),
 ```
 
-Note: the Server switch arms are `Task<NoSqlMessage>`. These handlers are genuinely async (the store is async), so declare them `async Task<NoSqlMessage>` and `await` them in the switch as shown.
+The handler bodies are still declared `async Task<NoSqlMessage>` (they `await` the store) — they are just returned un-awaited from the switch. This is safe: each handler reads all `JsonElement` values before its first `await`, so the caller's `using var doc` is not disposed mid-read (matching the existing `HandleGetCommand` etc. pattern). **Contrast with Task 4:** the Host's `HandleCommandAsync` IS `async` and its arms ARE awaited — do not paste the Server arm syntax into the Host.
 
 6. Handlers (shared logic — see the "Attachment handler bodies" appendix at the end of this plan; paste them verbatim into `NoSqlServer.cs`, using the field `_attachmentStore` and `_configurationManager.Configuration.MaxAttachmentSizeMB`).
 
