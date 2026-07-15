@@ -52,6 +52,7 @@ Six JSON commands (added to both dispatchers' command switches; the command name
 - Validation: `collection`, `id`, `name` non-empty; `name` ≤ 255 chars; `contentType` defaults to `application/octet-stream` when absent; decoded content length ≤ `MaxAttachmentSizeMB` (checked before calling the store, so the UI gets `ATTACHMENT_TOO_LARGE` rather than the store's generic message). Base64 decode failure → `INVALID_CONTENT`.
 - `uploadattachment` maps the store's `AttachmentResult.Success=false` to `CONTENT_TYPE_BLOCKED` (message contains "not allowed") or `COMMAND_ERROR` otherwise.
 - The commands live in a small partial/region so both dispatchers stay in lockstep (audit D6 debt acknowledged; kept identical, not consolidated).
+- `IAttachmentStore.DeleteAllAsync` is intentionally **not** surfaced as a command in this version (no per-document bulk-delete UI need yet); only the six commands above are exposed.
 
 ### 2. RBAC
 
@@ -80,7 +81,7 @@ Bytes are base64-encoded/decoded inside the client; callers pass/receive `byte[]
 
 ### 4. Admin UI
 
-**Dashboard** (`Index.razor`): a "Files" tile showing total attachment storage (`FormatBytes` from the total-storage command). `TcpAdminService.GetStatsAsync` is unaffected; a separate `GetTotalAttachmentStorageAsync` feeds the tile (fails soft — tile shows "—" on error so older servers don't break the dashboard).
+**Dashboard** (`Index.razor`): a "Files" tile showing total attachment storage. Note: AdminClient has no `FormatBytes` helper today (only `FormatUptime`) — the plan adds a small `FormatBytes(long)` helper (reused by the attachments dialog for sizes). `TcpAdminService.GetStatsAsync` is unaffected; a separate `GetTotalAttachmentStorageAsync` feeds the tile (fails soft — tile shows "—" on error so older servers don't break the dashboard).
 
 **Documents page** (`Documents.razor`): each row gains a paperclip `MudIconButton` opening an **attachments dialog** for that `(collection, _id)`:
 - Lists attachments in a `MudTable`: name, content type, size (`FormatBytes`), short hash, created date.
