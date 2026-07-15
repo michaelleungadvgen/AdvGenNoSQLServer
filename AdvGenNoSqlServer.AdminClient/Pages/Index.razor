@@ -50,6 +50,12 @@ else
                 <MudText Typo="Typo.h5">@_stats.MemoryUsageMB MB</MudText>
             </MudPaper>
         </MudItem>
+        <MudItem xs="12" sm="6" md="4">
+            <MudPaper Elevation="2" Class="pa-4">
+                <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Files (attachments)</MudText>
+                <MudText Typo="Typo.h5">@(_attachmentBytes.HasValue ? FormatBytes(_attachmentBytes.Value) : "—")</MudText>
+            </MudPaper>
+        </MudItem>
     </MudGrid>
 }
 
@@ -60,6 +66,7 @@ else
 
 @code {
     private ServerStats? _stats;
+    private long? _attachmentBytes;
     private string? _error;
     private PeriodicTimer? _timer;
     private Task? _timerTask;
@@ -87,6 +94,17 @@ else
         {
             _error = ex.Message;
         }
+
+        try { _attachmentBytes = await AdminService.GetTotalAttachmentStorageAsync(); }
+        catch { _attachmentBytes = null; }
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes >= 1_073_741_824) return $"{bytes / 1_073_741_824.0:F1} GB";
+        if (bytes >= 1_048_576) return $"{bytes / 1_048_576.0:F1} MB";
+        if (bytes >= 1024) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes} B";
     }
 
     private async Task RunAutoRefreshAsync()

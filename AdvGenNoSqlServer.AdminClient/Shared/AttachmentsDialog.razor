@@ -1,0 +1,126 @@
+@inject TcpAdminService AdminService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject IJSRuntime JS
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.subtitle1" Class="mb-2">Attachments for @DocumentId</MudText>
+
+        @if (_loading)
+        {
+            <MudProgressCircular Indeterminate="true" />
+        }
+        else
+        {
+            <MudTable Items="_items" Dense="true" Hover="true">
+                <HeaderContent>
+                    <MudTh>Name</MudTh><MudTh>Type</MudTh><MudTh>Size</MudTh><MudTh>Hash</MudTh><MudTh>Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Name">@context.Name</MudTd>
+                    <MudTd DataLabel="Type">@context.ContentType</MudTd>
+                    <MudTd DataLabel="Size">@FormatBytes(context.Size)</MudTd>
+                    <MudTd DataLabel="Hash"><code>@(context.Hash.Length > 12 ? context.Hash[..12] : context.Hash)</code></MudTd>
+                    <MudTd DataLabel="Actions">
+                        <MudIconButton Icon="@Icons.Material.Filled.Download" Size="Size.Small"
+                                       OnClick="@(() => Download(context))" title="Download" />
+                        @if (AdminService.CurrentRole != "readonly")
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                           OnClick="@(() => Delete(context))" title="Delete" />
+                        }
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent><MudText>No attachments.</MudText></NoRecordsContent>
+            </MudTable>
+
+            @if (AdminService.CurrentRole != "readonly")
+            {
+                <MudFileUpload T="IBrowserFile" FilesChanged="Upload" Class="mt-3">
+                    <ActivatorContent>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Upload">
+                            Upload file
+                        </MudButton>
+                    </ActivatorContent>
+                </MudFileUpload>
+            }
+        }
+        @if (_error != null) { <MudAlert Severity="Severity.Error" Class="mt-2">@_error</MudAlert> }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Close())">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private MudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public string Collection { get; set; } = "";
+    [Parameter] public string DocumentId { get; set; } = "";
+
+    private const long MaxBytes = 25L * 1024 * 1024;
+    private List<AttachmentMetadata> _items = new();
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true; _error = null;
+        try { _items = await AdminService.ListAttachmentsAsync(Collection, DocumentId); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _loading = false; }
+    }
+
+    private async Task Upload(IBrowserFile? file)
+    {
+        if (file == null) return;
+        if (file.Size > MaxBytes) { Snackbar.Add($"File exceeds {FormatBytes(MaxBytes)} limit", Severity.Warning); return; }
+        try
+        {
+            using var ms = new MemoryStream();
+            await file.OpenReadStream(MaxBytes).CopyToAsync(ms);
+            var ct = string.IsNullOrEmpty(file.ContentType) ? "application/octet-stream" : file.ContentType;
+            await AdminService.UploadAttachmentAsync(Collection, DocumentId, file.Name, ct, ms.ToArray());
+            Snackbar.Add($"Uploaded {file.Name}", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task Download(AttachmentMetadata a)
+    {
+        try
+        {
+            var bytes = await AdminService.DownloadAttachmentAsync(Collection, DocumentId, a.Name);
+            if (bytes == null) { Snackbar.Add("Attachment no longer exists", Severity.Warning); return; }
+            await JS.InvokeVoidAsync("saveAsFile", a.Name, a.ContentType, Convert.ToBase64String(bytes));
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task Delete(AttachmentMetadata a)
+    {
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.Message, $"Delete attachment '{a.Name}'?" },
+            { x => x.ConfirmText, "Delete" }
+        };
+        var dlg = await DialogService.ShowAsync<ConfirmDialog>("Delete Attachment", parameters);
+        var res = await dlg.Result;
+        if (res?.Canceled == false)
+        {
+            try { await AdminService.DeleteAttachmentAsync(Collection, DocumentId, a.Name); Snackbar.Add("Deleted", Severity.Success); await LoadAsync(); }
+            catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        }
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes >= 1_073_741_824) return $"{bytes / 1_073_741_824.0:F1} GB";
+        if (bytes >= 1_048_576) return $"{bytes / 1_048_576.0:F1} MB";
+        if (bytes >= 1024) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes} B";
+    }
+}

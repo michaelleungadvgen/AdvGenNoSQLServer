@@ -36,6 +36,8 @@ else
             <MudTd>
                 <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small"
                                OnClick="@(() => ViewDocument(context))" Title="View" />
+                <MudIconButton Icon="@Icons.Material.Filled.AttachFile" Size="Size.Small"
+                               OnClick="@(() => OpenAttachments(context))" Title="Attachments" />
                 <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
                                OnClick="@(() => EditDocument(context))" Title="Edit" />
                 <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
@@ -107,6 +109,19 @@ else
     {
         var json = System.Text.Json.JsonSerializer.Serialize(doc);
         return json.Length > 120 ? json[..120] + "…" : json;
+    }
+
+    private async Task OpenAttachments(Dictionary<string, object> doc)
+    {
+        var id = GetId(doc);
+        if (string.IsNullOrEmpty(id)) { Snackbar.Add("Document has no _id", Severity.Warning); return; }
+        var parameters = new DialogParameters<AttachmentsDialog>
+        {
+            { x => x.Collection, _collection },
+            { x => x.DocumentId, id }
+        };
+        await DialogService.ShowAsync<AttachmentsDialog>("Attachments", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
     }
 
     private async Task ViewDocument(Dictionary<string, object> doc)
