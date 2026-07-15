@@ -46,9 +46,10 @@ Non-goals: custom roles / per-permission grants (the existing `RoleManager`/`Per
 
 **`AuthenticationManager` changes**:
 - `UserCredentials` gains `public string Role { get; set; } = UserRole.ReadWrite;`.
-- Constructor takes optional `IUserStore`; loads users from it, then seeds `admin` (role `admin`) from `MasterPassword` **only if** no `admin` user was loaded.
+- Constructor takes optional `IUserStore`; loads users from it, then seeds `admin` (role `admin`) from `MasterPassword` **only if no user with role `admin` was loaded** (so a deliberately deleted `admin` account stays deleted while another admin exists, and a lost-all-admins store still recovers via `MasterPassword`).
 - `RegisterUser(username, password, role)` (old 2-arg overload kept, defaults `readwrite`).
-- New: `SetPassword(username, newPassword)` — admin reset, no old password, revokes the user's tokens. `SetRole(username, role)`. `ListUsers()` → `(Username, Role, CreatedAt)` projections, no hashes.
+- New: `SetPassword(username, newPassword)` — admin reset, no old password, revokes the user's tokens. `SetRole(username, role)` — takes effect on the user's **next authentication**; already-connected sessions keep their old role until they reconnect (documented behavior, acceptable for an admin tool). `ListUsers()` → `(Username, Role, CreatedAt)` projections, no hashes.
+- `AuthToken` gains a `Role` property so dispatchers learn the role directly from the `Authenticate` result.
 - Every mutation (`RegisterUser`, `RemoveUser`, `ChangePassword`, `SetPassword`, `SetRole`) persists via `IUserStore.Save`.
 - Guards: `RemoveUser`/`SetRole` fail with a distinct result when the target is the **last admin** (count of users with role admin == 1 and target is it).
 
@@ -71,7 +72,7 @@ Identical hooks in both:
   1. connection not in `_authenticatedConnections` → error `AUTH_REQUIRED` ("Authenticate before sending commands").
   2. `!CommandAuthorizer.IsAllowed(command, role)` → error `FORBIDDEN` ("Role '<role>' may not run '<command>'").
 - `Handshake`, `Ping`, `Authentication` message types are never gated.
-- With `RequireAuthentication=false`, commands run anonymously exactly as today — including the user-management commands (dev mode).
+- With `RequireAuthentication=false`, commands run anonymously exactly as today — including the user-management commands (dev mode). Exception: `changepassword` still returns `AUTH_REQUIRED` without an authenticated identity (see §3). The anonymous auth success response reports `role: "admin"` so the Admin UI (which keys its Users page on the role) remains fully usable against a dev server.
 
 ### 3. User-management commands (JSON command family, both dispatchers)
 
