@@ -2,6 +2,7 @@
 @inject TcpAdminService AdminService
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <MudThemeProvider />
 <MudPopoverProvider />
@@ -21,6 +22,8 @@
                 @AdminService.Host:@AdminService.Port
             </MudChip>
             <MudText Typo="Typo.body2" Class="mr-4">@AdminService.CurrentUser</MudText>
+            <MudIconButton Icon="@Icons.Material.Filled.Password" Color="Color.Inherit"
+                           OnClick="ChangePassword" title="Change my password" />
             <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit" OnClick="Logout" />
         }
         else
@@ -53,5 +56,33 @@
         await AdminService.DisconnectAsync();
         Snackbar.Add("Logged out", Severity.Success);
         Navigation.NavigateTo("/login");
+    }
+
+    private async Task ChangePassword()
+    {
+        var oldDlg = await DialogService.ShowAsync<TextInputDialog>("Change Password", new DialogParameters<TextInputDialog>
+        {
+            { x => x.Title, "Change Password" },
+            { x => x.Message, "Current password:" },
+            { x => x.Label, "Current password" }
+        });
+        var oldRes = await oldDlg.Result;
+        if (oldRes?.Canceled != false || oldRes.Data is not string oldPw || string.IsNullOrWhiteSpace(oldPw)) return;
+
+        var newDlg = await DialogService.ShowAsync<TextInputDialog>("Change Password", new DialogParameters<TextInputDialog>
+        {
+            { x => x.Title, "Change Password" },
+            { x => x.Message, "New password (min 6 chars):" },
+            { x => x.Label, "New password" }
+        });
+        var newRes = await newDlg.Result;
+        if (newRes?.Canceled != false || newRes.Data is not string newPw || string.IsNullOrWhiteSpace(newPw)) return;
+
+        try
+        {
+            await AdminService.ChangeMyPasswordAsync(oldPw, newPw);
+            Snackbar.Add("Password changed", Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
     }
 }

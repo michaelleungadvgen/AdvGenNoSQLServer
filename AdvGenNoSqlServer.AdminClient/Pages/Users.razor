@@ -1,0 +1,160 @@
+@page "/users"
+@inject TcpAdminService AdminService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Users - AdvGenNoSQL Admin</PageTitle>
+
+<div class="d-flex align-center mb-4">
+    <MudText Typo="Typo.h4" Class="flex-grow-1">Users</MudText>
+    @if (AdminService.CurrentRole == "admin")
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd"
+                   OnClick="CreateUser">New User</MudButton>
+    }
+</div>
+
+@if (AdminService.CurrentRole != "admin")
+{
+    <MudAlert Severity="Severity.Warning">User management requires the admin role.</MudAlert>
+}
+else if (_loading)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else
+{
+    <MudTable Items="_users" Hover="true" Dense="true">
+        <HeaderContent>
+            <MudTh>Username</MudTh>
+            <MudTh>Role</MudTh>
+            <MudTh>Created</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Username">@context.Username</MudTd>
+            <MudTd DataLabel="Role">
+                <MudChip T="string" Size="Size.Small"
+                         Color="@(context.Role == "admin" ? Color.Error : context.Role == "readwrite" ? Color.Info : Color.Default)">
+                    @context.Role
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Created">@context.CreatedAt.ToLocalTime().ToString("g")</MudTd>
+            <MudTd DataLabel="Actions">
+                <MudIconButton Icon="@Icons.Material.Filled.ManageAccounts" Size="Size.Small"
+                               OnClick="@(() => ChangeRole(context))" title="Change role" />
+                <MudIconButton Icon="@Icons.Material.Filled.Password" Size="Size.Small"
+                               OnClick="@(() => ResetPassword(context))" title="Reset password" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                               Disabled="@(context.Role == "admin" && _adminCount <= 1)"
+                               OnClick="@(() => DeleteUser(context))" title="Delete" />
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private List<UserInfo> _users = new();
+    private bool _loading = true;
+    private int _adminCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AdminService.IsConnected) { Navigation.NavigateTo("/login"); return; }
+        if (AdminService.CurrentRole == "admin") await LoadAsync();
+        else _loading = false;
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _users = await AdminService.ListUsersAsync();
+            _adminCount = _users.Count(u => u.Role == "admin");
+        }
+        catch (Exception ex) { Snackbar.Add($"Failed to load users: {ex.Message}", Severity.Error); }
+        finally { _loading = false; }
+    }
+
+    private async Task<string?> PromptAsync(string title, string message, string label, string initial = "")
+    {
+        var parameters = new DialogParameters<TextInputDialog>
+        {
+            { x => x.Title, title },
+            { x => x.Message, message },
+            { x => x.Label, label },
+            { x => x.InitialValue, initial }
+        };
+        var dlg = await DialogService.ShowAsync<TextInputDialog>(title, parameters);
+        var res = await dlg.Result;
+        if (res?.Canceled == false && res.Data is string s && !string.IsNullOrWhiteSpace(s))
+            return s.Trim();
+        return null;
+    }
+
+    private async Task CreateUser()
+    {
+        var username = await PromptAsync("Create User", "Enter the username:", "Username");
+        if (username == null) return;
+        var password = await PromptAsync("Create User", "Enter a password (min 6 chars):", "Password");
+        if (password == null) return;
+        var role = await PromptAsync("Create User", "Role: admin, readwrite, or readonly", "Role", "readwrite");
+        if (role == null) return;
+
+        try
+        {
+            await AdminService.CreateUserAsync(username, password, role);
+            Snackbar.Add($"User '{username}' created", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task ChangeRole(UserInfo u)
+    {
+        var role = await PromptAsync($"Role for {u.Username}", "Role: admin, readwrite, or readonly", "Role", u.Role);
+        if (role == null) return;
+        try
+        {
+            await AdminService.SetUserRoleAsync(u.Username, role);
+            Snackbar.Add("Role updated", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task ResetPassword(UserInfo u)
+    {
+        var pw = await PromptAsync($"Reset password for {u.Username}", "Enter a new password (min 6 chars):", "New password");
+        if (pw == null) return;
+        try
+        {
+            await AdminService.SetUserPasswordAsync(u.Username, pw);
+            Snackbar.Add("Password reset", Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task DeleteUser(UserInfo u)
+    {
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.Message, $"Delete user '{u.Username}'?" },
+            { x => x.ConfirmText, "Delete" }
+        };
+        var dlg = await DialogService.ShowAsync<ConfirmDialog>("Delete User", parameters);
+        var res = await dlg.Result;
+        if (res?.Canceled == false)
+        {
+            try
+            {
+                await AdminService.DeleteUserAsync(u.Username);
+                Snackbar.Add("User deleted", Severity.Success);
+                await LoadAsync();
+            }
+            catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        }
+    }
+}

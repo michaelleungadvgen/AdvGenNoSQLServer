@@ -1,3 +1,5 @@
+@inject AdvGenNoSqlServer.AdminClient.Services.TcpAdminService AdminService
+
 <MudNavMenu>
     <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">
         Dashboard
@@ -11,4 +13,10 @@
     <MudNavLink Href="query" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Terminal">
         Console
     </MudNavLink>
+    @if (AdminService.CurrentRole == "admin")
+    {
+        <MudNavLink Href="users" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.People">
+            Users
+        </MudNavLink>
+    }
 </MudNavMenu>
