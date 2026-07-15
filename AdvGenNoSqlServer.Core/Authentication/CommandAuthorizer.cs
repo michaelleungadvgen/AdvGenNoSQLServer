@@ -44,6 +44,14 @@ public static class CommandAuthorizer
         ["setpassword"] = CommandAccess.Admin,
         ["setrole"] = CommandAccess.Admin,
         ["cluster"] = CommandAccess.Admin,
+        // Attachments — Read
+        ["listattachments"] = CommandAccess.Read,
+        ["attachmentinfo"] = CommandAccess.Read,
+        ["downloadattachment"] = CommandAccess.Read,
+        ["totalstorage"] = CommandAccess.Read,
+        // Attachments — Write
+        ["uploadattachment"] = CommandAccess.Write,
+        ["deleteattachment"] = CommandAccess.Write,
     };
 
     public static bool IsAllowed(string command, string role)

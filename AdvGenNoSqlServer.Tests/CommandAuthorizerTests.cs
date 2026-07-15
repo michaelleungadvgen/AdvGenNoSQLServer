@@ -23,6 +23,15 @@ public class CommandAuthorizerTests
     [InlineData("set", UserRole.Admin, true)]
     [InlineData("createuser", UserRole.Admin, true)]
     [InlineData("deleteuser", UserRole.Admin, true)]
+    [InlineData("listattachments", UserRole.ReadOnly, true)]
+    [InlineData("downloadattachment", UserRole.ReadOnly, true)]
+    [InlineData("attachmentinfo", UserRole.ReadOnly, true)]
+    [InlineData("totalstorage", UserRole.ReadOnly, true)]
+    [InlineData("uploadattachment", UserRole.ReadOnly, false)]
+    [InlineData("deleteattachment", UserRole.ReadOnly, false)]
+    [InlineData("uploadattachment", UserRole.ReadWrite, true)]
+    [InlineData("deleteattachment", UserRole.ReadWrite, true)]
+    [InlineData("uploadattachment", UserRole.Admin, true)]
     public void IsAllowed_MatrixMatchesSpec(string command, string role, bool expected)
         => Assert.Equal(expected, CommandAuthorizer.IsAllowed(command, role));
 
