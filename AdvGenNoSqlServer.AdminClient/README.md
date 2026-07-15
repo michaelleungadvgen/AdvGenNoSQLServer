@@ -11,6 +11,14 @@ Both admin applications coexist in the solution; this one is not a replacement.
 **Browser → Admin app:** Kestrel HTTPS on `https://localhost:7210`  
 **Admin app → NoSQL server:** `AdvGenNoSqlClient` TCP with SSL (always required)
 
+## Pages
+
+- **Dashboard** — server stats with auto-refresh.
+- **Collections** — list, create, delete collections.
+- **Documents** — paged browse, insert/edit (multiline JSON), delete.
+- **Console** — send raw JSON commands from templates.
+- **Users** *(admin role only)* — list users, create, change role, reset password, delete. The nav link appears only when the logged-in user has the `admin` role. Every user also has a "change my password" button in the top bar. Roles (`admin`/`readwrite`/`readonly`) are enforced server-side per command when the server runs with `RequireAuthentication: true`; against a dev server (`RequireAuthentication: false`) the session is treated as `admin` so all pages remain usable.
+
 ## Prerequisites
 
 ### 1. Trust the ASP.NET Core dev cert (once per machine)

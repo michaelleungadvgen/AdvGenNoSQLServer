@@ -17,6 +17,7 @@ This repository contains the AdvGen NoSQL Server — a prototype NoSQL-like serv
 - **HTTPS/SSL**: Optional TLS encryption for HTTP API
 - **Web Admin Dashboard**: Blazor WebAssembly-based management UI
 - **Full-Text Search**: Built-in text indexing and search capabilities
+- **User Management + RBAC**: Persistent user accounts (PBKDF2-hashed in `users.json`) with three built-in roles — `admin`, `readwrite`, `readonly` — enforced per TCP command when `RequireAuthentication` is enabled. Managed from the Admin UI Users page or the `createuser`/`setrole`/`setpassword`/`deleteuser`/`listusers`/`changepassword` commands.
 
 ## Installation
 
