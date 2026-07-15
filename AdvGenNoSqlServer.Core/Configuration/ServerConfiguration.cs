@@ -76,6 +76,12 @@ public class ServerConfiguration
     public string? UserStorePath { get; set; }
 
     /// <summary>
+    /// Maximum size in MB for a single document attachment (default 25).
+    /// Kept well under the 100MB protocol frame limit even after base64 encoding.
+    /// </summary>
+    public int MaxAttachmentSizeMB { get; set; } = 25;
+
+    /// <summary>
     /// Whether to enable detailed logging
     /// </summary>
     public bool EnableDetailedLogging { get; set; } = false;
