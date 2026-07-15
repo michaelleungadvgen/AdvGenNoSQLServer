@@ -70,6 +70,12 @@ public class ServerConfiguration
     public string StoragePath { get; set; } = "data";
 
     /// <summary>
+    /// Path to the JSON file holding user accounts. If empty, defaults to
+    /// &lt;StoragePath&gt;/users.json (resolved absolute like StoragePath).
+    /// </summary>
+    public string? UserStorePath { get; set; }
+
+    /// <summary>
     /// Whether to enable detailed logging
     /// </summary>
     public bool EnableDetailedLogging { get; set; } = false;
