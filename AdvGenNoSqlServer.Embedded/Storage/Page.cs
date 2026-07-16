@@ -160,6 +160,19 @@ public sealed class Page
         return new ReadOnlyMemory<byte>(Buffer, offset, length);
     }
 
+    /// <summary>
+    /// Overwrites a record in place. The new record must be no longer than the existing one
+    /// (the slot's length is updated to the new, shorter length; trailing bytes are abandoned).
+    /// </summary>
+    public void OverwriteRecord(int slot, ReadOnlySpan<byte> record)
+    {
+        (ushort offset, ushort length) = ReadSlot(slot);
+        if (record.Length > length)
+            throw new ArgumentException("Overwrite record is larger than the existing slot", nameof(record));
+        record.CopyTo(Buffer.AsSpan(offset, record.Length));
+        WriteSlot(slot, offset, (ushort)record.Length);
+    }
+
     /// <summary>Tombstones a record's slot (length set to 0). Body bytes are retained.</summary>
     public void DeleteRecord(int slot)
     {
