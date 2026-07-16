@@ -35,6 +35,10 @@ public sealed class EmbeddedDocumentStore : IDocumentStore, IDisposable
     /// <summary>The secondary-index registry (shared with the query executor).</summary>
     internal IndexRegistry Indexes => _indexes;
 
+    /// <summary>Index definitions currently in the catalog (for compaction).</summary>
+    internal IReadOnlyList<(string Collection, string Field, bool Unique)> GetIndexDefinitions()
+        => _catalog.Indexes.Select(i => (i.Collection, i.Field, i.Unique)).ToList();
+
     /// <summary>Raised after any collection's first page id changes (WAL/checkpoint hook).</summary>
     internal event Action<string, uint>? CollectionRootChanged;
 

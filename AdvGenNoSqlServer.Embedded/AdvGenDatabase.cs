@@ -17,12 +17,16 @@ public sealed class AdvGenDatabase : IDisposable, IAsyncDisposable
 {
     private const string MemoryPath = ":memory:";
 
-    private readonly EmbeddedDocumentStore _store;
-    private readonly QueryExecutor _executor;
+    private EmbeddedDocumentStore _store;
+    private QueryExecutor _executor;
     private readonly EmbeddedDatabaseOptions _options;
+    private readonly string? _path;
     private readonly Dictionary<string, EmbeddedCollection> _untyped = new();
     private readonly Dictionary<string, object> _typed = new();
     private bool _disposed;
+
+    /// <summary>Test hook: invoked during compaction just before the atomic file swap.</summary>
+    internal Action? BeforeCompactSwapHook { get; set; }
 
     /// <summary>Runtime diagnostics (e.g. typed-query fallback counter).</summary>
     public EmbeddedDiagnostics Diagnostics { get; } = new();
@@ -33,10 +37,12 @@ public sealed class AdvGenDatabase : IDisposable, IAsyncDisposable
         _options = options ?? new EmbeddedDatabaseOptions();
         if (path == MemoryPath)
         {
+            _path = null;
             _store = EmbeddedDocumentStore.CreateInMemory();
         }
         else
         {
+            _path = path;
             var wal = new WalPageStore(new FilePageStore(path), path + ".wal", _options.WalCheckpointBytes);
             _store = new EmbeddedDocumentStore(wal);
             _store.InitializeAsync().GetAwaiter().GetResult();
@@ -86,6 +92,36 @@ public sealed class AdvGenDatabase : IDisposable, IAsyncDisposable
     {
         EnsureNotDisposed();
         _store.Checkpoint();
+    }
+
+    /// <summary>
+    /// Rewrites the database file, reclaiming space from deleted documents. No-op for
+    /// <c>:memory:</c>. Blocks all other access for its duration. Re-obtain collections via
+    /// <see cref="GetCollection(string)"/> / <see cref="GetCollection{T}(string)"/> afterward.
+    /// </summary>
+    public async Task CompactAsync(CancellationToken ct = default)
+    {
+        EnsureNotDisposed();
+        if (_path == null) return; // nothing to compact for :memory:
+
+        var compactPath = _path + ".compact";
+        await Compactor.WriteCompactedCopyAsync(_store, compactPath, _options.WalCheckpointBytes, ct);
+
+        BeforeCompactSwapHook?.Invoke();
+
+        // Release the original file, then atomically replace it with the compacted copy.
+        _store.Dispose();
+        if (File.Exists(_path + ".wal")) File.Delete(_path + ".wal");
+        File.Replace(compactPath, _path, null);
+        if (File.Exists(compactPath + ".wal")) File.Delete(compactPath + ".wal");
+
+        // Reopen on the compacted file; drop cached collection wrappers bound to the old store.
+        var wal = new WalPageStore(new FilePageStore(_path), _path + ".wal", _options.WalCheckpointBytes);
+        _store = new EmbeddedDocumentStore(wal);
+        await _store.InitializeAsync();
+        _executor = new QueryExecutor(_store, new FilterEngine(), _store.Indexes.Manager);
+        _untyped.Clear();
+        _typed.Clear();
     }
 
     private void EnsureNotDisposed()
