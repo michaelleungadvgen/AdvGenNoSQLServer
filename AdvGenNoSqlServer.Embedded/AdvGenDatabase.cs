@@ -21,6 +21,7 @@ public sealed class AdvGenDatabase : IDisposable, IAsyncDisposable
     private readonly QueryExecutor _executor;
     private readonly EmbeddedDatabaseOptions _options;
     private readonly Dictionary<string, EmbeddedCollection> _untyped = new();
+    private readonly Dictionary<string, object> _typed = new();
     private bool _disposed;
 
     /// <summary>Runtime diagnostics (e.g. typed-query fallback counter).</summary>
@@ -53,7 +54,15 @@ public sealed class AdvGenDatabase : IDisposable, IAsyncDisposable
         return col;
     }
 
-    // GetCollection<T> (typed layer) is added in Task 15; CompactAsync in Task 17.
+    /// <summary>Gets (or creates) the typed collection with the given name. Same instance per name.</summary>
+    public Typed.IEmbeddedCollection<T> GetCollection<T>(string name) where T : class
+    {
+        EnsureNotDisposed();
+        if (_typed.TryGetValue(name, out var existing)) return (Typed.IEmbeddedCollection<T>)existing;
+        var col = new Typed.EmbeddedCollection<T>(name, _store, _executor, _options, Diagnostics);
+        _typed[name] = col;
+        return col;
+    }
 
     /// <summary>Lists all collection names currently in the database.</summary>
     public IReadOnlyList<string> GetCollectionNames()
@@ -68,6 +77,7 @@ public sealed class AdvGenDatabase : IDisposable, IAsyncDisposable
         EnsureNotDisposed();
         bool dropped = _store.DropCollectionAsync(name).GetAwaiter().GetResult();
         _untyped.Remove(name);
+        _typed.Remove(name);
         return dropped;
     }
 

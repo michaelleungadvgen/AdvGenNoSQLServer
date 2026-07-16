@@ -148,14 +148,41 @@ public class BTreeIndex<TKey, TValue> : IBTreeIndex<TKey, TValue> where TKey : I
         }
         else
         {
+            // A key can be promoted into an internal node during a split. If this key already
+            // lives here, append to its existing value list rather than descending (which would
+            // create a duplicate key entry in a leaf and fragment the key's values).
+            int existing = node.FindKeyIndex(key);
+            if (existing >= 0)
+            {
+                if (IsUnique)
+                {
+                    throw new DuplicateKeyException($"Duplicate key '{key}' in unique index '{Name}'");
+                }
+                node.Values[existing].Add(value);
+                Count++;
+                return true;
+            }
+
             int childIndex = node.GetChildIndex(key);
             var child = node.Children[childIndex];
 
             if (child.IsFull)
             {
                 node.SplitChild(childIndex, child);
-                // After split, determine which child to go to
-                if (key.CompareTo(node.Keys[childIndex]) > 0)
+                // After split, the median key of `child` moved up into `node` at childIndex.
+                // If our key equals that promoted key, append here; otherwise pick the side.
+                int cmp = key.CompareTo(node.Keys[childIndex]);
+                if (cmp == 0)
+                {
+                    if (IsUnique)
+                    {
+                        throw new DuplicateKeyException($"Duplicate key '{key}' in unique index '{Name}'");
+                    }
+                    node.Values[childIndex].Add(value);
+                    Count++;
+                    return true;
+                }
+                if (cmp > 0)
                 {
                     childIndex++;
                 }
