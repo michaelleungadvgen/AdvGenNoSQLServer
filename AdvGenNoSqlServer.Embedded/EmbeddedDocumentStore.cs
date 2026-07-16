@@ -214,9 +214,10 @@ public sealed class EmbeddedDocumentStore : IDocumentStore, IDisposable
             var result = new List<Document>();
             if (_collections.TryGetValue(collectionName, out var state))
             {
+                var seen = new HashSet<string>();
                 foreach (var id in documentIds)
                 {
-                    if (state.PrimaryIndex.TryGetValue(id, out var addr))
+                    if (seen.Add(id) && state.PrimaryIndex.TryGetValue(id, out var addr))
                         result.Add(DocumentSerializer.Deserialize(state.File.Read(addr).Body));
                 }
             }
