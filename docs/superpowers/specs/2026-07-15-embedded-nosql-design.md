@@ -220,3 +220,26 @@ near-mechanical; the only required call-site changes are:
   `collection.Contains(x.Field)`. Anything outside (string `Contains/StartsWith/EndsWith`,
   method calls, arithmetic) still returns correct results via automatic in-memory fallback —
   `db.Diagnostics.FallbackQueryCount` surfaces hot fallbacks so they can be reshaped or indexed.
+
+## Measured performance
+
+Indicative single-run timings (net9.0, Release, N=100,000; `AdvGenNoSqlServer.Benchmarks/EmbeddedBenchmarks.cs`
+provides the BenchmarkDotNet suite — run `dotnet run -c Release -- embedded`):
+
+| Operation | AdvGen.Embedded | LiteDB |
+|---|---|---|
+| Insert 100,000 | ~60 s | ~2.4 s |
+| Cold open + count 100,000 | ~1.17 s | n/a |
+| 1,000 point lookups by id | ~15 ms | n/a |
+| 100 indexed equality queries (~1k hits each) | ~1.27 s | n/a |
+
+**Cold-open assumption (AD-3) validated:** rebuilding all in-memory indexes from a 100k-document
+file on open takes ~1.17 s — under the ~2 s flag threshold, so the rebuild-on-open design holds
+for v1. Persisted index pages remain deferred future work.
+
+**Insert throughput is the known cost:** ~25× slower than LiteDB on bulk insert because every
+write is its own fsync-committed WAL transaction (100k fsyncs), where LiteDB batches. This is the
+durability-first tradeoff for v1. The obvious future optimization is a batched-commit / bulk-insert
+path (append many records, one WAL commit + fsync) — the WAL frame design already supports it.
+Point lookups and cold open, the read-heavy paths that matter for the AdvGenPriceComparer use case,
+are fast.

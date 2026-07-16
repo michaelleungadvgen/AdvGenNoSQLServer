@@ -67,6 +67,11 @@ public class Program
                     BenchmarkRunner.Run<SerializationBenchmarks>(config);
                     break;
 
+                case "embedded":
+                case "7":
+                    BenchmarkRunner.Run<EmbeddedBenchmarks>(config, args.Skip(1).ToArray());
+                    break;
+
                 case "all":
                 case "6":
                     BenchmarkRunner.Run(typeof(Program).Assembly, config);
