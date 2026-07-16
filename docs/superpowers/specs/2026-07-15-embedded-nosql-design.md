@@ -200,3 +200,23 @@ Unit boundaries worth naming: `IPageStore` isolates file vs memory backends; `Wr
 - Persisted index pages (faster open on large files) — format version bump.
 - Full-text, geospatial, TTL collections, change streams — the decorator pattern over `IDocumentStore` keeps these addable.
 - Cross-process shared access.
+
+## Migration notes (AdvGenPriceComparer → AdvGenNoSqlServer.Embedded)
+
+Verified by `MigrationSmokeTests`, which runs an AlertRepository-shaped script against both
+LiteDB and `AdvGenDatabase` and asserts identical observable results. The migration is
+near-mechanical; the only required call-site changes are:
+
+- **Ids: LiteDB `ObjectId` → `string`.** Change entity ids from `[BsonId] ObjectId Id` to a
+  plain `public string Id`. `Insert` returns the assigned `string` id directly (no `BsonValue`
+  unwrapping), so `insertedId.IsObjectId ? ... : insertedId.ToString()` collapses to the
+  returned string. `ObjectIdHelper.TryParseObjectId(...)` guards are dropped — pass the string
+  id straight to `FindById(id)` / `Delete(id)`.
+- **Database handle:** `new LiteDatabase(connString)` → `new AdvGenDatabase(path)` (or
+  `":memory:"`). `GetCollection<T>(name)`, `EnsureIndex(x => x.Prop)`, `Insert`, `Update`,
+  `Upsert`, `Delete`, `FindById`, `FindOne`, `Find`, `FindAll`, `Count`, and `Query()` all keep
+  the same signatures.
+- **Query subset:** predicate translation covers `== != < <= > >= && ||`, bool members, and
+  `collection.Contains(x.Field)`. Anything outside (string `Contains/StartsWith/EndsWith`,
+  method calls, arithmetic) still returns correct results via automatic in-memory fallback —
+  `db.Diagnostics.FallbackQueryCount` surfaces hot fallbacks so they can be reshaped or indexed.
