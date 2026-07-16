@@ -4,6 +4,7 @@
 
 using AdvGenNoSqlServer.Core.Abstractions;
 using AdvGenNoSqlServer.Core.Models;
+using AdvGenNoSqlServer.Embedded.Indexing;
 using AdvGenNoSqlServer.Embedded.Storage;
 
 namespace AdvGenNoSqlServer.Embedded;
@@ -28,7 +29,11 @@ public sealed class EmbeddedDocumentStore : IDocumentStore, IDisposable
     private readonly Action<Page> _persist;
     private readonly Dictionary<string, CollectionState> _collections = new();
     private readonly ReaderWriterLockSlim _lock = new(LockRecursionPolicy.NoRecursion);
+    private readonly IndexRegistry _indexes = new();
     private bool _initialized;
+
+    /// <summary>The secondary-index registry (shared with the query executor).</summary>
+    internal IndexRegistry Indexes => _indexes;
 
     /// <summary>Raised after any collection's first page id changes (WAL/checkpoint hook).</summary>
     internal event Action<string, uint>? CollectionRootChanged;
@@ -105,6 +110,16 @@ public sealed class EmbeddedDocumentStore : IDocumentStore, IDisposable
                     state.PrimaryIndex[id] = addr;
                 _collections[def.Name] = state;
             }
+
+            // Rebuild secondary indexes from catalog definitions, then backfill from documents.
+            foreach (var idx in _catalog.Indexes)
+                _indexes.CreateIndex(idx.Collection, idx.Field, idx.Unique);
+            foreach (var (name, state) in _collections)
+            {
+                if (!_indexes.HasAnyIndex(name)) continue;
+                foreach (var addr in state.PrimaryIndex.Values)
+                    _indexes.ApplyInsert(name, DocumentSerializer.Deserialize(state.File.Read(addr).Body));
+            }
             _initialized = true;
         }
         finally { _lock.ExitWriteLock(); }
@@ -155,10 +170,12 @@ public sealed class EmbeddedDocumentStore : IDocumentStore, IDisposable
                 Version = 1,
             };
             var bytes = DocumentSerializer.Serialize(stored);
+            _indexes.CheckInsert(collectionName, stored);
             var addr = state.File.Insert(id, bytes);
             SyncFirstPage(collectionName, state);
             Commit();
             state.PrimaryIndex[id] = addr;
+            _indexes.ApplyInsert(collectionName, stored);
             return Task.FromResult(stored);
         }
         catch { Rollback(); throw; }
@@ -250,10 +267,12 @@ public sealed class EmbeddedDocumentStore : IDocumentStore, IDisposable
                 Version = existing.Version + 1,
             };
             var bytes = DocumentSerializer.Serialize(updated);
+            _indexes.CheckUpdate(collectionName, updated, existing);
             var newAddr = state.File.Update(addr, document.Id, bytes);
             SyncFirstPage(collectionName, state);
             Commit();
             state.PrimaryIndex[document.Id] = newAddr;
+            _indexes.ApplyUpdate(collectionName, existing, updated);
             return Task.FromResult(updated);
         }
         catch { Rollback(); throw; }
@@ -272,9 +291,12 @@ public sealed class EmbeddedDocumentStore : IDocumentStore, IDisposable
             if (_collections.TryGetValue(collectionName, out var state) &&
                 state.PrimaryIndex.TryGetValue(documentId, out var addr))
             {
+                Document? doc = _indexes.HasAnyIndex(collectionName)
+                    ? DocumentSerializer.Deserialize(state.File.Read(addr).Body) : null;
                 state.File.Delete(addr);
                 Commit();
                 state.PrimaryIndex.Remove(documentId);
+                if (doc != null) _indexes.ApplyDelete(collectionName, doc);
                 return Task.FromResult(true);
             }
             return Task.FromResult(false);
@@ -333,6 +355,7 @@ public sealed class EmbeddedDocumentStore : IDocumentStore, IDisposable
             _catalog.RemoveCollection(collectionName);
             Commit();
             _collections.Remove(collectionName);
+            _indexes.ApplyDrop(collectionName);
             return Task.FromResult(true);
         }
         catch { Rollback(); throw; }
@@ -356,12 +379,48 @@ public sealed class EmbeddedDocumentStore : IDocumentStore, IDisposable
         {
             if (_collections.TryGetValue(collectionName, out var state))
             {
+                var docs = _indexes.HasAnyIndex(collectionName)
+                    ? state.PrimaryIndex.Values.Select(a => DocumentSerializer.Deserialize(state.File.Read(a).Body)).ToList()
+                    : null;
                 foreach (var addr in state.PrimaryIndex.Values.ToList())
                     state.File.Delete(addr);
                 Commit();
                 state.PrimaryIndex.Clear();
+                if (docs != null) foreach (var d in docs) _indexes.ApplyDelete(collectionName, d);
             }
             return Task.CompletedTask;
+        }
+        catch { Rollback(); throw; }
+        finally { _lock.ExitWriteLock(); }
+    }
+
+    /// <summary>
+    /// Ensures a secondary index on a field exists, creating and backfilling it if not.
+    /// Returns true if the index was created, false if it already existed.
+    /// </summary>
+    public Task<bool> EnsureIndexAsync(string collectionName, string field, bool unique = false, CancellationToken cancellationToken = default)
+    {
+        ValidateCollectionName(collectionName);
+        if (string.IsNullOrWhiteSpace(field))
+            throw new ArgumentException("Field name cannot be empty", nameof(field));
+
+        _lock.EnterWriteLock();
+        try
+        {
+            if (_indexes.HasIndex(collectionName, field)) return Task.FromResult(false);
+            var state = GetOrCreate(collectionName);
+            _catalog.AddIndex(new IndexDef
+            {
+                Collection = collectionName,
+                Field = field,
+                Name = $"{collectionName}_{field}_idx",
+                Unique = unique,
+            });
+            Commit();
+            _indexes.CreateIndex(collectionName, field, unique);
+            foreach (var addr in state.PrimaryIndex.Values)
+                _indexes.ApplyInsert(collectionName, DocumentSerializer.Deserialize(state.File.Read(addr).Body));
+            return Task.FromResult(true);
         }
         catch { Rollback(); throw; }
         finally { _lock.ExitWriteLock(); }
