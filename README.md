@@ -20,6 +20,20 @@ This repository contains the AdvGen NoSQL Server — a prototype NoSQL-like serv
 - **User Management + RBAC**: Persistent user accounts (PBKDF2-hashed in `users.json`) with three built-in roles — `admin`, `readwrite`, `readonly` — enforced per TCP command when `RequireAuthentication` is enabled. Managed from the Admin UI Users page or the `createuser`/`setrole`/`setpassword`/`deleteuser`/`listusers`/`changepassword` commands.
 - **Document Attachments**: attach binary files to documents over TCP (`uploadattachment`/`downloadattachment`/`listattachments`/`attachmentinfo`/`deleteattachment`/`totalstorage`, bytes base64-encoded, SHA-256 verified, size-capped by `MaxAttachmentSizeMB`). RBAC-gated (view/download = Read, upload/delete = Write). Managed from the Admin UI via a paperclip on each Documents row, with total storage on the Dashboard.
 
+## Embedded mode (no server)
+
+For local/desktop apps that don't need a server, **`AdvGenNoSqlServer.Embedded`** is a single-file, in-process, LiteDB-style document database built on the same Core/Storage/Query components — one `.agdb` file, WAL durability, secondary indexes, and a LINQ-style typed API:
+
+```csharp
+using var db = new AdvGenDatabase("prices.agdb");   // or ":memory:"
+var items = db.GetCollection<Item>("items");
+items.EnsureIndex(x => x.Barcode);
+items.Insert(new Item { Name = "Milk 2L", Barcode = "93052001" });
+var cheap = items.Find(x => x.Price < 3.0m && x.IsActive);
+```
+
+See [AdvGenNoSqlServer.Embedded/README.md](AdvGenNoSqlServer.Embedded/README.md) for the full quick start, query subset, and LiteDB migration guide.
+
 ## Installation
 
 Install the client library via NuGet:

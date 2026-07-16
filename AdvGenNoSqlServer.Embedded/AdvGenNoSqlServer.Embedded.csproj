@@ -4,7 +4,20 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+    <PackageId>AdvGenNoSqlServer.Embedded</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>AdvanGeneration Pty. Ltd.</Authors>
+    <Description>Local, in-process, single-file LiteDB-style embedded document database built on AdvGenNoSQL. WAL durability, secondary indexes, LINQ-style typed API. No server required.</Description>
+    <PackageTags>nosql;embedded;document-database;litedb;local;single-file;wal</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="AdvGenNoSqlServer.Embedded.Tests" />
   </ItemGroup>
