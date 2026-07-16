@@ -13,7 +13,7 @@ namespace AdvGenNoSqlServer.Embedded.Storage;
 /// opener gets an <see cref="EmbeddedDatabaseLockedException"/>. Not thread-safe; the
 /// engine serializes access.
 /// </summary>
-public sealed class FilePageStore : IPageStore
+public sealed class FilePageStore : IPageStore, ICatalogRootStore
 {
     private const ushort FormatVersion = 1;
 

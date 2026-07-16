@@ -23,6 +23,7 @@ public sealed class EmbeddedDocumentStore : IDocumentStore, IDisposable
     }
 
     private readonly IPageStore _store;
+    private readonly ITransactionalPageStore? _txn;
     private readonly Catalog _catalog;
     private readonly Action<Page> _persist;
     private readonly Dictionary<string, CollectionState> _collections = new();
@@ -32,6 +33,9 @@ public sealed class EmbeddedDocumentStore : IDocumentStore, IDisposable
     /// <summary>Raised after any collection's first page id changes (WAL/checkpoint hook).</summary>
     internal event Action<string, uint>? CollectionRootChanged;
 
+    /// <summary>Test hook: invoked just before a write op commits (to simulate mid-op failure).</summary>
+    internal Action? BeforeCommitHook { get; set; }
+
     /// <summary>Creates a store over the given page store. Call <see cref="InitializeAsync"/> before use.</summary>
     public EmbeddedDocumentStore(IPageStore store) : this(store, store.WritePage) { }
 
@@ -39,13 +43,25 @@ public sealed class EmbeddedDocumentStore : IDocumentStore, IDisposable
     public EmbeddedDocumentStore(IPageStore store, Action<Page> persistPage)
     {
         _store = store;
+        _txn = store as ITransactionalPageStore;
         _persist = persistPage;
-        uint root = store is FilePageStore fps ? fps.CatalogRootPageId : 0;
+        uint root = store is ICatalogRootStore crs ? crs.CatalogRootPageId : 0;
         _catalog = new Catalog(store, root, persistPage, id =>
         {
-            if (store is FilePageStore f) f.CatalogRootPageId = id;
+            if (store is ICatalogRootStore c) c.CatalogRootPageId = id;
         });
     }
+
+    private void Commit()
+    {
+        BeforeCommitHook?.Invoke();
+        _txn?.CommitTransaction();
+    }
+
+    private void Rollback() => _txn?.RollbackTransaction();
+
+    /// <summary>Forces a checkpoint (flush committed pages to the main file).</summary>
+    public void Checkpoint() => _txn?.Checkpoint();
 
     /// <summary>Creates an in-memory store, already initialized.</summary>
     public static EmbeddedDocumentStore CreateInMemory()
@@ -53,6 +69,26 @@ public sealed class EmbeddedDocumentStore : IDocumentStore, IDisposable
         var store = new EmbeddedDocumentStore(new MemoryPageStore());
         store.InitializeAsync().GetAwaiter().GetResult();
         return store;
+    }
+
+    /// <summary>
+    /// Opens a WAL-backed file store, replaying any committed WAL frames first. The store is
+    /// initialized and ready to use.
+    /// </summary>
+    public static EmbeddedDocumentStore OpenFile(string path, long walCheckpointBytes = 4L * 1024 * 1024)
+    {
+        var wal = new WalPageStore(new FilePageStore(path), path + ".wal", walCheckpointBytes);
+        var store = new EmbeddedDocumentStore(wal);
+        store.InitializeAsync().GetAwaiter().GetResult();
+        return store;
+    }
+
+    /// <summary>Test hook: closes streams without checkpointing, simulating a crash.</summary>
+    internal void SimulateCrash()
+    {
+        if (_store is WalPageStore wal) wal.Abort();
+        else _store.Dispose();
+        _lock.Dispose();
     }
 
     /// <summary>Loads the catalog and rebuilds primary indexes from the pages.</summary>
@@ -118,11 +154,14 @@ public sealed class EmbeddedDocumentStore : IDocumentStore, IDisposable
                 UpdatedAt = now,
                 Version = 1,
             };
-            var addr = state.File.Insert(id, DocumentSerializer.Serialize(stored));
-            state.PrimaryIndex[id] = addr;
+            var bytes = DocumentSerializer.Serialize(stored);
+            var addr = state.File.Insert(id, bytes);
             SyncFirstPage(collectionName, state);
+            Commit();
+            state.PrimaryIndex[id] = addr;
             return Task.FromResult(stored);
         }
+        catch { Rollback(); throw; }
         finally { _lock.ExitWriteLock(); }
     }
 
@@ -210,11 +249,14 @@ public sealed class EmbeddedDocumentStore : IDocumentStore, IDisposable
                 UpdatedAt = DateTime.UtcNow,
                 Version = existing.Version + 1,
             };
-            var newAddr = state.File.Update(addr, document.Id, DocumentSerializer.Serialize(updated));
-            state.PrimaryIndex[document.Id] = newAddr;
+            var bytes = DocumentSerializer.Serialize(updated);
+            var newAddr = state.File.Update(addr, document.Id, bytes);
             SyncFirstPage(collectionName, state);
+            Commit();
+            state.PrimaryIndex[document.Id] = newAddr;
             return Task.FromResult(updated);
         }
+        catch { Rollback(); throw; }
         finally { _lock.ExitWriteLock(); }
     }
 
@@ -231,11 +273,13 @@ public sealed class EmbeddedDocumentStore : IDocumentStore, IDisposable
                 state.PrimaryIndex.TryGetValue(documentId, out var addr))
             {
                 state.File.Delete(addr);
+                Commit();
                 state.PrimaryIndex.Remove(documentId);
                 return Task.FromResult(true);
             }
             return Task.FromResult(false);
         }
+        catch { Rollback(); throw; }
         finally { _lock.ExitWriteLock(); }
     }
 
@@ -273,7 +317,8 @@ public sealed class EmbeddedDocumentStore : IDocumentStore, IDisposable
     {
         ValidateCollectionName(collectionName);
         _lock.EnterWriteLock();
-        try { GetOrCreate(collectionName); return Task.CompletedTask; }
+        try { GetOrCreate(collectionName); Commit(); return Task.CompletedTask; }
+        catch { Rollback(); throw; }
         finally { _lock.ExitWriteLock(); }
     }
 
@@ -284,10 +329,13 @@ public sealed class EmbeddedDocumentStore : IDocumentStore, IDisposable
         _lock.EnterWriteLock();
         try
         {
-            if (!_collections.Remove(collectionName)) return Task.FromResult(false);
+            if (!_collections.ContainsKey(collectionName)) return Task.FromResult(false);
             _catalog.RemoveCollection(collectionName);
+            Commit();
+            _collections.Remove(collectionName);
             return Task.FromResult(true);
         }
+        catch { Rollback(); throw; }
         finally { _lock.ExitWriteLock(); }
     }
 
@@ -310,10 +358,12 @@ public sealed class EmbeddedDocumentStore : IDocumentStore, IDisposable
             {
                 foreach (var addr in state.PrimaryIndex.Values.ToList())
                     state.File.Delete(addr);
+                Commit();
                 state.PrimaryIndex.Clear();
             }
             return Task.CompletedTask;
         }
+        catch { Rollback(); throw; }
         finally { _lock.ExitWriteLock(); }
     }
 
