@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AdvGenNoSqlServer.Core\AdvGenNoSqlServer.Core.csproj" />
+    <ProjectReference Include="..\AdvGenNoSqlServer.Storage\AdvGenNoSqlServer.Storage.csproj" />
+    <ProjectReference Include="..\AdvGenNoSqlServer.Query\AdvGenNoSqlServer.Query.csproj" />
+    <PackageReference Include="System.IO.Hashing" Version="9.0.0" />
+  </ItemGroup>
+</Project>
