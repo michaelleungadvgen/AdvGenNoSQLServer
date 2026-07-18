@@ -59,6 +59,7 @@ AdvGenNoSQLServer/
 ├── AdvGenNoSqlServer.Storage/       # Storage engine
 │   └── FullText/                    # Full-text search indexes
 ├── AdvGenNoSqlServer.Tests/         # Unit tests
+├── AdvGenNoSqlServer.Examples.Wpf/  # WPF todo example (Embedded library, net9.0-windows)
 └── Example.ConsoleApp/              # Example application
 ```
 
