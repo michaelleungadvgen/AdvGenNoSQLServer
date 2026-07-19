@@ -545,6 +545,8 @@ AdvGenNoSQLServer/
 | User Guide | ✓ Complete | 100% | End-user documentation (Agent-31) |
 | Developer Guide | ✓ Complete | 100% | Contributor documentation (Agent-31) |
 | Performance Tuning | ✓ Complete | 100% | Optimization guide (Agent-31) |
+| Deployment Guide | ✓ Complete | 100% | Docker, env vars, reverse proxy, backup (July 2026 hardening) |
+| Production Readiness | ✓ Complete | 100% | Hardening record + residual known issues (July 2026 hardening) |
 
 ---
 

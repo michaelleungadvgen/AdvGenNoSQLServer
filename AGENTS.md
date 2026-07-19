@@ -41,6 +41,20 @@ dotnet test AdvGenNoSqlServer.Tests/AdvGenNoSqlServer.Tests.csproj --filter "Ful
 
 ---
 
+## Production Deployment
+
+- **Docker**: `docker build -t advgen-nosql-server .` (multi-stage, non-root, Linux)
+- **Run**: requires `NOSQL_MASTER_PASSWORD` + `NOSQL_JWT_SECRET_KEY` env vars (Production
+  config validation fails fast without them); TLS PFX mounted at `/certs`, data at `/data`
+- **Ops endpoints**: `GET /health`, `GET /health/ready` (anonymous), `GET /metrics` (JWT)
+- **Docs**: [Documentation/Deployment.md](Documentation/Deployment.md) (env-var reference,
+  reverse proxy, backup, checklist) and [Documentation/ProductionReadiness.md](Documentation/ProductionReadiness.md)
+  (hardening record + residual known issues)
+- **Config**: `appsettings.{DOTNET_ENVIRONMENT}.json` overlays the base file; `NOSQL_*`
+  env vars override both. Malformed config is fatal in Production.
+
+---
+
 ## Project Structure
 
 ```
