@@ -4,7 +4,7 @@
 **License**: MIT License  
 **Framework**: .NET 9.0
 **Status**: Active Development
-**Last Updated**: March 20, 2026 (Updated by Agent-65)  
+**Last Updated**: July 18, 2026 (stale-item cleanup by Kimi)  
 
 ---
 
@@ -39,7 +39,7 @@
 | Phase 4: Storage Engine | 🟢 **Complete** | 85% | ✓ Done |
 | Phase 5: Query Engine | 🟢 **Complete** | 95% | ✓ Done |
 | Phase 6: Transactions | 🟢 **Complete** | 100% | ✓ Done |
-| Phase 7: Caching & Perf | 🟡 **In Progress** | 80% | Week 13-14 |
+| Phase 7: Caching & Perf | 🟢 **Complete** | 100% | ✓ Done |
 | Phase 8: Testing & Hardening | 🟢 **Complete** | 100% | ✓ Done |
 
 ---
@@ -106,6 +106,12 @@ AdvGenNoSQLServer/
 │   ├── Shared/                           # 🟢 Shared components (complete)
 │   ├── Services/                         # 🟢 Admin services (complete)
 │   └── wwwroot/                          # 🟢 Static assets (complete)
+│
+├── AdvGenNoSqlServer.AdminClient/        # 🟢 Blazor admin client
+│
+├── AdvGenNoSqlServer.Embedded/           # 🟢 Embedded engine (page store + WAL, typed & untyped collections)
+│
+├── AdvGenNoSqlServer.Embedded.Tests/     # 🟢 Embedded engine tests
 │
 ├── AdvGenNoSqlServer.Network/            # 🟢 Network layer (100% complete)
 │   ├── TcpServer.cs                      # 🟢 Async TCP listener (complete)
@@ -195,6 +201,8 @@ AdvGenNoSQLServer/
 │   ├── README.md                         # Usage documentation
 │   └── Example.ConsoleApp.csproj         # Project file
 │
+├── AdvGenNoSqlServer.Examples.Wpf/       # 🟢 WPF todo/notes example (Embedded library, net9.0-windows)
+│
 ├── Documentation/
 │   ├── plan.md                           # 🟢 Development plan (complete)
 │   ├── PROJECT_STATUS.md                 # 🟢 This file (complete)
@@ -274,7 +282,7 @@ AdvGenNoSQLServer/
 - [x] Unit test coverage (25 tests)
 
 **Remaining**:
-- [ ] Integration tests with server (pending server-side message handling fix)
+- ~~[ ] Integration tests with server~~ ✓ COMPLETED (Agent-22)
 
 ### 🟢 Core Functionality (100% Complete)
 **Status**: ✓ COMPLETE - All core features implemented
@@ -325,9 +333,9 @@ AdvGenNoSQLServer/
 - [x] Performance benchmarks (BenchmarkDotNet suite)
 
 **Remaining**:
-- [ ] Integration tests (10 pending server-side fix)
-- [ ] Stress tests
-- [ ] Load testing
+- ~~[ ] Integration tests~~ ✓ COMPLETED (Agent-22)
+- ~~[ ] Stress tests~~ ✓ COMPLETED (Agent-23)
+- ~~[ ] Load testing~~ ✓ COMPLETED (Agent-26)
 
 ---
 
@@ -434,8 +442,8 @@ AdvGenNoSQLServer/
   - DocumentStore, QueryEngine, BTreeIndex, Cache, Serialization
 - [x] Hot configuration reload with FileSystemWatcher (Agent-28, 17 tests)
 
-### 🟡 Testing & Hardening (50% Complete)
-**Status**: In Progress
+### 🟢 Testing & Hardening (100% Complete)
+**Status**: ✓ COMPLETE
 
 **Completed**:
 - [x] Comprehensive unit tests (765+ tests passing)
@@ -558,16 +566,12 @@ AdvGenNoSQLServer/
 5. ~~**Test Coverage Low**~~ ✓ RESOLVED
    - 723+ unit tests, ~90% coverage
 
-### Medium Priority (Active)
-1. **Integration Tests Pending**
-   - 10 client-server integration tests pending server-side message handling fix
-   - Impact: Cannot verify end-to-end flow
-   - Target: Week 15
+### Medium Priority (Resolved)
+1. **Integration Tests** ✓ RESOLVED (Agent-22)
+   - All 25 client-server integration tests passing
 
-2. **SSL/TLS Not Implemented**
-   - Transport encryption not yet available
-   - Impact: Data in transit not encrypted
-   - Target: Week 15
+2. **SSL/TLS** ✓ RESOLVED (Agent-27)
+   - Transport encryption, certificate management, TLS 1.3 enforcement implemented
 
 3. **B-tree Edge Cases** ✓ RESOLVED
    - ~~Tree splitting for datasets >16 items needs refinement (17 tests skipped)~~ ✓ FIXED (Agent-32)
@@ -575,15 +579,11 @@ AdvGenNoSQLServer/
    - Test count: 77/77 B-tree tests passing (previously 17 skipped)
 
 ### Low Priority
-1. **Query Optimizer**
-   - Cost-based query plan selection not implemented
-   - Impact: May not use optimal indexes for complex queries
-   - Priority: Future enhancement
+1. **Query Optimizer** ✓ RESOLVED (Agent-90)
+   - Cost-based query plan selection implemented
 
-2. **Full MVCC**
-   - Multi-Version Concurrency Control not fully implemented
-   - Impact: Serializable isolation uses locking instead of MVCC
-   - Priority: Future enhancement
+2. **Full MVCC** ✓ RESOLVED (Agent-99)
+   - Multi-Version Concurrency Control implemented for Serializable isolation (version chains, snapshot reads)
 
 3. ~~**Hot Configuration Reload**~~ ✓ COMPLETED
    - FileSystemWatcher-based hot-reload implemented (Agent-28)

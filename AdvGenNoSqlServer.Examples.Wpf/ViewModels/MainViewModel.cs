@@ -7,21 +7,22 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Input;
+using AdvGenNoSqlServer.Embedded;
 using AdvGenNoSqlServer.Embedded.Typed;
 using AdvGenNoSqlServer.Examples.Wpf.Models;
 
 namespace AdvGenNoSqlServer.Examples.Wpf.ViewModels;
 
 /// <summary>
-/// Drives the todo window against a typed embedded collection. All database work goes
-/// through the async API variants so the UI thread stays responsive; the sync members
-/// (<see cref="IEmbeddedCollection{T}.Count()"/>, DeleteMany) are documented safe
-/// blocking wrappers and are used only for micro-operations.
+/// Drives the typed-API (todos) tab against an <see cref="IEmbeddedCollection{T}"/> and owns
+/// the untyped-API (notes) tab view model. All database work goes through the async API
+/// variants so the UI thread stays responsive.
 /// </summary>
 public sealed class MainViewModel : INotifyPropertyChanged
 {
     private enum Filter { All, Active, Completed }
 
+    private readonly AdvGenDatabase _db;
     private readonly IEmbeddedCollection<TodoItem> _todos;
     private Filter _filter = Filter.All;
     private string _newTitle = string.Empty;
@@ -29,17 +30,23 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private TodoItem? _selectedItem;
     private string _statusText = string.Empty;
 
-    public MainViewModel(IEmbeddedCollection<TodoItem> todos)
+    public MainViewModel(AdvGenDatabase db)
     {
-        _todos = todos;
+        _db = db;
+        _todos = db.GetCollection<TodoItem>("todos");
+        Notes = new NotesViewModel(db);
 
         AddCommand = new RelayCommand(AddAsync, () => !string.IsNullOrWhiteSpace(NewTitle));
         DeleteCommand = new RelayCommand(DeleteAsync, () => SelectedItem is not null);
         ClearCompletedCommand = new RelayCommand(ClearCompletedAsync);
         RefreshCommand = new RelayCommand(LoadAsync);
+        CheckpointCommand = new RelayCommand(Checkpoint);
 
         _ = LoadAsync();
     }
+
+    /// <summary>View model backing the untyped document API demo tab.</summary>
+    public NotesViewModel Notes { get; }
 
     /// <summary>The currently visible items, matching the active filter and search text.</summary>
     public ObservableCollection<TodoItem> Items { get; } = new();
@@ -96,6 +103,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ICommand DeleteCommand { get; }
     public ICommand ClearCompletedCommand { get; }
     public ICommand RefreshCommand { get; }
+    public ICommand CheckpointCommand { get; }
 
     /// <summary>Reloads the visible items using a fluent query against the collection.</summary>
     private async Task LoadAsync()
@@ -124,7 +132,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 Items.Add(item);
             }
 
-            UpdateStatus();
+            await UpdateStatusAsync();
         }
         catch (Exception ex)
         {
@@ -154,8 +162,19 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private async Task ClearCompletedAsync()
     {
-        _todos.DeleteMany(x => x.IsCompleted);
+        var answer = MessageBox.Show("Delete all completed items?", "Clear completed",
+            MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (answer != MessageBoxResult.Yes) return;
+
+        await _todos.DeleteManyAsync(x => x.IsCompleted);
         await LoadAsync();
+    }
+
+    /// <summary>Flushes the write-ahead log into the main database file.</summary>
+    private void Checkpoint()
+    {
+        _db.Checkpoint();
+        StatusText = "WAL checkpoint complete — all changes flushed to the main database file.";
     }
 
     /// <summary>Persists edits pushed from the DataGrid (checkbox toggles, title edits).</summary>
@@ -167,7 +186,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         try
         {
             await _todos.UpdateAsync(item);
-            UpdateStatus();
+            await UpdateStatusAsync();
         }
         catch (Exception ex)
         {
@@ -185,11 +204,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _ = LoadAsync();
     }
 
-    private void UpdateStatus()
+    private async Task UpdateStatusAsync()
     {
-        var total = _todos.Count();
-        var active = _todos.Count(x => !x.IsCompleted);
-        StatusText = $"{total} item(s) stored, {active} active, {total - active} completed";
+        var total = await _todos.CountAsync();
+        var active = await _todos.CountAsync(x => !x.IsCompleted);
+        // The title search uses string.Contains, which the translator deliberately evaluates
+        // in memory; the fallback counter makes that visible as you type.
+        StatusText = $"{total} item(s) stored, {active} active, {total - active} completed" +
+                     $" — in-memory fallback queries: {_db.Diagnostics.FallbackQueryCount}";
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

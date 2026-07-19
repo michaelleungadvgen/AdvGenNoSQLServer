@@ -29,11 +29,29 @@ public partial class App : Application
             "AdvGenNoSqlServer", "WpfTodoExample");
         Directory.CreateDirectory(dataDir);
 
-        _database = new AdvGenDatabase(Path.Combine(dataDir, "todos.agdb"));
-        var todos = _database.GetCollection<TodoItem>("todos");
-        todos.EnsureIndex(x => x.IsCompleted);
+        try
+        {
+            _database = new AdvGenDatabase(Path.Combine(dataDir, "todos.agdb"));
+            _database.GetCollection<TodoItem>("todos").EnsureIndex(x => x.IsCompleted);
+        }
+        catch (EmbeddedDatabaseLockedException)
+        {
+            // An open database file is locked exclusively - a second instance cannot open it.
+            MessageBox.Show(
+                "The database file is locked by another process. Is another instance of the app already running?",
+                "Database locked", MessageBoxButton.OK, MessageBoxImage.Warning);
+            Shutdown(1);
+            return;
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Failed to open the database:\n{ex.Message}",
+                "Startup error", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown(1);
+            return;
+        }
 
-        var window = new MainWindow { DataContext = new MainViewModel(todos) };
+        var window = new MainWindow { DataContext = new MainViewModel(_database) };
         window.Show();
     }
 

@@ -5007,21 +5007,7 @@ dotnet run --configuration Release -- DocumentStore # Run document store benchma
 
 ## Available Tasks (Not Started)
 
-From PROJECT_STATUS.md - Phase 2 (Network & TCP):
-- [ ] Client Library TCP connection implementation
-- [ ] Message protocol implementation  
-- [ ] Connection pooling on client side
-- [ ] Network tests
-
-From Phase 3 (Security):
-- [ ] User authentication system
-- [ ] JWT token provider
-- [ ] Role-based access control
-
-From Phase 4 (Storage):
-- [ ] Document store implementation
-- [ ] File-based persistence
-- [ ] B-tree indexing
+_(None. This section historically listed Phase 2/3/4 items — client TCP connection, JWT/RBAC, document store, B-tree indexing — all completed in March 2026. See PROJECT_STATUS.md for the current state.)_
 
 ---
 
