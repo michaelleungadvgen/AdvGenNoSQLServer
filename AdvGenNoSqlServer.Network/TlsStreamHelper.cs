@@ -119,7 +119,7 @@ namespace AdvGenNoSqlServer.Network
             if (!configuration.EnableSsl)
                 throw new InvalidOperationException("SSL is not enabled in configuration");
 
-            var certificate = LoadCertificate(configuration);
+            var certificate = LoadServerCertificateCached(configuration);
             if (certificate == null)
                 throw new InvalidOperationException("Failed to load SSL certificate");
 
@@ -259,6 +259,37 @@ namespace AdvGenNoSqlServer.Network
             {
                 sslStream.Dispose();
                 throw;
+            }
+        }
+
+        private static readonly object _serverCertCacheLock = new();
+        private static X509Certificate2? _cachedServerCert;
+        private static string? _cachedServerCertKey;
+
+        /// <summary>
+        /// Loads the server certificate once per configuration and caches it. Per-connection
+        /// handshakes must not re-read and re-parse the PFX from disk. A process restart is
+        /// required to pick up a changed certificate (validate at startup, see hosts).
+        /// </summary>
+        public static X509Certificate2? LoadServerCertificateCached(ServerConfiguration configuration)
+        {
+            var key = configuration.UseCertificateStore
+                ? $"store:{configuration.SslCertificateThumbprint}"
+                : $"file:{configuration.SslCertificatePath}:{configuration.SslCertificatePassword}";
+
+            lock (_serverCertCacheLock)
+            {
+                if (_cachedServerCert != null && _cachedServerCertKey == key)
+                    return _cachedServerCert;
+
+                var cert = LoadCertificate(configuration);
+                if (cert != null)
+                {
+                    _cachedServerCert?.Dispose();
+                    _cachedServerCert = cert;
+                    _cachedServerCertKey = key;
+                }
+                return cert;
             }
         }
 

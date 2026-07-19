@@ -46,5 +46,12 @@ public sealed class FileUserStore : IUserStore
         var tmp = _path + ".tmp";
         File.WriteAllText(tmp, JsonSerializer.Serialize(shape, Options));
         File.Move(tmp, _path, overwrite: true);
+
+        // The file contains password hashes: owner-only read/write on Unix.
+        if (!OperatingSystem.IsWindows())
+        {
+            try { File.SetUnixFileMode(_path, UnixFileMode.UserRead | UnixFileMode.UserWrite); }
+            catch (IOException) { /* best effort — filesystem may not support modes */ }
+        }
     }
 }

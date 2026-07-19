@@ -358,6 +358,18 @@ namespace AdvGenNoSqlServer.Network
         }
 
         /// <summary>
+        /// Raises a connection's frame payload limit to the configured post-auth maximum
+        /// (MaxMessageSizeMb). Called by the server once the connection has authenticated.
+        /// </summary>
+        public void RaisePayloadLimit(string connectionId)
+        {
+            if (_activeConnections.TryGetValue(connectionId, out var handler))
+            {
+                handler.MaxPayloadBytes = (long)Configuration.MaxMessageSizeMb * 1024 * 1024;
+            }
+        }
+
+        /// <summary>
         /// Disposes the server and all resources
         /// </summary>
         public void Dispose()

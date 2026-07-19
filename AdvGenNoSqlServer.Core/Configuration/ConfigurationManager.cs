@@ -3,6 +3,7 @@
 // See LICENSE.txt for license information.
 
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.IO;
 using System;
 
@@ -60,6 +61,15 @@ public class ConfigurationManager : IConfigurationManager, IDisposable
     private bool _enableHotReload;
 
     /// <summary>
+    /// The environment name resolved from DOTNET_ENVIRONMENT / ASPNETCORE_ENVIRONMENT (empty if unset).
+    /// Determines which appsettings.{Environment}.json overlay is applied.
+    /// </summary>
+    public string EnvironmentName { get; }
+
+    /// <summary>True when <see cref="EnvironmentName"/> equals "Production" (case-insensitive).</summary>
+    public bool IsProduction => string.Equals(EnvironmentName, "Production", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Event raised when the configuration is changed (either via hot-reload or manual reload)
     /// </summary>
     public event EventHandler<ConfigurationChangedEventArgs>? ConfigurationChanged;
@@ -76,6 +86,9 @@ public class ConfigurationManager : IConfigurationManager, IDisposable
         _configFileName = Path.GetFileName(configPath);
         _configuration = new ServerConfiguration();
         _enableHotReload = enableHotReload;
+        EnvironmentName = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
+            ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+            ?? string.Empty;
 
         LoadConfiguration();
 
@@ -227,6 +240,18 @@ public class ConfigurationManager : IConfigurationManager, IDisposable
         LoadConfiguration();
         var newConfig = _configuration;
 
+        // Never apply an invalid configuration to a running server in Production.
+        if (IsProduction)
+        {
+            var errors = newConfig.Validate(true);
+            if (errors.Count > 0)
+            {
+                _configuration = oldConfig;
+                Console.WriteLine($"[Config] ERROR: Reloaded configuration is invalid; keeping previous settings: {string.Join("; ", errors)}");
+                return;
+            }
+        }
+
         // Notify subscribers
         ConfigurationChanged?.Invoke(this, new ConfigurationChangedEventArgs(oldConfig, newConfig, changeSource));
 
@@ -265,36 +290,78 @@ public class ConfigurationManager : IConfigurationManager, IDisposable
 
     private void LoadConfiguration()
     {
-        var newConfig = new ServerConfiguration();
-
-        // Load from JSON file if it exists
-        if (File.Exists(_configPath))
-        {
-            try
-            {
-                var json = File.ReadAllText(_configPath);
-                var fileConfig = JsonSerializer.Deserialize<ServerConfiguration>(json, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
-
-                if (fileConfig != null)
-                {
-                    newConfig = fileConfig;
-                }
-            }
-            catch (Exception ex)
-            {
-                // Log error but continue with default configuration
-                Console.WriteLine($"[Config] Warning: Failed to load configuration from file: {ex.Message}");
-            }
-        }
+        var newConfig = LoadJsonLayered();
 
         // Override with environment variables
         LoadFromEnvironmentVariables(newConfig);
 
         _configuration = newConfig;
     }
+
+    /// <summary>
+    /// Loads the base config file and overlays appsettings.{Environment}.json on top of it.
+    /// Malformed JSON is fatal in Production; otherwise a warning is printed and the
+    /// remaining layers/defaults are used.
+    /// </summary>
+    private ServerConfiguration LoadJsonLayered()
+    {
+        var merged = new JsonObject();
+        MergeJsonFile(_configPath, merged);
+
+        if (!string.IsNullOrEmpty(EnvironmentName))
+        {
+            var overlayPath = Path.Combine(_configDirectory, $"appsettings.{EnvironmentName}.json");
+            if (!string.Equals(overlayPath, Path.GetFullPath(_configPath), StringComparison.OrdinalIgnoreCase))
+                MergeJsonFile(overlayPath, merged);
+        }
+
+        if (merged.Count == 0)
+            return new ServerConfiguration();
+
+        try
+        {
+            return merged.Deserialize<ServerConfiguration>(new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            }) ?? new ServerConfiguration();
+        }
+        catch (Exception ex)
+        {
+            if (IsProduction)
+                throw new InvalidOperationException(
+                    $"Configuration is invalid and cannot be used in Production: {ex.Message}", ex);
+            Console.WriteLine($"[Config] Warning: Failed to deserialize configuration: {ex.Message}");
+            return new ServerConfiguration();
+        }
+    }
+
+    private void MergeJsonFile(string path, JsonObject target)
+    {
+        if (!File.Exists(path))
+            return;
+
+        try
+        {
+            if (JsonNode.Parse(File.ReadAllText(path)) is not JsonObject obj)
+                return;
+
+            foreach (var (key, value) in obj)
+                target[key] = value?.DeepClone();
+        }
+        catch (Exception ex)
+        {
+            if (IsProduction)
+                throw new InvalidOperationException(
+                    $"Configuration file '{path}' is invalid and cannot be used in Production: {ex.Message}", ex);
+            Console.WriteLine($"[Config] Warning: Failed to load configuration from '{path}': {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Validates the current configuration; returns a list of errors (empty = valid).
+    /// Production rules are applied when <see cref="IsProduction"/> is true.
+    /// </summary>
+    public IReadOnlyList<string> Validate() => _configuration.Validate(IsProduction);
 
     private void LoadFromEnvironmentVariables(ServerConfiguration config)
     {
@@ -396,6 +463,75 @@ public class ConfigurationManager : IConfigurationManager, IDisposable
         if (!string.IsNullOrEmpty(tokenExpirationEnv) && int.TryParse(tokenExpirationEnv, out int tokenExpiration))
         {
             config.TokenExpirationHours = tokenExpiration;
+        }
+
+        // Host
+        var hostEnv = Environment.GetEnvironmentVariable("NOSQL_HOST");
+        if (!string.IsNullOrEmpty(hostEnv))
+        {
+            config.Host = hostEnv;
+        }
+
+        // EnableSsl
+        var enableSslEnv = Environment.GetEnvironmentVariable("NOSQL_ENABLE_SSL");
+        if (!string.IsNullOrEmpty(enableSslEnv) && bool.TryParse(enableSslEnv, out bool enableSsl))
+        {
+            config.EnableSsl = enableSsl;
+        }
+
+        // SslCertificatePath / SslCertificatePassword
+        var sslCertPathEnv = Environment.GetEnvironmentVariable("NOSQL_SSL_CERT_PATH");
+        if (!string.IsNullOrEmpty(sslCertPathEnv))
+        {
+            config.SslCertificatePath = sslCertPathEnv;
+        }
+        var sslCertPasswordEnv = Environment.GetEnvironmentVariable("NOSQL_SSL_CERT_PASSWORD");
+        if (!string.IsNullOrEmpty(sslCertPasswordEnv))
+        {
+            config.SslCertificatePassword = sslCertPasswordEnv;
+        }
+
+        // JwtSecretKey
+        var jwtSecretEnv = Environment.GetEnvironmentVariable("NOSQL_JWT_SECRET_KEY");
+        if (!string.IsNullOrEmpty(jwtSecretEnv))
+        {
+            config.JwtSecretKey = jwtSecretEnv;
+        }
+
+        // AnonymousRole
+        var anonymousRoleEnv = Environment.GetEnvironmentVariable("NOSQL_ANONYMOUS_ROLE");
+        if (!string.IsNullOrEmpty(anonymousRoleEnv))
+        {
+            config.AnonymousRole = anonymousRoleEnv;
+        }
+
+        // AdminApiKey
+        var adminApiKeyEnv = Environment.GetEnvironmentVariable("NOSQL_ADMIN_API_KEY");
+        if (!string.IsNullOrEmpty(adminApiKeyEnv))
+        {
+            config.AdminApiKey = adminApiKeyEnv;
+        }
+
+        // MaxMessageSizeMb
+        var maxMessageSizeEnv = Environment.GetEnvironmentVariable("NOSQL_MAX_MESSAGE_SIZE_MB");
+        if (!string.IsNullOrEmpty(maxMessageSizeEnv) && int.TryParse(maxMessageSizeEnv, out int maxMessageSize))
+        {
+            config.MaxMessageSizeMb = maxMessageSize;
+        }
+
+        // Pbkdf2Iterations
+        var pbkdf2Env = Environment.GetEnvironmentVariable("NOSQL_PBKDF2_ITERATIONS");
+        if (!string.IsNullOrEmpty(pbkdf2Env) && int.TryParse(pbkdf2Env, out int pbkdf2Iterations))
+        {
+            config.Pbkdf2Iterations = pbkdf2Iterations;
+        }
+
+        // CorsAllowedOrigins (semicolon-separated)
+        var corsOriginsEnv = Environment.GetEnvironmentVariable("NOSQL_CORS_ORIGINS");
+        if (!string.IsNullOrEmpty(corsOriginsEnv))
+        {
+            config.CorsAllowedOrigins = corsOriginsEnv.Split(';',
+                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         }
     }
 

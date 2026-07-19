@@ -303,6 +303,109 @@ public class ServerConfiguration
         public AlpnConfiguration? AlpnConfig { get; set; }
 
         #endregion
+
+    #region Security Hardening Configuration
+
+    /// <summary>
+    /// Role granted to connections when <see cref="RequireAuthentication"/> is false (default: "Reader").
+    /// Never grant "Admin" here — anonymous connections must not be able to destroy data.
+    /// </summary>
+    public string AnonymousRole { get; set; } = "Reader";
+
+    /// <summary>
+    /// Failed login attempts before an account is locked out (default: 5; 0 disables lockout).
+    /// </summary>
+    public int MaxFailedLoginAttempts { get; set; } = 5;
+
+    /// <summary>
+    /// Account lockout duration in minutes after too many failed logins (default: 15).
+    /// </summary>
+    public int LockoutMinutes { get; set; } = 15;
+
+    /// <summary>
+    /// PBKDF2 iteration count for newly created password hashes (default: 600000, OWASP recommendation).
+    /// Existing hashes keep their original iteration count and remain verifiable.
+    /// </summary>
+    public int Pbkdf2Iterations { get; set; } = 600_000;
+
+    /// <summary>
+    /// Allowed CORS origins for the HTTP admin API (default: localhost only).
+    /// </summary>
+    public string[] CorsAllowedOrigins { get; set; } = { "http://localhost", "https://localhost" };
+
+    /// <summary>
+    /// Maximum protocol frame payload size in MB for authenticated connections (default: 100).
+    /// </summary>
+    public int MaxMessageSizeMb { get; set; } = 100;
+
+    /// <summary>
+    /// Maximum protocol frame payload size in bytes before a connection has authenticated
+    /// (default: 64 KB). Prevents unauthenticated memory-exhaustion attacks.
+    /// </summary>
+    public int PreAuthMaxMessageBytes { get; set; } = 65536;
+
+    /// <summary>
+    /// API key required via the X-Api-Key header on the HTTP admin API (Server project).
+    /// Empty disables the key requirement — intended for Development only.
+    /// </summary>
+    public string? AdminApiKey { get; set; }
+
+    #endregion
+
+    /// <summary>
+    /// Validates the configuration and returns human-readable errors (empty = valid).
+    /// In production, authentication and real secrets are mandatory and known development
+    /// defaults are rejected.
+    /// </summary>
+    public IReadOnlyList<string> Validate(bool isProduction)
+    {
+        var errors = new List<string>();
+
+        if (Port < 1 || Port > 65535) errors.Add($"Port must be 1-65535 (got {Port}).");
+        if (MaxConcurrentConnections < 1) errors.Add("MaxConcurrentConnections must be positive.");
+        if (MaxMessageSizeMb < 1) errors.Add("MaxMessageSizeMb must be at least 1.");
+        if (PreAuthMaxMessageBytes < 1024) errors.Add("PreAuthMaxMessageBytes must be at least 1024.");
+        if (ReceiveBufferSize < 1024) errors.Add("ReceiveBufferSize must be at least 1024.");
+        if (SendBufferSize < 1024) errors.Add("SendBufferSize must be at least 1024.");
+        if (TokenExpirationHours < 1) errors.Add("TokenExpirationHours must be positive.");
+        if (Pbkdf2Iterations < 10_000) errors.Add("Pbkdf2Iterations must be at least 10000.");
+        if (MaxFailedLoginAttempts < 0) errors.Add("MaxFailedLoginAttempts cannot be negative.");
+        if (LockoutMinutes < 0) errors.Add("LockoutMinutes cannot be negative.");
+        if (string.IsNullOrWhiteSpace(AnonymousRole)) errors.Add("AnonymousRole cannot be empty.");
+        if (string.IsNullOrWhiteSpace(StoragePath)) errors.Add("StoragePath cannot be empty.");
+
+        if (EnableSsl && !UseCertificateStore)
+        {
+            if (string.IsNullOrWhiteSpace(SslCertificatePath) && string.IsNullOrWhiteSpace(SslCertificateThumbprint))
+                errors.Add("EnableSsl requires SslCertificatePath or SslCertificateThumbprint.");
+            else if (!string.IsNullOrWhiteSpace(SslCertificatePath)
+                     && !File.Exists(SslCertificatePath)
+                     && !File.Exists(Path.Combine(AppContext.BaseDirectory, SslCertificatePath)))
+                errors.Add($"SslCertificatePath not found: {SslCertificatePath}");
+        }
+
+        if (isProduction)
+        {
+            if (!RequireAuthentication)
+                errors.Add("Production requires RequireAuthentication=true.");
+
+            if (string.IsNullOrEmpty(MasterPassword) || MasterPassword == "admin123")
+                errors.Add("Production requires a strong MasterPassword (set NOSQL_MASTER_PASSWORD; 'admin123' is forbidden).");
+
+            if (EnableJwtAuthentication)
+            {
+                if (string.IsNullOrEmpty(JwtSecretKey) || JwtSecretKey.Length < 32)
+                    errors.Add("Production requires a JwtSecretKey of at least 32 characters (set NOSQL_JWT_SECRET_KEY).");
+                else if (JwtSecretKey.StartsWith("AdvGenNoSQL-DefaultDevSecret", StringComparison.Ordinal))
+                    errors.Add("Production forbids the development JWT secret (set NOSQL_JWT_SECRET_KEY).");
+            }
+
+            if (string.Equals(SslCertificatePassword, "devpassword", StringComparison.Ordinal))
+                errors.Add("Production forbids the development certificate password.");
+        }
+
+        return errors;
+    }
 }
 
 

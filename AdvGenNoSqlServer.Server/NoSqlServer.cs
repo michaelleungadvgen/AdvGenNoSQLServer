@@ -264,13 +264,15 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
 
             var config = _configurationManager.Configuration;
 
-            // In dev mode (no auth required) grant an anonymous admin identity so that
-            // command gating is bypassed and the admin UI can still manage users.
+            // In dev mode (no auth required) grant an anonymous identity with the
+            // configured least-privilege anonymous role (never Admin by default).
             if (!config.RequireAuthentication)
             {
-                _authConnections[connectionId] = ("anonymous", UserRole.Admin);
+                var anonRole = UserRole.IsValid(config.AnonymousRole) ? config.AnonymousRole : UserRole.ReadOnly;
+                _authConnections[connectionId] = ("anonymous", anonRole);
+                _tcpServer?.RaisePayloadLimit(connectionId);
                 return Task.FromResult(NoSqlMessage.CreateSuccess(
-                    new { authenticated = true, token = "anonymous", username = "anonymous", role = UserRole.Admin }));
+                    new { authenticated = true, token = "anonymous", username = "anonymous", role = anonRole }));
             }
 
             if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
@@ -282,6 +284,7 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
             if (authToken != null)
             {
                 _authConnections[connectionId] = (authToken.Username, authToken.Role);
+                _tcpServer?.RaisePayloadLimit(connectionId);
                 return Task.FromResult(NoSqlMessage.CreateSuccess(
                     new { authenticated = true, token = authToken.TokenId, username = authToken.Username, role = authToken.Role }));
             }
@@ -1561,6 +1564,20 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
     private async Task<NoSqlMessage> HandleBulkOperationAsync(NoSqlMessage message, string connectionId)
     {
         _logger.LogDebug("Processing bulk operation for connection {ConnectionId}", connectionId);
+
+        // Bulk operations mutate data: enforce the same authentication + authorization
+        // gate as regular commands.
+        if (_configurationManager.Configuration.RequireAuthentication)
+        {
+            if (!_authConnections.TryGetValue(connectionId, out var identity))
+            {
+                return NoSqlMessage.CreateError("AUTH_REQUIRED", "Authenticate before sending bulk operations");
+            }
+            if (!CommandAuthorizer.IsAllowed("bulk", identity.Role))
+            {
+                return NoSqlMessage.CreateError("FORBIDDEN", $"Role '{identity.Role}' may not run bulk operations");
+            }
+        }
 
         if (message.Payload == null || message.PayloadLength == 0)
         {

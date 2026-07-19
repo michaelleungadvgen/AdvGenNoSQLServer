@@ -46,9 +46,56 @@ public class Program
         builder.Logging.SetMinimumLevel(LogLevel.Information);
         builder.Logging.AddConsole();
 
+        // Load + validate server configuration early. Production fails fast on
+        // invalid config; other environments log warnings and continue.
+        var configManager = new Core.Configuration.ConfigurationManager("appsettings.json", enableHotReload: true);
+        var serverConfig = configManager.Configuration;
+        var configErrors = configManager.Validate();
+        foreach (var configError in configErrors)
+            Console.Error.WriteLine($"[CONFIG] {(configManager.IsProduction ? "ERROR" : "WARNING")}: {configError}");
+        if (configErrors.Count > 0 && configManager.IsProduction)
+        {
+            Console.Error.WriteLine("[CONFIG] Fatal configuration errors in Production. Shutting down.");
+            Environment.Exit(1);
+        }
+
+        if (!serverConfig.RequireAuthentication)
+            Console.WriteLine($"[SECURITY] WARNING: Authentication is DISABLED — anonymous connections get role '{serverConfig.AnonymousRole}'. Do not run like this in production.");
+
+        // Resolve the JWT signing secret ONCE so token issuance and validation agree.
+        // Without a configured secret a random one is generated (non-production only —
+        // tokens become invalid on restart). Production validation above requires a real one.
+        if (serverConfig.EnableJwtAuthentication && string.IsNullOrEmpty(serverConfig.JwtSecretKey))
+        {
+            serverConfig.JwtSecretKey = GenerateSecureSecret();
+            Console.WriteLine("[JWT] WARNING: JwtSecretKey not configured — generated a random secret for this run. Set NOSQL_JWT_SECRET_KEY.");
+        }
+
+        // Load the TLS certificate once at startup: a bad/missing cert must fail fast
+        // (in Production) instead of failing every client handshake later.
+        if (serverConfig.EnableSsl)
+        {
+            try
+            {
+                using var probe = TlsStreamHelper.LoadCertificate(serverConfig);
+                if (probe == null)
+                    throw new InvalidOperationException("certificate load returned null");
+                Console.WriteLine($"[TLS] Server certificate loaded (subject: {probe.Subject}, expires: {probe.NotAfter:yyyy-MM-dd}).");
+            }
+            catch (Exception ex)
+            {
+                if (configManager.IsProduction)
+                {
+                    Console.Error.WriteLine($"[TLS] FATAL: Could not load the server certificate: {ex.Message}");
+                    Environment.Exit(1);
+                }
+                Console.WriteLine($"[TLS] WARNING: Could not load the server certificate: {ex.Message}");
+                Console.WriteLine("[TLS] TLS handshakes will fail until this is fixed. Set NOSQL_SSL_CERT_PATH / NOSQL_SSL_CERT_PASSWORD.");
+            }
+        }
+
         // HTTPS API port for Blazor WASM admin dashboard (TCP port 9191 + 1 = 9192, always HTTPS)
         // Blazor WASM is served from HTTPS so the API must also be HTTPS to avoid mixed-content blocks.
-        // Uses the ASP.NET Core developer certificate. Run: dotnet dev-certs https --trust
         var certPath = builder.Configuration.GetValue<string>("HttpsCertificatePath");
         var certPassword = builder.Configuration.GetValue<string>("HttpsCertificatePassword");
 
@@ -61,27 +108,37 @@ public class Program
                     listenOptions.UseHttps(certPath, certPassword);
                     Console.WriteLine($"[HTTPS API] Using certificate: {certPath}");
                 }
+                else if (!configManager.IsProduction)
+                {
+                    // Developer certificate fallback — only outside explicit Production.
+                    listenOptions.UseHttps();
+                    Console.WriteLine("[HTTPS API] Using ASP.NET Core developer certificate (non-production)");
+                }
                 else
                 {
-                    listenOptions.UseHttps(); // Uses ASP.NET Core developer certificate
+                    throw new InvalidOperationException(
+                        "No HTTPS certificate configured for the admin API. Set HttpsCertificatePath/HttpsCertificatePassword, or terminate TLS at a reverse proxy.");
                 }
             });
         });
         Console.WriteLine("[HTTPS API] TCP port: 9191, HTTPS API port: 9192");
 
-        // CORS for Blazor WASM
+        // CORS for Blazor WASM (locked to configured origins in Production, permissive otherwise)
         builder.Services.AddCors();
 
         // Register ApiDataService (must be before NoSqlServerHost)
         builder.Services.AddSingleton<ApiDataService>();
 
-        // Register all services
-        ConfigureServices(builder.Services);
+        // Register all services (shares the configuration manager created above)
+        ConfigureServices(builder.Services, configManager);
 
         var app = builder.Build();
 
         // CORS middleware (must be before auth)
-        app.UseCors(policy => policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
+        if (configManager.IsProduction)
+            app.UseCors(policy => policy.WithOrigins(serverConfig.CorsAllowedOrigins).AllowAnyHeader().AllowAnyMethod());
+        else
+            app.UseCors(policy => policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
 
         // Authentication & Authorization middleware
         app.UseAuthentication();
@@ -132,7 +189,7 @@ public class Program
             return Results.Ok(dbs);
         });
 
-        app.MapPost("/api/databases/{name}", [Microsoft.AspNetCore.Authorization.Authorize] async (string name, ApiDataService data) =>
+        app.MapPost("/api/databases/{name}", [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")] async (string name, ApiDataService data) =>
         {
             if (data.DatabaseManager == null) return Results.StatusCode(503);
             try
@@ -144,11 +201,12 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { success = false, error = ex.Message });
+                app.Logger.LogError(ex, "Unhandled error in admin API endpoint");
+                return Results.BadRequest(new { success = false, error = "An internal error occurred" });
             }
         });
 
-        app.MapDelete("/api/databases/{name}", [Microsoft.AspNetCore.Authorization.Authorize] async (string name, ApiDataService data) =>
+        app.MapDelete("/api/databases/{name}", [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")] async (string name, ApiDataService data) =>
         {
             if (data.DatabaseManager == null) return Results.StatusCode(503);
             try
@@ -160,7 +218,8 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { success = false, error = ex.Message });
+                app.Logger.LogError(ex, "Unhandled error in admin API endpoint");
+                return Results.BadRequest(new { success = false, error = "An internal error occurred" });
             }
         });
 
@@ -175,7 +234,8 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { success = false, error = ex.Message });
+                app.Logger.LogError(ex, "Unhandled error in admin API endpoint");
+                return Results.BadRequest(new { success = false, error = "An internal error occurred" });
             }
         });
 
@@ -229,7 +289,7 @@ public class Program
 
         // --- Collection Management ---
 
-        app.MapPost("/api/collections/{name}", [Microsoft.AspNetCore.Authorization.Authorize] async (string name, ApiDataService data) =>
+        app.MapPost("/api/collections/{name}", [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")] async (string name, ApiDataService data) =>
         {
             if (data.DocumentStore == null) return Results.StatusCode(503);
             try
@@ -239,11 +299,12 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { success = false, error = ex.Message });
+                app.Logger.LogError(ex, "Unhandled error in admin API endpoint");
+                return Results.BadRequest(new { success = false, error = "An internal error occurred" });
             }
         });
 
-        app.MapDelete("/api/collections/{name}", [Microsoft.AspNetCore.Authorization.Authorize] async (string name, ApiDataService data) =>
+        app.MapDelete("/api/collections/{name}", [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")] async (string name, ApiDataService data) =>
         {
             if (data.DocumentStore == null) return Results.StatusCode(503);
             try
@@ -255,7 +316,8 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { success = false, error = ex.Message });
+                app.Logger.LogError(ex, "Unhandled error in admin API endpoint");
+                return Results.BadRequest(new { success = false, error = "An internal error occurred" });
             }
         });
 
@@ -273,7 +335,8 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { success = false, error = ex.Message });
+                app.Logger.LogError(ex, "Unhandled error in admin API endpoint");
+                return Results.BadRequest(new { success = false, error = "An internal error occurred" });
             }
         });
 
@@ -288,11 +351,12 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { success = false, error = ex.Message });
+                app.Logger.LogError(ex, "Unhandled error in admin API endpoint");
+                return Results.BadRequest(new { success = false, error = "An internal error occurred" });
             }
         });
 
-        app.MapDelete("/api/collections/{name}/documents/{id}", [Microsoft.AspNetCore.Authorization.Authorize] async (string name, string id, ApiDataService data) =>
+        app.MapDelete("/api/collections/{name}/documents/{id}", [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")] async (string name, string id, ApiDataService data) =>
         {
             if (data.DocumentStore == null) return Results.StatusCode(503);
             try
@@ -304,7 +368,8 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { success = false, error = ex.Message });
+                app.Logger.LogError(ex, "Unhandled error in admin API endpoint");
+                return Results.BadRequest(new { success = false, error = "An internal error occurred" });
             }
         });
 
@@ -319,9 +384,10 @@ public class Program
                 var result = auth.Authenticate(req.Username, req.Password);
                 if (result != null)
                 {
-                    // Generate JWT token with admin role
-                    var roles = new[] { "Admin" };
-                    var permissions = new[] { "*" };
+                    // Issue the user's REAL role and permissions — every authenticated
+                    // user used to receive Admin/* regardless of their actual role.
+                    var roles = new[] { result.Role };
+                    var permissions = result.Role == UserRole.Admin ? new[] { "*" } : Array.Empty<string>();
                     var jwtToken = jwtProvider.GenerateToken(req.Username, roles, permissions);
                     
                     return Results.Ok(new
@@ -336,7 +402,8 @@ public class Program
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { success = false, error = ex.Message });
+                app.Logger.LogError(ex, "Unhandled error in admin API endpoint");
+                return Results.BadRequest(new { success = false, error = "An internal error occurred" });
             }
         }).AllowAnonymous();
 
@@ -347,14 +414,10 @@ public class Program
     /// <summary>
     /// Configures services for dependency injection.
     /// </summary>
-    private static void ConfigureServices(IServiceCollection services)
+    private static void ConfigureServices(IServiceCollection services, Core.Configuration.ConfigurationManager configManager)
     {
-        // Add configuration manager
-        services.AddSingleton<Core.Configuration.IConfigurationManager>(provider =>
-        {
-            var configPath = "appsettings.json";
-            return new Core.Configuration.ConfigurationManager(configPath, enableHotReload: true);
-        });
+        // Share the configuration manager created and validated at startup
+        services.AddSingleton<Core.Configuration.IConfigurationManager>(configManager);
 
         // Add metrics collector
         services.AddMetricsCollector();
@@ -423,7 +486,10 @@ public class Program
                     ValidIssuer = config.JwtIssuer ?? "AdvGenNoSqlServer",
                     ValidAudience = config.JwtAudience ?? "AdvGenNoSqlClient",
                     IssuerSigningKey = new SymmetricSecurityKey(
-                        Encoding.UTF8.GetBytes(config.JwtSecretKey ?? GenerateSecureSecret()))
+                        Encoding.UTF8.GetBytes(config.JwtSecretKey ?? GenerateSecureSecret())),
+                    // Our JWTs carry roles/permissions as JSON arrays (see JwtTokenProvider)
+                    RoleClaimType = "roles",
+                    NameClaimType = "sub"
                 };
                 
                 // For Blazor WASM, don't redirect to login page on 401
@@ -733,10 +799,14 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
     {
         if (!_configManager.Configuration.RequireAuthentication)
         {
-            // Dev mode: grant an anonymous admin identity so gating is bypassed and the admin UI works.
-            _authConnections[connectionId] = ("anonymous", UserRole.Admin);
+            // Dev mode: anonymous identity with the configured least-privilege role (never Admin by default).
+            var anonRole = UserRole.IsValid(_configManager.Configuration.AnonymousRole)
+                ? _configManager.Configuration.AnonymousRole
+                : UserRole.ReadOnly;
+            _authConnections[connectionId] = ("anonymous", anonRole);
+            _tcpServer?.RaisePayloadLimit(connectionId);
             return Task.FromResult(NoSqlMessage.CreateSuccess(
-                new { authenticated = true, token = "anonymous", username = "anonymous", role = UserRole.Admin }));
+                new { authenticated = true, token = "anonymous", username = "anonymous", role = anonRole }));
         }
 
         if (message.Payload == null || message.PayloadLength == 0)
@@ -784,6 +854,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
             if (result != null)
             {
                 _authConnections[connectionId] = (result.Username, result.Role);
+                _tcpServer?.RaisePayloadLimit(connectionId);
                 _auditLogger.Log(new AuditEvent
                 {
                     EventType = AuditEventType.AuthenticationSuccess,
@@ -1324,12 +1395,13 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
 
     private Task<NoSqlMessage> HandleBulkOperationAsync(NoSqlMessage message, string connectionId)
     {
-        return Task.FromResult(NoSqlMessage.CreateSuccess(new
+        // Bulk operations are not implemented in this host — fail honestly instead of
+        // pretending the batch was applied. Same auth gate as regular commands.
+        if (_configManager.Configuration.RequireAuthentication && !_authConnections.ContainsKey(connectionId))
         {
-            success = true,
-            message = "Bulk operations supported",
-            totalProcessed = 0
-        }));
+            return Task.FromResult(NoSqlMessage.CreateError("AUTH_REQUIRED", "Authenticate before sending bulk operations"));
+        }
+        return Task.FromResult(NoSqlMessage.CreateError("UNSUPPORTED", "Bulk operations are not supported by this server"));
     }
 
     public async ValueTask DisposeAsync()

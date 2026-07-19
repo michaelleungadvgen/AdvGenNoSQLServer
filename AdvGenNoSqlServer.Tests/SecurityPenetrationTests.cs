@@ -165,7 +165,7 @@ public class SecurityPenetrationTests
     #region Brute Force Attack Tests
 
     [Fact]
-    public void Authentication_MultipleFailedAttempts_ShouldAllFail()
+    public void Authentication_MultipleFailedAttempts_AccountLocksOut()
     {
         // Arrange
         var config = new ServerConfiguration
@@ -186,9 +186,10 @@ public class SecurityPenetrationTests
         // Assert - All should fail
         Assert.Equal(5, failedAttempts);
 
-        // Even with correct password after many failed attempts
+        // After MaxFailedLoginAttempts (default 5) the account is locked:
+        // even the correct password is rejected during the lockout window.
         var finalResult = authService.Authenticate("testuser", "correctpassword");
-        Assert.NotNull(finalResult); // System should still work (no lockout in basic implementation)
+        Assert.Null(finalResult);
     }
 
     [Fact]
@@ -217,8 +218,14 @@ public class SecurityPenetrationTests
     [Fact]
     public void Authentication_TimingAttack_ShouldHaveSimilarTiming()
     {
-        // Arrange
-        var authService = new AuthenticationService(new ServerConfiguration());
+        // Arrange — lockout disabled so both paths always run the full PBKDF2 verify
+        // (locked accounts short-circuit by design and have their own tests). Low
+        // iteration count keeps the test fast; constant-time behavior is count-independent.
+        var authService = new AuthenticationService(new ServerConfiguration
+        {
+            MaxFailedLoginAttempts = 0,
+            Pbkdf2Iterations = 10_000
+        });
         authService.RegisterUser("testuser", "correctpassword");
 
         // Warm up

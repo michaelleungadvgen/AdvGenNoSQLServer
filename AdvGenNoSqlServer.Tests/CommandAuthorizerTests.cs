@@ -43,8 +43,23 @@ public class CommandAuthorizerTests
     }
 
     [Fact]
-    public void IsAllowed_UnknownCommand_PassesThrough()
-        => Assert.True(CommandAuthorizer.IsAllowed("totally-unknown", UserRole.ReadOnly));
+    public void IsAllowed_UnknownCommand_DeniedForNonAdmin()
+    {
+        Assert.False(CommandAuthorizer.IsAllowed("totally-unknown", UserRole.ReadOnly));
+        Assert.False(CommandAuthorizer.IsAllowed("totally-unknown", UserRole.ReadWrite));
+    }
+
+    [Fact]
+    public void IsAllowed_UnknownCommand_AllowedForAdmin()
+        => Assert.True(CommandAuthorizer.IsAllowed("totally-unknown", UserRole.Admin));
+
+    [Fact]
+    public void IsAllowed_DropCollection_RequiresAdmin()
+    {
+        Assert.False(CommandAuthorizer.IsAllowed("dropcollection", UserRole.ReadOnly));
+        Assert.False(CommandAuthorizer.IsAllowed("dropcollection", UserRole.ReadWrite));
+        Assert.True(CommandAuthorizer.IsAllowed("dropcollection", UserRole.Admin));
+    }
 
     [Fact]
     public void IsAllowed_IsCaseInsensitiveOnCommand()

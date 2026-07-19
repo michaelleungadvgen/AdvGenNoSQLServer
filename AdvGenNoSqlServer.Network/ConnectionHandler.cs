@@ -30,6 +30,18 @@ namespace AdvGenNoSqlServer.Network
         private readonly PipeWriter _writer;
         private readonly SemaphoreSlim _writeLock;
         private bool _disposed;
+        private long _maxPayloadBytes;
+
+        /// <summary>
+        /// Maximum frame payload (bytes) this connection may declare. Starts at the
+        /// configured pre-auth limit so unauthenticated clients cannot force large
+        /// allocations; the server raises it after successful authentication.
+        /// </summary>
+        public long MaxPayloadBytes
+        {
+            get => Interlocked.Read(ref _maxPayloadBytes);
+            set => Interlocked.Exchange(ref _maxPayloadBytes, value);
+        }
 
         /// <summary>
         /// Unique connection identifier
@@ -84,6 +96,7 @@ namespace AdvGenNoSqlServer.Network
             _reader = PipeReader.Create(_stream);
             _writer = PipeWriter.Create(_stream);
             _writeLock = new SemaphoreSlim(1, 1);
+            _maxPayloadBytes = configuration.PreAuthMaxMessageBytes;
             ConnectedAt = DateTime.UtcNow;
         }
 
@@ -106,6 +119,7 @@ namespace AdvGenNoSqlServer.Network
             _reader = PipeReader.Create(_stream);
             _writer = PipeWriter.Create(_stream);
             _writeLock = new SemaphoreSlim(1, 1);
+            _maxPayloadBytes = configuration.PreAuthMaxMessageBytes;
             ConnectedAt = DateTime.UtcNow;
         }
 
@@ -171,6 +185,14 @@ namespace AdvGenNoSqlServer.Network
                     throw new ProtocolException("Invalid message header");
                 }
 
+                // Reject oversized frames BEFORE allocating for the payload. Until the
+                // connection authenticates, this is the small pre-auth limit.
+                if (header.PayloadLength > MaxPayloadBytes)
+                {
+                    throw new ProtocolException(
+                        $"Frame payload of {header.PayloadLength} bytes exceeds the per-connection limit of {MaxPayloadBytes} bytes");
+                }
+
                 // Read the payload
                 byte[]? payload = null;
                 if (header.PayloadLength > 0)
@@ -205,6 +227,11 @@ namespace AdvGenNoSqlServer.Network
             }
             catch (OperationCanceledException)
             {
+                throw;
+            }
+            catch (ProtocolException)
+            {
+                // Preserve protocol-level details (invalid header, checksum, size limits)
                 throw;
             }
             catch (IOException)

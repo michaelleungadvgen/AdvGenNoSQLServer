@@ -10,10 +10,11 @@ public enum CommandAccess { Read, Write, Admin }
 /// <summary>
 /// Maps TCP commands to the minimum access they need and decides whether a role
 /// may run them. The command name is lowercased before lookup. Unknown commands
-/// pass through (allowed) so the dispatcher can still return its own
-/// UNKNOWN_COMMAND rather than a misleading FORBIDDEN. changepassword needs only
-/// an authenticated identity (mapped as Read here; dispatchers additionally
-/// require a non-anonymous identity before dispatch).
+/// are <b>fail-closed</b>: they are denied for non-Admin roles, so a command added
+/// to dispatch without an explicit mapping never becomes silently available to
+/// everyone (Admins still reach the dispatcher and receive its UNKNOWN_COMMAND).
+/// changepassword needs only an authenticated identity (mapped as Read here;
+/// dispatchers additionally require a non-anonymous identity before dispatch).
 /// </summary>
 public static class CommandAuthorizer
 {
@@ -36,8 +37,9 @@ public static class CommandAuthorizer
         ["upsert"] = CommandAccess.Write,
         ["touch"] = CommandAccess.Write,
         ["createcollection"] = CommandAccess.Write,
-        ["dropcollection"] = CommandAccess.Write,
+        ["bulk"] = CommandAccess.Write,
         // Admin
+        ["dropcollection"] = CommandAccess.Admin,
         ["listusers"] = CommandAccess.Admin,
         ["createuser"] = CommandAccess.Admin,
         ["deleteuser"] = CommandAccess.Admin,
@@ -58,7 +60,7 @@ public static class CommandAuthorizer
     {
         var key = command.ToLowerInvariant();
         if (!Map.TryGetValue(key, out var access))
-            return true; // unknown → let the dispatcher handle it
+            return role == UserRole.Admin; // fail closed — Admin only
 
         return role switch
         {

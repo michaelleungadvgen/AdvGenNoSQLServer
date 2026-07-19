@@ -12,6 +12,9 @@ public sealed class PersistedUser
     public string Salt { get; set; } = "";
     public string Role { get; set; } = UserRole.ReadWrite;
     public DateTime CreatedAt { get; set; }
+
+    /// <summary>PBKDF2 iteration count used for this hash; 0/missing = legacy 100k.</summary>
+    public int Iterations { get; set; }
 }
 
 /// <summary>Persistence contract for user accounts.</summary>
