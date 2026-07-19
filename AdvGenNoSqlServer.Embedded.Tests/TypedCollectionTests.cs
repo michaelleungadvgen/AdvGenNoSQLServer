@@ -129,4 +129,54 @@ public class TypedCollectionTests
         Assert.Equal(5, deleted);
         Assert.Equal(15, col.Count());
     }
+
+    [Fact]
+    public async Task CountAsync_NoPredicate_CountsAll()
+    {
+        using var db = Db();
+        var col = db.GetCollection<Item>("items");
+        for (int i = 0; i < 7; i++)
+            await col.InsertAsync(new Item { Id = $"i{i}" });
+        Assert.Equal(7, await col.CountAsync());
+    }
+
+    [Fact]
+    public async Task CountAsync_WithPredicate_CountsMatches()
+    {
+        using var db = Db();
+        var col = db.GetCollection<Item>("items");
+        for (int i = 0; i < 20; i++)
+            await col.InsertAsync(new Item { Id = $"i{i}", Price = i, IsActive = i % 2 == 0 });
+
+        Assert.Equal(5, await col.CountAsync(x => x.Price < 10m && x.IsActive));
+        Assert.Equal(0, await col.CountAsync(x => x.Price > 1000m));
+    }
+
+    [Fact]
+    public async Task DeleteManyAsync_Works()
+    {
+        using var db = Db();
+        var col = db.GetCollection<Item>("items");
+        for (int i = 0; i < 20; i++)
+            await col.InsertAsync(new Item { Id = $"i{i}", Price = i });
+
+        int deleted = await col.DeleteManyAsync(x => x.Price < 5m);
+        Assert.Equal(5, deleted);
+        Assert.Equal(15, await col.CountAsync());
+    }
+
+    [Fact]
+    public async Task DeleteManyAsync_MatchAllAndNoMatch()
+    {
+        using var db = Db();
+        var col = db.GetCollection<Item>("items");
+        for (int i = 0; i < 5; i++)
+            await col.InsertAsync(new Item { Id = $"i{i}", Price = i });
+
+        Assert.Equal(0, await col.DeleteManyAsync(x => x.Price > 100m));
+        Assert.Equal(5, await col.CountAsync());
+
+        Assert.Equal(5, await col.DeleteManyAsync(x => true));
+        Assert.Equal(0, await col.CountAsync());
+    }
 }

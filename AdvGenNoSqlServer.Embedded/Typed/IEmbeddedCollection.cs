@@ -66,10 +66,16 @@ public interface IEmbeddedCollection<T> where T : class
     Task<bool> UpsertAsync(T entity, CancellationToken ct = default);
     /// <summary>Async <see cref="Delete"/>.</summary>
     Task<bool> DeleteAsync(string id, CancellationToken ct = default);
+    /// <summary>Async <see cref="DeleteMany"/>.</summary>
+    Task<int> DeleteManyAsync(Expression<Func<T, bool>> predicate, CancellationToken ct = default);
     /// <summary>Async <see cref="FindById"/>.</summary>
     Task<T?> FindByIdAsync(string id, CancellationToken ct = default);
     /// <summary>Async <see cref="Find"/>.</summary>
     Task<IReadOnlyList<T>> FindAsync(Expression<Func<T, bool>> predicate, CancellationToken ct = default);
+    /// <summary>Async <see cref="Count()"/>.</summary>
+    Task<long> CountAsync(CancellationToken ct = default);
+    /// <summary>Async <see cref="Count(Expression{Func{T, bool}})"/>.</summary>
+    Task<long> CountAsync(Expression<Func<T, bool>> predicate, CancellationToken ct = default);
     /// <summary>Async <see cref="EnsureIndex"/>.</summary>
     Task<bool> EnsureIndexAsync<TField>(Expression<Func<T, TField>> field, bool unique = false, CancellationToken ct = default);
 }

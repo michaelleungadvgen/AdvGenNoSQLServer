@@ -76,17 +76,20 @@ internal sealed class EmbeddedCollection<T> : IEmbeddedCollection<T> where T : c
     public Task<bool> DeleteAsync(string id, CancellationToken ct = default) => _store.DeleteAsync(Name, id, ct);
     public bool Delete(string id) => DeleteAsync(id).GetAwaiter().GetResult();
 
-    public int DeleteMany(Expression<Func<T, bool>> predicate)
+    public async Task<int> DeleteManyAsync(Expression<Func<T, bool>> predicate, CancellationToken ct = default)
     {
-        var matches = Find(predicate).ToList();
+        var matches = await FindAsync(predicate, ct);
         int count = 0;
         foreach (var e in matches)
         {
             var id = _mapper.GetId(e);
-            if (!string.IsNullOrEmpty(id) && Delete(id)) count++;
+            if (!string.IsNullOrEmpty(id) && await DeleteAsync(id, ct)) count++;
         }
         return count;
     }
+
+    public int DeleteMany(Expression<Func<T, bool>> predicate)
+        => DeleteManyAsync(predicate).GetAwaiter().GetResult();
 
     // --- reads ---
 
@@ -122,9 +125,14 @@ internal sealed class EmbeddedCollection<T> : IEmbeddedCollection<T> where T : c
     public IEnumerable<T> FindAll()
         => _store.GetAllAsync(Name).GetAwaiter().GetResult().Select(_mapper.ToEntity).ToList();
 
-    public long Count() => _store.CountAsync(Name).GetAwaiter().GetResult();
+    public Task<long> CountAsync(CancellationToken ct = default) => _store.CountAsync(Name, ct);
 
-    public long Count(Expression<Func<T, bool>> predicate) => Find(predicate).LongCount();
+    public async Task<long> CountAsync(Expression<Func<T, bool>> predicate, CancellationToken ct = default)
+        => (await FindAsync(predicate, ct)).Count;
+
+    public long Count() => CountAsync().GetAwaiter().GetResult();
+
+    public long Count(Expression<Func<T, bool>> predicate) => CountAsync(predicate).GetAwaiter().GetResult();
 
     // --- indexing ---
 
