@@ -533,6 +533,20 @@ public class ConfigurationManager : IConfigurationManager, IDisposable
             config.CorsAllowedOrigins = corsOriginsEnv.Split(';',
                 StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         }
+
+        // AdminApiPort
+        var adminApiPortEnv = Environment.GetEnvironmentVariable("NOSQL_ADMIN_HTTP_PORT");
+        if (!string.IsNullOrEmpty(adminApiPortEnv) && int.TryParse(adminApiPortEnv, out int adminApiPort))
+        {
+            config.AdminApiPort = adminApiPort;
+        }
+
+        // AdminApiUseHttps
+        var adminApiUseHttpsEnv = Environment.GetEnvironmentVariable("NOSQL_ADMIN_HTTP_USE_HTTPS");
+        if (!string.IsNullOrEmpty(adminApiUseHttpsEnv) && bool.TryParse(adminApiUseHttpsEnv, out bool adminApiUseHttps))
+        {
+            config.AdminApiUseHttps = adminApiUseHttps;
+        }
     }
 
     /// <summary>

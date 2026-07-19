@@ -367,6 +367,24 @@ public class ServerConfiguration
     public int AuditRetentionDays { get; set; } = 30;
 
     /// <summary>
+    /// Port for the HTTP(S) admin API (default: 9192).
+    /// </summary>
+    public int AdminApiPort { get; set; } = 9192;
+
+    /// <summary>
+    /// Whether the admin API requires HTTPS (default: true). In Production, either a
+    /// certificate must be configured or plain HTTP explicitly acknowledged via
+    /// <see cref="AdminApiAllowPlainHttp"/> (for TLS-terminating reverse proxies).
+    /// </summary>
+    public bool AdminApiUseHttps { get; set; } = true;
+
+    /// <summary>
+    /// Explicit acknowledgment that the admin API may run plain HTTP in Production
+    /// (intended only behind a TLS-terminating reverse proxy).
+    /// </summary>
+    public bool AdminApiAllowPlainHttp { get; set; } = false;
+
+    /// <summary>
     /// API key required via the X-Api-Key header on the HTTP admin API (Server project).
     /// Empty disables the key requirement — intended for Development only.
     /// </summary>

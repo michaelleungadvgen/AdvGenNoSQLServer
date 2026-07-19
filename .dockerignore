@@ -1,0 +1,27 @@
+# VCS / IDE
+.git
+.gitignore
+.vs
+.github
+.jules
+.claude
+.worktrees
+
+# Build output
+**/bin
+**/obj
+**/TestResults
+BenchmarkDotNet.Artifacts
+nupkg
+
+# Local runtime data
+data
+storage
+certs/*.pfx
+
+# Docs and planning files (not needed in the image)
+docs
+Documentation
+no sql
+*.md
+!LICENSE.txt

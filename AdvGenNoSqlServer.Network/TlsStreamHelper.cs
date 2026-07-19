@@ -318,12 +318,22 @@ namespace AdvGenNoSqlServer.Network
             if (string.IsNullOrWhiteSpace(path))
                 return null;
 
-            if (!File.Exists(path))
+            // Resolve relative paths against the app base directory first, then the CWD,
+            // so certs are found regardless of the process working directory.
+            var resolvedPath = path;
+            if (!Path.IsPathRooted(resolvedPath))
+            {
+                var baseDirPath = Path.Combine(AppContext.BaseDirectory, resolvedPath);
+                if (File.Exists(baseDirPath))
+                    resolvedPath = baseDirPath;
+            }
+
+            if (!File.Exists(resolvedPath))
                 throw new FileNotFoundException($"SSL certificate file not found: {path}");
 
             try
             {
-                var bytes = File.ReadAllBytes(path);
+                var bytes = File.ReadAllBytes(resolvedPath);
                 if (string.IsNullOrEmpty(password))
                 {
                     return X509CertificateLoader.LoadPkcs12(bytes, null, X509KeyStorageFlags.Exportable);
@@ -332,7 +342,7 @@ namespace AdvGenNoSqlServer.Network
             }
             catch (Exception ex)
             {
-                throw new InvalidOperationException($"Failed to load SSL certificate from {path}", ex);
+                throw new InvalidOperationException($"Failed to load SSL certificate from {resolvedPath}", ex);
             }
         }
 

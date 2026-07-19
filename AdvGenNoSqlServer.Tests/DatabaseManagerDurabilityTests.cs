@@ -15,6 +15,53 @@ namespace AdvGenNoSqlServer.Tests;
 public class DatabaseManagerDurabilityTests
 {
     [Fact]
+    public async Task Constructor_VolumeWithLostFoundDirectory_StillCreatesDefaultDatabase()
+    {
+        // Fresh ext4 Docker volumes always contain 'lost+found'; the default database
+        // must be created regardless (regression: container boot failed with
+        // "Database 'default' not found").
+        var dir = Path.Combine(Path.GetTempPath(), "advgen-durability-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(dir, "lost+found"));
+        try
+        {
+            var manager = new DatabaseManager(dir);
+
+            Assert.True(manager.DatabaseExists("default"));
+            Assert.NotNull(manager.GetDatabase("default"));
+            Assert.False(manager.DatabaseExists("lost+found"));
+
+            await manager.DisposeDatabasesAsync();
+        }
+        finally
+        {
+            try { Directory.Delete(dir, recursive: true); } catch (IOException) { }
+        }
+    }
+
+    [Fact]
+    public async Task Constructor_AuxiliaryDirectories_AreNotTreatedAsDatabases()
+    {
+        // The server's own aux directories (audit logs, WAL, attachments) live next to
+        // the per-database folders and must not become phantom databases.
+        var dir = Path.Combine(Path.GetTempPath(), "advgen-durability-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(dir, "logs"));
+        Directory.CreateDirectory(Path.Combine(dir, "wal"));
+        Directory.CreateDirectory(Path.Combine(dir, "attachments"));
+        try
+        {
+            var manager = new DatabaseManager(dir);
+
+            Assert.Equal(new[] { "default" }, manager.GetDatabaseNames().ToArray());
+
+            await manager.DisposeDatabasesAsync();
+        }
+        finally
+        {
+            try { Directory.Delete(dir, recursive: true); } catch (IOException) { }
+        }
+    }
+
+    [Fact]
     public async Task DisposeDatabases_PendingWrites_ArePersisted()
     {
         var dir = Path.Combine(Path.GetTempPath(), "advgen-durability-" + Guid.NewGuid().ToString("N"));

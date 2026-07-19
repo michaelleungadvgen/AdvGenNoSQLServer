@@ -1,5 +1,6 @@
-# This workflow will build a .NET project
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-net
+# This workflow builds and tests the server-path projects on Linux.
+# Note: the full solution cannot build on Linux because it includes the
+# net9.0-windows WPF example — CI builds the server projects explicitly.
 
 name: .NET
 
@@ -11,18 +12,32 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v4
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: 8.0.x
-    - name: Restore dependencies
-      run: dotnet restore
-    - name: Build
-      run: dotnet build --no-restore
-    - name: Test
-      run: dotnet test --no-build --verbosity normal
+        dotnet-version: 9.0.x
+
+    - name: Restore
+      run: |
+        dotnet restore AdvGenNoSqlServer.Host/AdvGenNoSqlServer.Host.csproj
+        dotnet restore AdvGenNoSqlServer.Server/AdvGenNoSqlServer.Server.csproj
+        dotnet restore AdvGenNoSqlServer.Tests/AdvGenNoSqlServer.Tests.csproj
+        dotnet restore AdvGenNoSqlServer.Embedded.Tests/AdvGenNoSqlServer.Embedded.Tests.csproj
+
+    - name: Build (server path)
+      run: |
+        dotnet build AdvGenNoSqlServer.Host/AdvGenNoSqlServer.Host.csproj -c Release --no-restore
+        dotnet build AdvGenNoSqlServer.Server/AdvGenNoSqlServer.Server.csproj -c Release --no-restore
+        dotnet build AdvGenNoSqlServer.Tests/AdvGenNoSqlServer.Tests.csproj -c Release --no-restore
+        dotnet build AdvGenNoSqlServer.Embedded.Tests/AdvGenNoSqlServer.Embedded.Tests.csproj -c Release --no-restore
+
+    - name: Test (main suite)
+      run: dotnet test AdvGenNoSqlServer.Tests/AdvGenNoSqlServer.Tests.csproj -c Release --no-build --verbosity normal
+
+    - name: Test (embedded suite)
+      run: dotnet test AdvGenNoSqlServer.Embedded.Tests/AdvGenNoSqlServer.Embedded.Tests.csproj -c Release --no-build --verbosity normal

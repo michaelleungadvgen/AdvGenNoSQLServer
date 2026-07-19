@@ -110,16 +110,28 @@ public class Program
             }
         }
 
-        // HTTPS API port for Blazor WASM admin dashboard (TCP port 9191 + 1 = 9192, always HTTPS)
-        // Blazor WASM is served from HTTPS so the API must also be HTTPS to avoid mixed-content blocks.
+        // Admin HTTP(S) API (Blazor WASM dashboard). HTTPS by default; plain HTTP is
+        // allowed only outside Production or when explicitly acknowledged for
+        // TLS-terminating reverse proxies (AdminApiAllowPlainHttp).
         var certPath = builder.Configuration.GetValue<string>("HttpsCertificatePath");
         var certPassword = builder.Configuration.GetValue<string>("HttpsCertificatePassword");
+        var adminApiPort = serverConfig.AdminApiPort;
 
         builder.WebHost.ConfigureKestrel(options =>
         {
-            options.ListenAnyIP(9192, listenOptions =>
+            options.ListenAnyIP(adminApiPort, listenOptions =>
             {
-                if (!string.IsNullOrEmpty(certPath) && File.Exists(certPath))
+                if (!serverConfig.AdminApiUseHttps)
+                {
+                    if (configManager.IsProduction && !serverConfig.AdminApiAllowPlainHttp)
+                    {
+                        throw new InvalidOperationException(
+                            "Plain HTTP admin API in Production requires AdminApiAllowPlainHttp=true " +
+                            "(intended only behind a TLS-terminating reverse proxy).");
+                    }
+                    Console.WriteLine("[HTTP API] WARNING: admin API running PLAIN HTTP — terminate TLS at a reverse proxy.");
+                }
+                else if (!string.IsNullOrEmpty(certPath) && File.Exists(certPath))
                 {
                     listenOptions.UseHttps(certPath, certPassword);
                     Console.WriteLine($"[HTTPS API] Using certificate: {certPath}");
@@ -137,7 +149,7 @@ public class Program
                 }
             });
         });
-        Console.WriteLine("[HTTPS API] TCP port: 9191, HTTPS API port: 9192");
+        Console.WriteLine($"[HTTP API] TCP port: {serverConfig.Port}, admin API port: {adminApiPort}");
 
         // CORS for Blazor WASM (locked to configured origins in Production, permissive otherwise)
         builder.Services.AddCors();
@@ -174,7 +186,9 @@ public class Program
         // Readiness: can the server accept traffic (storage, disk, memory, TCP listener)?
         var readinessEndpoint = app.MapGet("/health/ready", async (HealthCheckService health) =>
         {
-            var report = await health.GetReadinessReportAsync();
+            // Detailed report runs ALL registered checks (the tag-based readiness report
+            // silently skips checks whose classes don't self-tag).
+            var report = await health.GetDetailedReportAsync();
             var payload = new
             {
                 status = report.Status.ToString().ToLowerInvariant(),
@@ -187,11 +201,13 @@ public class Program
                 : Results.Ok(payload);
         });
         if (serverConfig.AllowAnonymousReadiness) readinessEndpoint.AllowAnonymous();
+        else readinessEndpoint.RequireAuthorization();
 
         // Prometheus metrics scrape endpoint
         var metricsEndpoint = app.MapGet("/metrics", (IMetricsCollector metrics) =>
             Results.Text(metrics.GetSnapshot().ToPrometheusFormat(), "text/plain; version=0.0.4"));
         if (serverConfig.AllowAnonymousMetrics) metricsEndpoint.AllowAnonymous();
+        else metricsEndpoint.RequireAuthorization();
 
         // Public health check — used by Admin ConnectAsync before auth token is available
         app.MapGet("/api/health", async (HealthCheckService health) =>
@@ -737,6 +753,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
         // Start the TCP server
         await _tcpServer.StartAsync(cancellationToken);
 
+        _metrics.SetGauge("nosql_up", 1);
         _logger.LogInformation("NoSQL Server started successfully");
 
         // Log server start event

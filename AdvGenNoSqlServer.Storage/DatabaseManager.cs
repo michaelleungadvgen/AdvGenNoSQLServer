@@ -35,18 +35,30 @@ public class DatabaseManager : IDatabaseManager
         LoadExistingDatabases();
     }
 
+    // Directories that live next to the per-database folders but are never databases:
+    // ext4 volume noise plus the server's own auxiliary storage (audit logs, WAL, attachments).
+    private static readonly HashSet<string> ReservedDirectoryNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "lost+found", "logs", "wal", "attachments"
+    };
+
     private void LoadExistingDatabases()
     {
         foreach (var dbDir in Directory.GetDirectories(_baseStoragePath))
         {
             var dbName = Path.GetFileName(dbDir);
+
+            if (ReservedDirectoryNames.Contains(dbName))
+                continue;
+
             var store = new HybridDocumentStore(dbDir);
             store.InitializeAsync().GetAwaiter().GetResult();
             _databases[dbName] = store;
         }
 
-        // Create default database if none exist
-        if (!_databases.Any())
+        // Create default database if it doesn't exist yet (regardless of what other
+        // directories the volume contains)
+        if (!_databases.ContainsKey(_defaultDatabaseName))
         {
             var defaultDbPath = Path.Combine(_baseStoragePath, _defaultDatabaseName);
             var defaultStore = new HybridDocumentStore(defaultDbPath);

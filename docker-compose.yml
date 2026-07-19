@@ -1,0 +1,30 @@
+# Example docker-compose setup for AdvGenNoSQL Server (Host).
+#
+# Secrets come from the shell environment or a local .env file (never committed):
+#   NOSQL_MASTER_PASSWORD  — initial admin password (first boot only, strong!)
+#   NOSQL_JWT_SECRET_KEY   — JWT signing key, 32+ characters
+#   NOSQL_SSL_CERT_PASSWORD — password of the TLS PFX in ./certs (if it has one)
+#   NOSQL_ADMIN_API_KEY    — optional extra API key for the Server project's HTTP API
+#
+# TLS: put your PFX at ./certs/advgen.pfx (matches SslCertificatePath in
+# appsettings.Production.json). The admin API speaks plain HTTP on 9192 — put a
+# TLS-terminating reverse proxy (nginx, traefik, Caddy) in front of it.
+
+services:
+  nosql:
+    build: .
+    image: advgen-nosql-server:latest
+    environment:
+      NOSQL_MASTER_PASSWORD: ${NOSQL_MASTER_PASSWORD:?set NOSQL_MASTER_PASSWORD in the environment or .env}
+      NOSQL_JWT_SECRET_KEY: ${NOSQL_JWT_SECRET_KEY:?set NOSQL_JWT_SECRET_KEY in the environment or .env}
+      NOSQL_SSL_CERT_PASSWORD: ${NOSQL_SSL_CERT_PASSWORD:-}
+    ports:
+      - "9191:9191"   # TCP wire protocol (TLS)
+      - "9192:9192"   # admin HTTP API (terminate TLS at your proxy)
+    volumes:
+      - nosql-data:/data
+      - ./certs:/certs:ro
+    restart: unless-stopped
+
+volumes:
+  nosql-data:
