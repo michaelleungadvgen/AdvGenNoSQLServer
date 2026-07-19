@@ -13,6 +13,7 @@ using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace AdvGenNoSqlServer.Network
 {
@@ -29,6 +30,7 @@ namespace AdvGenNoSqlServer.Network
         private readonly PipeReader _reader;
         private readonly PipeWriter _writer;
         private readonly SemaphoreSlim _writeLock;
+        private readonly Microsoft.Extensions.Logging.ILogger? _logger;
         private bool _disposed;
         private long _maxPayloadBytes;
 
@@ -85,12 +87,14 @@ namespace AdvGenNoSqlServer.Network
             string connectionId,
             TcpClient client,
             MessageProtocol protocol,
-            ServerConfiguration configuration)
+            ServerConfiguration configuration,
+            Microsoft.Extensions.Logging.ILogger? logger = null)
         {
             ConnectionId = connectionId ?? throw new ArgumentNullException(nameof(connectionId));
             _client = client ?? throw new ArgumentNullException(nameof(client));
             _protocol = protocol ?? throw new ArgumentNullException(nameof(protocol));
             _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+            _logger = logger;
 
             _stream = client.GetStream();
             _reader = PipeReader.Create(_stream);
@@ -108,13 +112,15 @@ namespace AdvGenNoSqlServer.Network
             TcpClient client,
             Stream stream,
             MessageProtocol protocol,
-            ServerConfiguration configuration)
+            ServerConfiguration configuration,
+            Microsoft.Extensions.Logging.ILogger? logger = null)
         {
             ConnectionId = connectionId ?? throw new ArgumentNullException(nameof(connectionId));
             _client = client ?? throw new ArgumentNullException(nameof(client));
             _stream = stream ?? throw new ArgumentNullException(nameof(stream));
             _protocol = protocol ?? throw new ArgumentNullException(nameof(protocol));
             _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+            _logger = logger;
 
             _reader = PipeReader.Create(_stream);
             _writer = PipeWriter.Create(_stream);
@@ -143,7 +149,10 @@ namespace AdvGenNoSqlServer.Network
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"SSL handshake failed: {ex.Message}");
+                if (_logger != null)
+                    _logger.LogError(ex, "SSL handshake failed on connection {ConnectionId}", ConnectionId);
+                else
+                    Console.Error.WriteLine($"SSL handshake failed: {ex.Message}");
                 return false;
             }
         }

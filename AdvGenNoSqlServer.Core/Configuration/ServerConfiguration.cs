@@ -351,6 +351,22 @@ public class ServerConfiguration
     public int ShutdownDrainSeconds { get; set; } = 5;
 
     /// <summary>
+    /// Whether the readiness endpoint (/health/ready) may be called without a token
+    /// (default: true, so orchestrators can probe it). Liveness is always anonymous.
+    /// </summary>
+    public bool AllowAnonymousReadiness { get; set; } = true;
+
+    /// <summary>
+    /// Whether the /metrics endpoint may be scraped without a token (default: false).
+    /// </summary>
+    public bool AllowAnonymousMetrics { get; set; } = false;
+
+    /// <summary>
+    /// Days to keep audit log files before deleting them (default: 30; 0 = keep forever).
+    /// </summary>
+    public int AuditRetentionDays { get; set; } = 30;
+
+    /// <summary>
     /// API key required via the X-Api-Key header on the HTTP admin API (Server project).
     /// Empty disables the key requirement — intended for Development only.
     /// </summary>

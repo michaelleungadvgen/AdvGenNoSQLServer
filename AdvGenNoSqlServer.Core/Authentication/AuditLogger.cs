@@ -46,7 +46,13 @@ public class AuditLogger : IAuditLogger, IDisposable
         _eventBuffer = new ConcurrentQueue<AuditEvent>();
         _recentEvents = new LinkedList<AuditEvent>();
         _maxRecentEvents = maxRecentEvents;
-        _logDirectory = logDirectory ?? Path.Combine(_configuration.StoragePath, "logs", "audit");
+
+        // Resolve relative storage paths against the app base directory so audit logs
+        // land next to the data regardless of the process working directory.
+        var storagePath = _configuration.StoragePath;
+        if (logDirectory == null && !string.IsNullOrEmpty(storagePath) && !Path.IsPathRooted(storagePath))
+            storagePath = Path.Combine(AppContext.BaseDirectory, storagePath);
+        _logDirectory = logDirectory ?? Path.Combine(storagePath, "logs", "audit");
         _logFilePrefix = "audit";
         _maxLogFileSizeBytes = 10 * 1024 * 1024; // 10 MB default
         _writeLock = new SemaphoreSlim(1, 1);
@@ -55,6 +61,7 @@ public class AuditLogger : IAuditLogger, IDisposable
         if (_enableFileLogging)
         {
             EnsureLogDirectoryExists();
+            SweepOldLogFiles();
         }
 
         if (flushIntervalSeconds > 0 && _enableFileLogging)
@@ -481,6 +488,36 @@ public class AuditLogger : IAuditLogger, IDisposable
         if (!Directory.Exists(_logDirectory))
         {
             Directory.CreateDirectory(_logDirectory);
+        }
+    }
+
+    /// <summary>
+    /// Deletes audit log files older than AuditRetentionDays (0 = keep forever).
+    /// Runs once at startup; failures are best-effort and never block logging.
+    /// </summary>
+    private void SweepOldLogFiles()
+    {
+        var retentionDays = _configuration.AuditRetentionDays;
+        if (retentionDays <= 0) return;
+
+        try
+        {
+            var cutoff = DateTime.UtcNow.AddDays(-retentionDays);
+            foreach (var file in Directory.EnumerateFiles(_logDirectory, $"{_logFilePrefix}-*.log"))
+            {
+                try
+                {
+                    if (File.GetLastWriteTimeUtc(file) < cutoff)
+                    {
+                        File.Delete(file);
+                    }
+                }
+                catch (IOException) { /* best effort */ }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[Audit] Retention sweep failed: {ex.Message}");
         }
     }
 

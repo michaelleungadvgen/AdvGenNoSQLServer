@@ -98,7 +98,7 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
         });
 
         // Create and configure the TCP server
-        _tcpServer = new TcpServer(config);
+        _tcpServer = new TcpServer(config, _logger);
         _tcpServer.ConnectionEstablished += OnConnectionEstablished;
         _tcpServer.ConnectionClosed += OnConnectionClosed;
         _tcpServer.MessageReceived += OnMessageReceivedAsync;

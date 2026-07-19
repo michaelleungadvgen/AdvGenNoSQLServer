@@ -7,6 +7,7 @@ using AdvGenNoSqlServer.Core.Attachments;
 using AdvGenNoSqlServer.Core.Caching;
 using AdvGenNoSqlServer.Core.Configuration;
 using AdvGenNoSqlServer.Core.Authentication;
+using AdvGenNoSqlServer.Core.Health;
 using AdvGenNoSqlServer.Core.MemoryManagement;
 using AdvGenNoSqlServer.Core.Metrics;
 using AdvGenNoSqlServer.Core.Models;
@@ -42,10 +43,6 @@ public class Program
 
         var builder = WebApplication.CreateBuilder(args);
 
-        // Configure logging
-        builder.Logging.SetMinimumLevel(LogLevel.Information);
-        builder.Logging.AddConsole();
-
         // Load + validate server configuration early. Production fails fast on
         // invalid config; other environments log warnings and continue.
         var configManager = new Core.Configuration.ConfigurationManager("appsettings.json", enableHotReload: true);
@@ -58,6 +55,13 @@ public class Program
             Console.Error.WriteLine("[CONFIG] Fatal configuration errors in Production. Shutting down.");
             Environment.Exit(1);
         }
+
+        // Structured (JSON) console logging for containers in Production, plain elsewhere
+        builder.Logging.SetMinimumLevel(LogLevel.Information);
+        if (configManager.IsProduction)
+            builder.Logging.AddJsonConsole();
+        else
+            builder.Logging.AddConsole();
 
         if (!serverConfig.RequireAuthentication)
             Console.WriteLine($"[SECURITY] WARNING: Authentication is DISABLED — anonymous connections get role '{serverConfig.AnonymousRole}'. Do not run like this in production.");
@@ -158,8 +162,43 @@ public class Program
 
         // --- REST API endpoints ---
 
+        // --- Operational endpoints ---
+
+        // Liveness: is the process alive? Always anonymous (orchestrator probe).
+        app.MapGet("/health", async (HealthCheckService health) =>
+        {
+            var report = await health.GetLivenessReportAsync();
+            return Results.Ok(new { status = report.Status.ToString().ToLowerInvariant() });
+        }).AllowAnonymous();
+
+        // Readiness: can the server accept traffic (storage, disk, memory, TCP listener)?
+        var readinessEndpoint = app.MapGet("/health/ready", async (HealthCheckService health) =>
+        {
+            var report = await health.GetReadinessReportAsync();
+            var payload = new
+            {
+                status = report.Status.ToString().ToLowerInvariant(),
+                checks = report.Results.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => new { status = kvp.Value.Status.ToString().ToLowerInvariant(), description = kvp.Value.Description })
+            };
+            return report.Status == HealthStatus.Unhealthy
+                ? Results.Json(payload, statusCode: StatusCodes.Status503ServiceUnavailable)
+                : Results.Ok(payload);
+        });
+        if (serverConfig.AllowAnonymousReadiness) readinessEndpoint.AllowAnonymous();
+
+        // Prometheus metrics scrape endpoint
+        var metricsEndpoint = app.MapGet("/metrics", (IMetricsCollector metrics) =>
+            Results.Text(metrics.GetSnapshot().ToPrometheusFormat(), "text/plain; version=0.0.4"));
+        if (serverConfig.AllowAnonymousMetrics) metricsEndpoint.AllowAnonymous();
+
         // Public health check — used by Admin ConnectAsync before auth token is available
-        app.MapGet("/api/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
+        app.MapGet("/api/health", async (HealthCheckService health) =>
+        {
+            var report = await health.GetLivenessReportAsync();
+            return Results.Ok(new { status = report.Status.ToString().ToLowerInvariant() });
+        }).AllowAnonymous();
 
         // Secured endpoints (require JWT auth)
         app.MapGet("/api/stats", [Microsoft.AspNetCore.Authorization.Authorize] async (ApiDataService data) =>
@@ -188,7 +227,15 @@ public class Program
                 totalDocuments = totalDocs,
                 totalCollections = totalCols,
                 totalDatabases = totalDbs,
-                activeConnections = data.TcpServer?.ActiveConnectionCount ?? 0
+                activeConnections = data.TcpServer?.ActiveConnectionCount ?? 0,
+                connectionPool = data.TcpServer == null ? null : new
+                {
+                    data.TcpServer.PoolStatistics.MaxConnections,
+                    data.TcpServer.PoolStatistics.AvailableSlots,
+                    data.TcpServer.PoolStatistics.TotalAcquired,
+                    data.TcpServer.PoolStatistics.TotalReleased,
+                    utilizationPercent = Math.Round(data.TcpServer.PoolStatistics.UtilizationPercent, 2)
+                }
             });
         });
 
@@ -560,6 +607,36 @@ public class Program
             return new DatabaseManager(storagePath);
         });
 
+        // Add health checks (liveness/readiness probes for orchestrators)
+        AdvGenNoSqlServer.Core.Health.HealthCheckExtensions.AddHealthChecks(services);
+        services.AddSingleton<HealthCheckService>(provider =>
+        {
+            var registry = provider.GetRequiredService<IHealthCheckRegistry>();
+            var configManager = provider.GetRequiredService<Core.Configuration.IConfigurationManager>();
+            var databaseManager = provider.GetRequiredService<IDatabaseManager>();
+            var apiData = provider.GetRequiredService<ApiDataService>();
+            var config = configManager.Configuration;
+
+            var storagePath = string.IsNullOrEmpty(config.StoragePath) ? "data" : config.StoragePath;
+            if (!Path.IsPathRooted(storagePath))
+                storagePath = Path.Combine(AppContext.BaseDirectory, storagePath);
+
+            var coreTag = new HealthCheckOptions { Tags = new List<string> { "core" } };
+            registry.AddLivenessHealthCheck();
+            registry.AddMemoryHealthCheck(null, coreTag);
+            registry.AddDiskHealthCheck(storagePath, coreTag);
+            registry.AddStorageHealthCheck(databaseManager.GetDatabase(databaseManager.DefaultDatabaseName), coreTag);
+            registry.AddDelegateHealthCheck("tcp-listener", _ =>
+            {
+                var running = apiData.TcpServer?.IsRunning == true;
+                return Task.FromResult(running
+                    ? HealthCheckResult.Healthy("TCP listener is running")
+                    : HealthCheckResult.Unhealthy("TCP listener is not running"));
+            }, coreTag);
+
+            return new HealthCheckService(registry);
+        });
+
         // Add the hosted NoSQL server service
         services.AddHostedService<NoSqlServerHost>();
     }
@@ -597,6 +674,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
     private readonly AuthenticationManager _authManager;
     private readonly IDatabaseManager _databaseManager;
     private readonly ApiDataService _apiData;
+    private readonly IMetricsCollector _metrics;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string Username, string Role)> _authConnections = new();
     private AttachmentStore? _attachmentStore;
     private TcpServer? _tcpServer;
@@ -608,7 +686,8 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
         IAuditLogger auditLogger,
         AuthenticationManager authManager,
         IDatabaseManager databaseManager,
-        ApiDataService apiData)
+        ApiDataService apiData,
+        IMetricsCollector metrics)
     {
         _logger = logger;
         _configManager = configManager;
@@ -616,6 +695,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
         _authManager = authManager;
         _databaseManager = databaseManager;
         _apiData = apiData;
+        _metrics = metrics;
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -644,7 +724,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
         _logger.LogInformation("Databases: {Count}", _databaseManager.GetDatabaseNames().Count());
 
         // Create and configure the TCP server
-        _tcpServer = new TcpServer(config);
+        _tcpServer = new TcpServer(config, _logger);
         _tcpServer.ConnectionEstablished += OnConnectionEstablished;
         _tcpServer.ConnectionClosed += OnConnectionClosed;
         _tcpServer.MessageReceived += OnMessageReceivedAsync;
@@ -742,7 +822,9 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
     private void OnConnectionEstablished(object? sender, ConnectionEventArgs e)
     {
         var remoteEndPoint = e.Client.Client?.RemoteEndPoint?.ToString() ?? "unknown";
-        _logger.LogDebug("Connection established: {ConnectionId} from {RemoteAddress}", e.ConnectionId, remoteEndPoint);
+        _logger.LogInformation("Connection established: {ConnectionId} from {RemoteAddress}", e.ConnectionId, remoteEndPoint);
+        _metrics.IncrementCounter("nosql_connections_total");
+        _metrics.SetGauge("nosql_connections_active", _tcpServer?.ActiveConnectionCount ?? 0);
 
         _auditLogger.Log(new AuditEvent
         {
@@ -756,8 +838,9 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
 
     private void OnConnectionClosed(object? sender, ConnectionEventArgs e)
     {
-        _logger.LogDebug("Connection closed: {ConnectionId}", e.ConnectionId);
+        _logger.LogInformation("Connection closed: {ConnectionId}", e.ConnectionId);
         _authConnections.TryRemove(e.ConnectionId, out _);
+        _metrics.SetGauge("nosql_connections_active", _tcpServer?.ActiveConnectionCount ?? 0);
 
         _auditLogger.Log(new AuditEvent
         {
@@ -770,16 +853,31 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
 
     private async void OnMessageReceivedAsync(object? sender, MessageReceivedEventArgs e)
     {
+        var typeLabel = new MetricLabel("type", e.Message.MessageType.ToString());
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         try
         {
             var response = await ProcessMessageAsync(e.Message, e.ConnectionId);
             await e.SendResponseAsync(response);
+            _metrics.IncrementCounter("nosql_messages_total", typeLabel);
         }
         catch (Exception ex)
         {
+            _metrics.IncrementCounter("nosql_errors_total", typeLabel);
             _logger.LogError(ex, "Error processing message from {ConnectionId}", e.ConnectionId);
-            var errorResponse = NoSqlMessage.CreateError("INTERNAL_ERROR", "An error occurred processing the message");
-            await e.SendResponseAsync(errorResponse);
+            try
+            {
+                var errorResponse = NoSqlMessage.CreateError("INTERNAL_ERROR", "An error occurred processing the message");
+                await e.SendResponseAsync(errorResponse);
+            }
+            catch (Exception sendEx)
+            {
+                _logger.LogDebug(sendEx, "Failed to send error response to {ConnectionId}", e.ConnectionId);
+            }
+        }
+        finally
+        {
+            _metrics.RecordHistogram("nosql_message_duration_seconds", sw.Elapsed.TotalSeconds, typeLabel);
         }
     }
 
@@ -954,7 +1052,21 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
                     return NoSqlMessage.CreateError("FORBIDDEN", $"Role '{identity.Role}' may not run '{command}'");
             }
 
-            return command switch
+            // Audit mutating commands (data-access trail)
+            if (command is "set" or "delete" or "createcollection" or "dropcollection"
+                or "uploadattachment" or "deleteattachment")
+            {
+                _authConnections.TryGetValue(connectionId, out var auditIdentity);
+                var auditCollection = doc.RootElement.TryGetProperty("collection", out var colProp)
+                    ? colProp.GetString() ?? "" : "";
+                var auditDocId = doc.RootElement.TryGetProperty("id", out var idProp)
+                    ? idProp.GetString() : null;
+                _auditLogger.LogDataAccess(auditIdentity.Username ?? "anonymous", command, auditCollection, auditDocId);
+            }
+
+            var commandLabel = new MetricLabel("command", command ?? "unknown");
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var result = command switch
             {
                 "get" => await HandleGetCommandAsync(doc.RootElement),
                 "set" => await HandleSetCommandAsync(doc.RootElement),
@@ -980,10 +1092,15 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
                 "totalstorage" => await HandleTotalStorageCommand(),
                 _ => NoSqlMessage.CreateError("UNKNOWN_COMMAND", $"Unknown command: {command}")
             };
+            _metrics.IncrementCounter("nosql_commands_total", commandLabel);
+            _metrics.RecordHistogram("nosql_command_duration_seconds", sw.Elapsed.TotalSeconds, commandLabel);
+            return result;
         }
         catch (Exception ex)
         {
-            return NoSqlMessage.CreateError("COMMAND_ERROR", ex.Message);
+            _metrics.IncrementCounter("nosql_errors_total", new MetricLabel("type", "Command"));
+            _logger.LogError(ex, "Command processing failed for connection {ConnectionId}", connectionId);
+            return NoSqlMessage.CreateError("COMMAND_ERROR", "An error occurred processing the command");
         }
     }
 

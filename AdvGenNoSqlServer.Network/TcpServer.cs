@@ -11,6 +11,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace AdvGenNoSqlServer.Network
 {
@@ -40,6 +41,20 @@ namespace AdvGenNoSqlServer.Network
         /// </summary>
         public ServerConfiguration Configuration { get; }
 
+        private readonly Microsoft.Extensions.Logging.ILogger? _logger;
+
+        private void LogError(string message, Exception? ex = null)
+        {
+            if (_logger != null)
+            {
+                _logger.LogError(ex, "{Message}", message);
+            }
+            else
+            {
+                Console.Error.WriteLine(ex != null ? $"{message}: {ex.Message}" : message);
+            }
+        }
+
         /// <summary>
         /// Event raised when a new connection is established
         /// </summary>
@@ -66,11 +81,17 @@ namespace AdvGenNoSqlServer.Network
         public bool IsRunning => _isRunning;
 
         /// <summary>
+        /// Connection pool statistics (acquired/released totals, utilization).
+        /// </summary>
+        public ConnectionPoolStatistics PoolStatistics => _connectionPool.GetStatistics();
+
+        /// <summary>
         /// Creates a new TCP server with the specified configuration
         /// </summary>
-        public TcpServer(ServerConfiguration configuration)
+        public TcpServer(ServerConfiguration configuration, Microsoft.Extensions.Logging.ILogger? logger = null)
         {
             Configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+            _logger = logger;
             _activeConnections = new ConcurrentDictionary<string, ConnectionHandler>();
             _connectionPool = new ConnectionPool(configuration.MaxConcurrentConnections);
             _messageProtocol = new MessageProtocol();
@@ -189,7 +210,7 @@ namespace AdvGenNoSqlServer.Network
                 catch (Exception ex)
                 {
                     // Log error but continue accepting connections
-                    Console.Error.WriteLine($"Error accepting connection: {ex.Message}");
+                    LogError("Error accepting connection", ex);
                     await Task.Delay(100, cancellationToken);
                 }
             }
@@ -229,7 +250,7 @@ namespace AdvGenNoSqlServer.Network
                     }
                     catch (Exception ex)
                     {
-                        Console.Error.WriteLine($"SSL handshake failed for connection {connectionId}: {ex.Message}");
+                        LogError($"SSL handshake failed for connection {connectionId}", ex);
                         // Send plain text error if SSL fails
                         await SendSslErrorAsync(client, "SSL handshake failed");
                         client.Dispose();
@@ -244,13 +265,13 @@ namespace AdvGenNoSqlServer.Network
                 if (!_connectionPool.TryAcquire())
                 {
                     // For rejected connection without handler yet, we can temporarily create it to send error
-                    handler = new ConnectionHandler(connectionId, client, stream, _messageProtocol, Configuration);
+                    handler = new ConnectionHandler(connectionId, client, stream, _messageProtocol, Configuration, _logger);
                     await SendConnectionRejectedAsync(handler, "Server at maximum capacity");
                     handler.Dispose();
                     return;
                 }
 
-                handler = new ConnectionHandler(connectionId, client, stream, _messageProtocol, Configuration);
+                handler = new ConnectionHandler(connectionId, client, stream, _messageProtocol, Configuration, _logger);
 
                 _activeConnections.TryAdd(connectionId, handler);
                 ConnectionEstablished?.Invoke(this, new ConnectionEventArgs(connectionId, client, handler.IsSecure));
@@ -319,11 +340,7 @@ namespace AdvGenNoSqlServer.Network
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Connection error: {ex.Message}");
-                if (ex.InnerException != null)
-                {
-                    Console.Error.WriteLine($"Inner exception: {ex.InnerException.Message}");
-                }
+                LogError($"Connection error ({handler.ConnectionId})", ex);
             }
         }
 
