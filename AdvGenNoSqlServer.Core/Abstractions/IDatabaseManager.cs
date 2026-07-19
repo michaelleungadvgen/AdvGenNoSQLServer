@@ -35,6 +35,17 @@ public interface IDatabaseManager
     bool DatabaseExists(string name);
 
     /// <summary>
+    /// Flushes all pending write-behind operations in every database to disk.
+    /// </summary>
+    Task FlushAsync();
+
+    /// <summary>
+    /// Flushes and disposes all database stores. Must be called on server shutdown
+    /// so queued writes are not lost.
+    /// </summary>
+    Task DisposeDatabasesAsync();
+
+    /// <summary>
     /// Gets the default database name
     /// </summary>
     string DefaultDatabaseName { get; }

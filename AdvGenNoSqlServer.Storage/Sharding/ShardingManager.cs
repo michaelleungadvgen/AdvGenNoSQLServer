@@ -17,7 +17,6 @@ public class ShardingManager : IShardingManager
     private readonly IShardKey _shardKey;
     private readonly ShardRouter _router;
     private readonly ConcurrentDictionary<string, ShardStatistics> _statistics;
-    private readonly Timer? _statsUpdateTimer;
     private bool _disposed;
 
     /// <summary>
@@ -37,9 +36,6 @@ public class ShardingManager : IShardingManager
         {
             _statistics[shard.ShardId] = new ShardStatistics { ShardId = shard.ShardId };
         }
-
-        // Setup periodic stats update timer (if needed in the future)
-        // _statsUpdateTimer = new Timer(UpdateStatistics, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
     }
 
     /// <inheritdoc />
@@ -320,7 +316,6 @@ public class ShardingManager : IShardingManager
     {
         if (!_disposed)
         {
-            _statsUpdateTimer?.Dispose();
             _disposed = true;
         }
     }

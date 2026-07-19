@@ -4,6 +4,10 @@
 
 using System.Security.Authentication;
 
+// This validator must reference legacy protocol values (Ssl2/Ssl3/Tls/Tls11) precisely
+// because its job is to recognize and REJECT them. The obsolescence warnings are expected.
+#pragma warning disable CS0618, SYSLIB0039
+
 namespace AdvGenNoSqlServer.Network
 {
     /// <summary>

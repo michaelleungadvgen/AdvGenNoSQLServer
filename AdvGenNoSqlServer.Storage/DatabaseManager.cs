@@ -134,4 +134,25 @@ public class DatabaseManager : IDatabaseManager
     {
         return _databases.ContainsKey(name);
     }
+
+    /// <inheritdoc />
+    public async Task FlushAsync()
+    {
+        foreach (var store in _databases.Values)
+        {
+            await store.FlushAsync();
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task DisposeDatabasesAsync()
+    {
+        foreach (var (name, store) in _databases.ToArray())
+        {
+            if (_databases.TryRemove(name, out var removed))
+            {
+                await removed.DisposeAsync();
+            }
+        }
+    }
 }

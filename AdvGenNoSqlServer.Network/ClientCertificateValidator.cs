@@ -502,7 +502,7 @@ namespace AdvGenNoSqlServer.Network
         {
             try
             {
-                CertificateValidated?.Invoke(null, new ClientCertificateValidationEventArgs(
+                CertificateValidated?.Invoke(typeof(ClientCertificateValidator), new ClientCertificateValidationEventArgs(
                     certificate, result, configuration));
             }
             catch

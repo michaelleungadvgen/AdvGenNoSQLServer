@@ -345,6 +345,12 @@ public class ServerConfiguration
     public int PreAuthMaxMessageBytes { get; set; } = 65536;
 
     /// <summary>
+    /// Grace period in seconds during shutdown for in-flight message handlers to finish
+    /// before connections are closed (default: 5).
+    /// </summary>
+    public int ShutdownDrainSeconds { get; set; } = 5;
+
+    /// <summary>
     /// API key required via the X-Api-Key header on the HTTP admin API (Server project).
     /// Empty disables the key requirement — intended for Development only.
     /// </summary>

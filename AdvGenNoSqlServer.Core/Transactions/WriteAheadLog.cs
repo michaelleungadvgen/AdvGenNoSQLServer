@@ -63,7 +63,12 @@ public class WriteAheadLog : IWriteAheadLog
         if (_options.CheckpointInterval > TimeSpan.Zero)
         {
             _checkpointTimer = new Timer(
-                async _ => await CreateCheckpointAsync(Array.Empty<string>()),
+                async _ =>
+                {
+                    // async-void timer callback: exceptions here would terminate the process
+                    try { await CreateCheckpointAsync(Array.Empty<string>()); }
+                    catch (Exception ex) { Console.Error.WriteLine($"[WAL] Checkpoint failed: {ex.Message}"); }
+                },
                 null,
                 _options.CheckpointInterval,
                 _options.CheckpointInterval);

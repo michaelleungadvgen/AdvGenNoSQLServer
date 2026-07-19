@@ -647,9 +647,11 @@ public class IndexManager
                     Index.Insert(key, document.Id);
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Ignore documents that don't have the indexed field
+                // Missing-field documents are skipped by design, but index insert
+                // failures must be visible (index/store divergence risk).
+                LogIndexError("insert", document.Id, ex);
             }
         }
 
@@ -663,9 +665,9 @@ public class IndexManager
                     Index.Delete(key, document.Id);
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Ignore errors during removal
+                LogIndexError("delete", document.Id, ex);
             }
         }
 
@@ -675,6 +677,9 @@ public class IndexManager
             IndexDocument(newDocument);
         }
     }
+
+    private static void LogIndexError(string operation, string documentId, Exception ex)
+        => Console.Error.WriteLine($"[Indexing] {operation} failed for document '{documentId}': {ex.Message}");
 
     /// <summary>
     /// Wrapper for compound (multi-field) indexes
@@ -711,9 +716,9 @@ public class IndexManager
             {
                 throw; // Re-throw duplicate key exceptions for unique compound indexes
             }
-            catch
+            catch (Exception ex)
             {
-                // Ignore documents that don't have all indexed fields
+                LogIndexError("insert", document.Id, ex);
             }
         }
 
@@ -728,9 +733,9 @@ public class IndexManager
                     Index.Delete(key, document.Id);
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Ignore errors during removal
+                LogIndexError("delete", document.Id, ex);
             }
         }
 
@@ -764,7 +769,7 @@ public class IndexManager
             try
             {
                 // For sparse indexes, only index if the document has the field
-                if (!document.Data.ContainsKey(Index.FieldName))
+                if (document.Data == null || !document.Data.ContainsKey(Index.FieldName))
                     return;
 
                 var key = _keySelector(document);
@@ -777,9 +782,9 @@ public class IndexManager
             {
                 throw; // Re-throw duplicate key exceptions
             }
-            catch
+            catch (Exception ex)
             {
-                // Ignore other errors
+                LogIndexError("insert", document.Id, ex);
             }
         }
 
@@ -788,7 +793,7 @@ public class IndexManager
             try
             {
                 // Only try to remove if document has the field
-                if (!document.Data.ContainsKey(Index.FieldName))
+                if (document.Data == null || !document.Data.ContainsKey(Index.FieldName))
                     return;
 
                 var key = _keySelector(document);
@@ -797,9 +802,9 @@ public class IndexManager
                     Index.Delete(key, document.Id);
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Ignore errors during removal
+                LogIndexError("delete", document.Id, ex);
             }
         }
 
@@ -846,9 +851,9 @@ public class IndexManager
             {
                 throw; // Re-throw duplicate key exceptions
             }
-            catch
+            catch (Exception ex)
             {
-                // Ignore other errors
+                LogIndexError("insert", document.Id, ex);
             }
         }
 
@@ -866,9 +871,9 @@ public class IndexManager
                     Index.Delete(key, document.Id);
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Ignore errors during removal
+                LogIndexError("delete", document.Id, ex);
             }
         }
 

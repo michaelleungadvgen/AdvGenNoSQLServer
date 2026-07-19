@@ -27,6 +27,13 @@ namespace AdvGenNoSqlServer.Network
         private Task? _acceptTask;
         private bool _isRunning;
         private readonly object _startStopLock = new();
+        private int _inFlightMessages;
+
+        /// <summary>
+        /// Number of messages currently being handled across all connections.
+        /// Watched during shutdown so in-flight work can drain before connections close.
+        /// </summary>
+        public int InFlightMessageCount => Volatile.Read(ref _inFlightMessages);
 
         /// <summary>
         /// Server configuration
@@ -121,6 +128,15 @@ namespace AdvGenNoSqlServer.Network
 
             // Stop accepting new connections
             _listener?.Stop();
+
+            // Drain: give in-flight message handlers a bounded grace period to finish
+            // before their connections are closed underneath them.
+            var drainTimeout = TimeSpan.FromSeconds(Math.Max(0, Configuration.ShutdownDrainSeconds));
+            var drainDeadline = DateTime.UtcNow.Add(drainTimeout);
+            while (InFlightMessageCount > 0 && DateTime.UtcNow < drainDeadline)
+            {
+                await Task.Delay(50);
+            }
 
             // Wait for accept task to complete
             if (_acceptTask != null)
@@ -282,11 +298,19 @@ namespace AdvGenNoSqlServer.Network
                             await handler.SendAsync(response, cancellationToken);
                         });
 
-                    MessageReceived?.Invoke(this, eventArgs);
+                    Interlocked.Increment(ref _inFlightMessages);
+                    try
+                    {
+                        MessageReceived?.Invoke(this, eventArgs);
 
-                    // Wait for the event handler to send a response before reading the next message
-                    // This ensures the async event handler completes before we continue
-                    await eventArgs.WaitForResponseAsync(cancellationToken);
+                        // Wait for the event handler to send a response before reading the next message
+                        // This ensures the async event handler completes before we continue
+                        await eventArgs.WaitForResponseAsync(cancellationToken);
+                    }
+                    finally
+                    {
+                        Interlocked.Decrement(ref _inFlightMessages);
+                    }
                 }
             }
             catch (OperationCanceledException)

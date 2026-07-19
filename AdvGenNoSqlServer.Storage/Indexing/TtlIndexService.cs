@@ -19,7 +19,6 @@ public class TtlIndexService : ITtlIndexService
     private readonly ConcurrentDictionary<string, PriorityQueue<string, DateTime>> _expirationQueues = new();
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _collectionLocks = new();
     private readonly Func<string, string, Task<bool>>? _deleteDocumentCallback;
-    private readonly Timer? _cleanupTimer;
     private readonly TimeSpan _defaultCleanupInterval;
     private long _documentsExpired;
     private long _cleanupRuns;
@@ -348,9 +347,10 @@ public class TtlIndexService : ITtlIndexService
                 {
                     break;
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
-                    // Ignore errors in background cleanup
+                    // Keep the cleanup loop alive, but make repeated failures visible
+                    Console.Error.WriteLine($"[TTL] Cleanup pass failed: {ex.Message}");
                 }
             }
         }, cancellationToken);
@@ -377,8 +377,6 @@ public class TtlIndexService : ITtlIndexService
 
         _isDisposed = true;
         _isRunning = false;
-
-        _cleanupTimer?.Dispose();
 
         foreach (var lockObj in _collectionLocks.Values)
         {

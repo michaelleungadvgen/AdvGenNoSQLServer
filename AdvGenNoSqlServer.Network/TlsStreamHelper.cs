@@ -507,7 +507,7 @@ namespace AdvGenNoSqlServer.Network
                 RejectionReason = reason
             };
 
-            CipherValidated?.Invoke(null, eventArgs);
+            CipherValidated?.Invoke(typeof(TlsStreamHelper), eventArgs);
 
             return eventArgs.IsAllowed;
         }
@@ -725,7 +725,7 @@ namespace AdvGenNoSqlServer.Network
                             SslPolicyErrors.None,
                             clientCertConfig);
 
-                        ClientCertValidated?.Invoke(null, new ClientCertValidationEventArgs(
+                        ClientCertValidated?.Invoke(typeof(TlsStreamHelper), new ClientCertValidationEventArgs(
                             result.Certificate,
                             result.IsValid,
                             result.Errors,
@@ -789,7 +789,7 @@ namespace AdvGenNoSqlServer.Network
             // Do full validation
             var result = ClientCertificateValidator.Validate(certificate, chain, sslPolicyErrors, config);
             
-            ClientCertValidated?.Invoke(null, new ClientCertValidationEventArgs(
+            ClientCertValidated?.Invoke(typeof(TlsStreamHelper), new ClientCertValidationEventArgs(
                 result.Certificate,
                 result.IsValid,
                 result.Errors,

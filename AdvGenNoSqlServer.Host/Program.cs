@@ -62,6 +62,18 @@ public class Program
         if (!serverConfig.RequireAuthentication)
             Console.WriteLine($"[SECURITY] WARNING: Authentication is DISABLED — anonymous connections get role '{serverConfig.AnonymousRole}'. Do not run like this in production.");
 
+        // Surface background failures: log unobserved task exceptions instead of
+        // letting them fault silently, and record fatal crashes before the process dies.
+        TaskScheduler.UnobservedTaskException += (_, e) =>
+        {
+            Console.Error.WriteLine($"[FATAL] Unobserved task exception: {e.Exception}");
+            e.SetObserved();
+        };
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            Console.Error.WriteLine($"[FATAL] Unhandled exception (terminating: {e.IsTerminating}): {e.ExceptionObject}");
+        };
+
         // Resolve the JWT signing secret ONCE so token issuance and validation agree.
         // Without a configured secret a random one is generated (non-production only —
         // tokens become invalid on restart). Production validation above requires a real one.
@@ -381,7 +393,7 @@ public class Program
             if (data.DocumentStore == null) return Results.StatusCode(503);
             try
             {
-                var result = auth.Authenticate(req.Username, req.Password);
+                var result = await Task.Run(() => auth.Authenticate(req.Username, req.Password));
                 if (result != null)
                 {
                     // Issue the user's REAL role and permissions — every authenticated
@@ -695,6 +707,19 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
             await _tcpServer.StopAsync(TimeSpan.FromSeconds(30));
             _tcpServer.Dispose();
             _tcpServer = null;
+        }
+
+        // Flush and dispose all database stores — without this, write-behind queues
+        // lose their pending writes on every graceful shutdown.
+        try
+        {
+            _logger.LogInformation("Flushing databases before shutdown...");
+            await _databaseManager.DisposeDatabasesAsync();
+            _logger.LogInformation("Databases flushed and closed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error while flushing databases during shutdown");
         }
 
         _logger.LogInformation("NoSQL Server stopped successfully");
@@ -1413,5 +1438,15 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
         _attachmentStore?.Dispose();
         _attachmentStore = null;
         _tcpServer?.Dispose();
+
+        // Safety net if StopAsync was bypassed: flush pending writes.
+        try
+        {
+            await _databaseManager.DisposeDatabasesAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error while disposing databases");
+        }
     }
 }

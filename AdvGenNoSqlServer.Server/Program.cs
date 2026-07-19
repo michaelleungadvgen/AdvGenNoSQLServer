@@ -42,6 +42,18 @@ public class Program
         if (!serverConfig.RequireAuthentication)
             Console.WriteLine($"[SECURITY] WARNING: Authentication is DISABLED — anonymous connections get role '{serverConfig.AnonymousRole}'. Do not run like this in production.");
 
+        // Surface background failures: log unobserved task exceptions instead of
+        // letting them fault silently, and record fatal crashes before the process dies.
+        TaskScheduler.UnobservedTaskException += (_, e) =>
+        {
+            Console.Error.WriteLine($"[FATAL] Unobserved task exception: {e.Exception}");
+            e.SetObserved();
+        };
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            Console.Error.WriteLine($"[FATAL] Unhandled exception (terminating: {e.IsTerminating}): {e.ExceptionObject}");
+        };
+
         // Load the TLS certificate once at startup: a bad/missing cert must fail fast
         // (in Production) instead of failing every client handshake later.
         if (serverConfig.EnableSsl)

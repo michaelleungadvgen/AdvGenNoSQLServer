@@ -60,7 +60,12 @@ public class AuditLogger : IAuditLogger, IDisposable
         if (flushIntervalSeconds > 0 && _enableFileLogging)
         {
             _flushTimer = new Timer(
-                async _ => await FlushAsync(),
+                async _ =>
+                {
+                    // async-void timer callback: exceptions here would terminate the process
+                    try { await FlushAsync(); }
+                    catch (Exception ex) { Console.Error.WriteLine($"[Audit] Flush failed: {ex.Message}"); }
+                },
                 null,
                 TimeSpan.FromSeconds(flushIntervalSeconds),
                 TimeSpan.FromSeconds(flushIntervalSeconds));

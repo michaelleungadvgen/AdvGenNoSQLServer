@@ -477,9 +477,13 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
                 {
                     await ProcessWriteOperationAsync(operation);
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
-                    // Log error but continue processing
+                    // A failed background write means the document only lives in cache —
+                    // make disk-full/IO failures visible instead of losing data silently.
+                    Interlocked.Increment(ref _writeFailures);
+                    Console.Error.WriteLine(
+                        $"[Storage] Background write failed ({operation.Type} {operation.CollectionName}/{operation.Document?.Id}): {ex.Message}");
                 }
                 finally
                 {
@@ -492,6 +496,14 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
             // Normal shutdown
         }
     }
+
+    private long _writeFailures;
+
+    /// <summary>
+    /// Number of background write operations that failed since startup. Non-zero means
+    /// some documents exist only in cache and were never persisted to disk.
+    /// </summary>
+    public long WriteFailureCount => Interlocked.Read(ref _writeFailures);
 
     private async Task ProcessWriteOperationAsync(WriteOperation operation)
     {

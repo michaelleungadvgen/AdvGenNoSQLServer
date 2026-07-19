@@ -162,7 +162,7 @@ public static class AlpnTlsProvider
             }
 
             // Raise ALPN negotiation event
-            AlpnNegotiated?.Invoke(null, new AlpnNegotiationEventArgs(alpnResult, remoteEndpoint));
+            AlpnNegotiated?.Invoke(typeof(AlpnTlsProvider), new AlpnNegotiationEventArgs(alpnResult, remoteEndpoint));
 
             return sslStream;
         }
@@ -273,7 +273,7 @@ public static class AlpnTlsProvider
             }
 
             // Raise ALPN negotiation event
-            AlpnNegotiated?.Invoke(null, new AlpnNegotiationEventArgs(alpnResult, remoteEndpoint));
+            AlpnNegotiated?.Invoke(typeof(AlpnTlsProvider), new AlpnNegotiationEventArgs(alpnResult, remoteEndpoint));
 
             return sslStream;
         }

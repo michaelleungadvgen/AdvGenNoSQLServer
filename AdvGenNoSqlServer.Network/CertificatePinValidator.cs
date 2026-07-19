@@ -99,7 +99,7 @@ namespace AdvGenNoSqlServer.Network
                     ShouldFail = options.EnforceStrict,
                     FailureMessage = "No certificate provided for pinning validation"
                 };
-                PinValidated?.Invoke(null, nullArgs);
+                PinValidated?.Invoke(typeof(CertificatePinValidator), nullArgs);
                 return !nullArgs.ShouldFail;
             }
 
@@ -116,7 +116,7 @@ namespace AdvGenNoSqlServer.Network
                 ShouldFail = !isPinned && options.EnforceStrict
             };
 
-            PinValidated?.Invoke(null, eventArgs);
+            PinValidated?.Invoke(typeof(CertificatePinValidator), eventArgs);
 
             return !eventArgs.ShouldFail;
         }

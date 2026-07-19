@@ -149,7 +149,7 @@ public sealed class ManagedMemoryStorageEngine : IMemoryStorageEngine
         finally
         {
             _locks[shard].ExitWriteLock();
-            if (removed) ArrayPool<byte>.Shared.Return(entry.Buffer);
+            if (removed && entry.Buffer != null) ArrayPool<byte>.Shared.Return(entry.Buffer);
         }
     }
 
@@ -202,7 +202,7 @@ public sealed class ManagedMemoryStorageEngine : IMemoryStorageEngine
             finally
             {
                 _locks[shard].ExitWriteLock();
-                if (removed) ArrayPool<byte>.Shared.Return(entry.Buffer);
+                if (removed && entry.Buffer != null) ArrayPool<byte>.Shared.Return(entry.Buffer);
             }
         }
     }

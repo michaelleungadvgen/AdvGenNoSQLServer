@@ -107,8 +107,9 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
         _apiData.DocumentStore = _documentStore;
         _apiData.TcpServer = _tcpServer;
 
-        // Start the TCP server
-        _tcpServer.StartAsync(cancellationToken);
+        // Start the TCP server (awaited: bind failures must surface, not fault a
+        // fire-and-forget task while we report a healthy start)
+        await _tcpServer.StartAsync(cancellationToken);
 
         _logger.LogInformation("NoSQL Server started successfully");
     }
@@ -173,9 +174,17 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
         {
             _logger.LogError(ex, "Error handling message from {ConnectionId}", e.ConnectionId);
 
-            // Send error response
-            var errorResponse = NoSqlMessage.CreateError("INTERNAL_ERROR", "An error occurred processing the message");
-            await e.SendResponseAsync(errorResponse);
+            // Send error response — the send itself can fail on a dead socket, and this
+            // is an async-void method, so any escape here would terminate the process.
+            try
+            {
+                var errorResponse = NoSqlMessage.CreateError("INTERNAL_ERROR", "An error occurred processing the message");
+                await e.SendResponseAsync(errorResponse);
+            }
+            catch (Exception sendEx)
+            {
+                _logger.LogDebug(sendEx, "Failed to send error response to {ConnectionId}", e.ConnectionId);
+            }
         }
     }
 
@@ -581,8 +590,9 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
             return NoSqlMessage.CreateSuccess(new { found = false, document = (object?)null, value = (object?)null });
         }
 
-        var flat = new Dictionary<string, object?>(document.Data.Count + 1) { ["_id"] = document.Id };
-        foreach (var kv in document.Data)
+        var data = document.Data ?? new Dictionary<string, object>();
+        var flat = new Dictionary<string, object?>(data.Count + 1) { ["_id"] = document.Id };
+        foreach (var kv in data)
         {
             flat[kv.Key] = kv.Value;
         }
@@ -1011,6 +1021,9 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
         // Simple filter matching - supports exact equality checks
         foreach (var prop in filter.EnumerateObject())
         {
+            if (document.Data == null)
+                return false;
+
             if (!document.Data.TryGetValue(prop.Name, out var docValue))
             {
                 return false;
@@ -1176,8 +1189,9 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
                 .Skip(skip).Take(take)
                 .Select(d =>
                 {
-                    var flat = new Dictionary<string, object?>(d.Data.Count + 1) { ["_id"] = d.Id };
-                    foreach (var kv in d.Data) flat[kv.Key] = kv.Value;
+                    var data = d.Data ?? new Dictionary<string, object>();
+                    var flat = new Dictionary<string, object?>(data.Count + 1) { ["_id"] = d.Id };
+                    foreach (var kv in data) flat[kv.Key] = kv.Value;
                     return flat;
                 })
                 .ToList();
