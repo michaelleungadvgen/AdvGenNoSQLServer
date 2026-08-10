@@ -363,12 +363,15 @@ public class AttachmentStore : IAttachmentStore, IDisposable
 
     private string GetDocumentPath(string collectionName, string documentId)
     {
-        return Path.Combine(_options.BasePath, SanitizeFileName(collectionName), SanitizeFileName(documentId));
+        var docPath = Path.Combine(_options.BasePath, SanitizeFileName(collectionName), SanitizeFileName(documentId));
+        return AdvGenNoSqlServer.Core.Security.PathValidator.GetSafePath(_options.BasePath, docPath);
     }
 
     private string GetAttachmentPath(string collectionName, string documentId, string attachmentName)
     {
-        return Path.Combine(GetDocumentPath(collectionName, documentId), SanitizeFileName(attachmentName));
+        var docPath = GetDocumentPath(collectionName, documentId);
+        var combinedPath = Path.Combine(docPath, SanitizeFileName(attachmentName));
+        return AdvGenNoSqlServer.Core.Security.PathValidator.GetSafePath(docPath, combinedPath);
     }
 
     private static string SanitizeFileName(string name)
