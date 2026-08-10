@@ -12,3 +12,9 @@
 ## 2026-05-04 - Avoid repeated enumeration on deferred Distinct queries
 **Learning:** When replacing `.ToList()` with deferred execution (lazy evaluation) on LINQ queries that contain stateful or expensive operators like `.Distinct()`, verify that the caller does not enumerate the result multiple times. Repeated enumeration of deferred pipelines re-executes the O(N) logic and re-allocates internal structures (like HashSets) every time, which can cause severe performance regressions.
 **Action:** If a deferred collection with a stateful operator is going to be iterated over multiple times, materialized snapshot evaluation (like `.ToList()`) might still be necessary. Always balance the memory savings of lazy evaluation against the CPU cost of re-evaluating the pipeline.
+## 2026-10-23 - Avoid eager memory allocation and looping for collection merges
+**Learning:** In C#, converting a lazy  to a  via  eagerly allocates memory. When merging elements (such as  combining underlying stores and capped collections), subsequently looping and performing  on that  results in (N 	imes M)$ time complexity.
+**Action:** Use LINQ's  for deferred execution. This replaces the eager allocation and quadratic lookups with a single pipeline that resolves dynamically, preserving memory and running in (N + M)$ time complexity.
+## 2026-10-23 - Avoid eager memory allocation and looping for collection merges
+**Learning:** In C#, converting a lazy `IEnumerable<T>` to a `List` via `.ToList()` eagerly allocates memory. When merging elements (such as `GetCollectionsAsync()` combining underlying stores and capped collections), subsequently looping and performing `.Contains()` on that `List` results in $O(N \times M)$ time complexity.
+**Action:** Use LINQ's `.Concat(...).Distinct()` for deferred execution. This replaces the eager allocation and quadratic lookups with a single pipeline that resolves dynamically, preserving memory and running in $O(N + M)$ time complexity.
