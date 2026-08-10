@@ -115,7 +115,7 @@ public class DataExporter : IDataExporter
         {
             options.CancellationToken.ThrowIfCancellationRequested();
 
-            var outputPath = Path.Combine(outputDirectory, $"{collectionName}{extension}");
+            var outputPath = AdvGenNoSqlServer.Core.Security.PathValidator.GetSafePath(outputDirectory, Path.Combine(outputDirectory, $"{collectionName}{extension}"));
             var result = await ExportCollectionAsync(store, collectionName, outputPath, options);
             results[collectionName] = result;
 
