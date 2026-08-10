@@ -12,3 +12,7 @@
 ## 2026-05-04 - Avoid repeated enumeration on deferred Distinct queries
 **Learning:** When replacing `.ToList()` with deferred execution (lazy evaluation) on LINQ queries that contain stateful or expensive operators like `.Distinct()`, verify that the caller does not enumerate the result multiple times. Repeated enumeration of deferred pipelines re-executes the O(N) logic and re-allocates internal structures (like HashSets) every time, which can cause severe performance regressions.
 **Action:** If a deferred collection with a stateful operator is going to be iterated over multiple times, materialized snapshot evaluation (like `.ToList()`) might still be necessary. Always balance the memory savings of lazy evaluation against the CPU cost of re-evaluating the pipeline.
+
+## 2026-10-24 - Defer execution in LINQ aggregation pipelines
+**Learning:** Eagerly materializing intermediate stages of a multi-stage aggregation pipeline using `.ToList()` after LINQ operations like `.Skip()` and `.Take()` causes unnecessary $O(N)$ memory allocations and CPU overhead, preventing the data from being efficiently streamed through subsequent stages.
+**Action:** When implementing aggregation pipeline stages, return deferred query definitions (e.g., just calling `.Skip(N)` instead of `.Skip(N).ToList()`). The final aggregation pipeline orchestrator (e.g. `AggregationPipeline.Execute()`) should be responsible for materializing the final enumerable.

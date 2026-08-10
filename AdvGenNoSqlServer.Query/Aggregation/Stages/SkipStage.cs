@@ -36,13 +36,33 @@ public class SkipStage : IAggregationStage
     /// <inheritdoc />
     public IEnumerable<Document> Execute(IEnumerable<Document> documents)
     {
+        IEnumerator<Document> enumerator;
         try
         {
-            return documents.Skip(_skip).ToList();
+            enumerator = documents.Skip(_skip).GetEnumerator();
         }
         catch (Exception ex)
         {
             throw new AggregationStageException(StageType, $"Failed to execute skip stage: {ex.Message}", ex);
+        }
+
+        using (enumerator)
+        {
+            while (true)
+            {
+                Document current;
+                try
+                {
+                    if (!enumerator.MoveNext())
+                        break;
+                    current = enumerator.Current;
+                }
+                catch (Exception ex)
+                {
+                    throw new AggregationStageException(StageType, $"Failed to execute skip stage: {ex.Message}", ex);
+                }
+                yield return current;
+            }
         }
     }
 
