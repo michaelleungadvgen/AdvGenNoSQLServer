@@ -4,6 +4,7 @@
 
 using AdvGenNoSqlServer.Core.Abstractions;
 using AdvGenNoSqlServer.Core.Models;
+using AdvGenNoSqlServer.Core.Security;
 using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Threading.Channels;
