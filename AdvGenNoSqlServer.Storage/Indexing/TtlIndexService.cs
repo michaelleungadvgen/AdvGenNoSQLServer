@@ -253,10 +253,17 @@ public class TtlIndexService : ITtlIndexService
     public TtlIndexStatistics GetStatistics()
     {
         var runs = Interlocked.Read(ref _cleanupRuns);
+
+        long tracked = 0;
+        foreach (var kvp in _documentExpirationTimes)
+        {
+            tracked += kvp.Value.Count;
+        }
+
         return new TtlIndexStatistics
         {
             DocumentsExpired = Interlocked.Read(ref _documentsExpired),
-            DocumentsTracked = _documentExpirationTimes.Values.Sum(d => d.Count),
+            DocumentsTracked = tracked,
             LastCleanupTime = _lastCleanupTime,
             CleanupRuns = runs,
             AverageCleanupTimeMs = runs > 0 ? (double)Interlocked.Read(ref _totalCleanupTimeMs) / runs : 0
