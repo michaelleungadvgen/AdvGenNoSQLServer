@@ -559,25 +559,25 @@ public class IndexManager
 
         public void IndexDocument(Document document)
         {
-            foreach (var wrapper in _indexes.Values)
+            foreach (var kvp in _indexes)
             {
-                wrapper.IndexDocument(document);
+                kvp.Value.IndexDocument(document);
             }
         }
 
         public void RemoveDocument(Document document)
         {
-            foreach (var wrapper in _indexes.Values)
+            foreach (var kvp in _indexes)
             {
-                wrapper.RemoveDocument(document);
+                kvp.Value.RemoveDocument(document);
             }
         }
 
         public void UpdateDocument(Document oldDocument, Document newDocument)
         {
-            foreach (var wrapper in _indexes.Values)
+            foreach (var kvp in _indexes)
             {
-                wrapper.UpdateDocument(oldDocument, newDocument);
+                kvp.Value.UpdateDocument(oldDocument, newDocument);
             }
         }
 
