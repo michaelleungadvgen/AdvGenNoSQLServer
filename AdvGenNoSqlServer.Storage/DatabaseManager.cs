@@ -4,6 +4,7 @@
 
 namespace AdvGenNoSqlServer.Storage;
 
+using AdvGenNoSqlServer.Core.Security;
 using AdvGenNoSqlServer.Core.Abstractions;
 using System.Collections.Concurrent;
 
@@ -60,7 +61,8 @@ public class DatabaseManager : IDatabaseManager
         // directories the volume contains)
         if (!_databases.ContainsKey(_defaultDatabaseName))
         {
-            var defaultDbPath = Path.Combine(_baseStoragePath, _defaultDatabaseName);
+            // Security: Prevent path traversal by structurally validating the combined path against the base storage directory
+            var defaultDbPath = PathValidator.GetSafePath(_baseStoragePath, Path.Combine(_baseStoragePath, _defaultDatabaseName));
             var defaultStore = new HybridDocumentStore(defaultDbPath);
             defaultStore.InitializeAsync().GetAwaiter().GetResult();
             _databases[_defaultDatabaseName] = defaultStore;
@@ -94,7 +96,8 @@ public class DatabaseManager : IDatabaseManager
             return false;
         }
 
-        var dbPath = Path.Combine(_baseStoragePath, name);
+        // Security: Prevent path traversal by structurally validating the combined path against the base storage directory
+        var dbPath = PathValidator.GetSafePath(_baseStoragePath, Path.Combine(_baseStoragePath, name));
         if (Directory.Exists(dbPath))
         {
             return false; // Already exists
@@ -126,7 +129,8 @@ public class DatabaseManager : IDatabaseManager
         {
             await store.DisposeAsync();
 
-            var dbPath = Path.Combine(_baseStoragePath, name);
+            // Security: Prevent path traversal by structurally validating the combined path against the base storage directory
+        var dbPath = PathValidator.GetSafePath(_baseStoragePath, Path.Combine(_baseStoragePath, name));
             try
             {
                 Directory.Delete(dbPath, recursive: true);
