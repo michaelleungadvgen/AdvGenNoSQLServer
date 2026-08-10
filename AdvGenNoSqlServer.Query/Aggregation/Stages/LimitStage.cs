@@ -36,13 +36,26 @@ public class LimitStage : IAggregationStage
     /// <inheritdoc />
     public IEnumerable<Document> Execute(IEnumerable<Document> documents)
     {
-        try
+        return ExecuteDeferred(documents);
+    }
+
+    private IEnumerable<Document> ExecuteDeferred(IEnumerable<Document> documents)
+    {
+        using var enumerator = documents.Take(_limit).GetEnumerator();
+        while (true)
         {
-            return documents.Take(_limit).ToList();
-        }
-        catch (Exception ex)
-        {
-            throw new AggregationStageException(StageType, $"Failed to execute limit stage: {ex.Message}", ex);
+            Document doc;
+            try
+            {
+                if (!enumerator.MoveNext())
+                    break;
+                doc = enumerator.Current;
+            }
+            catch (Exception ex)
+            {
+                throw new AggregationStageException(StageType, $"Failed to execute limit stage: {ex.Message}", ex);
+            }
+            yield return doc;
         }
     }
 
