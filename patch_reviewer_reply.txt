@@ -1,0 +1,6 @@
+[
+  {
+    "comment_id": "none",
+    "reply": "The reviewer incorrectly assumed `_cache` is a standard `Dictionary<K, V>`. As shown on line 31 of `AdvGenNoSqlServer.Core/Caching/LruCache.cs`, `_cache` is a `ConcurrentDictionary<string, LruCacheEntry<TValue>>`. Therefore, enumerating it outside of the `ReaderWriterLockSlim` is perfectly thread-safe and will not throw `InvalidOperationException`. The lock is only needed for consistency between `_cache` and `_lruList`, and for updating size counters, which is correctly handled during the batch removals. I will proceed with the current correct implementation."
+  }
+]

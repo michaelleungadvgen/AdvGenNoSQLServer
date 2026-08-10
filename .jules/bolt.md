@@ -12,3 +12,7 @@
 ## 2026-05-04 - Avoid repeated enumeration on deferred Distinct queries
 **Learning:** When replacing `.ToList()` with deferred execution (lazy evaluation) on LINQ queries that contain stateful or expensive operators like `.Distinct()`, verify that the caller does not enumerate the result multiple times. Repeated enumeration of deferred pipelines re-executes the O(N) logic and re-allocates internal structures (like HashSets) every time, which can cause severe performance regressions.
 **Action:** If a deferred collection with a stateful operator is going to be iterated over multiple times, materialized snapshot evaluation (like `.ToList()`) might still be necessary. Always balance the memory savings of lazy evaluation against the CPU cost of re-evaluating the pipeline.
+
+## 2024-05-24 - Optimizing LruCache Background Cleanup
+**Learning:** In a highly concurrent environment, iterating `ConcurrentDictionary.Values` under a write lock during background cleanup operations (like TTL expiry) causes severe lock contention and O(N) allocation overhead. Long-running locked enumerations block all other cache read/write operations.
+**Action:** Always enumerate the `ConcurrentDictionary` as KeyValuePairs outside of the lock to identify candidates, and then apply deletions in small batches under the lock, re-verifying the state of each item before removal.
