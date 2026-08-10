@@ -12,3 +12,6 @@
 ## 2026-05-04 - Avoid repeated enumeration on deferred Distinct queries
 **Learning:** When replacing `.ToList()` with deferred execution (lazy evaluation) on LINQ queries that contain stateful or expensive operators like `.Distinct()`, verify that the caller does not enumerate the result multiple times. Repeated enumeration of deferred pipelines re-executes the O(N) logic and re-allocates internal structures (like HashSets) every time, which can cause severe performance regressions.
 **Action:** If a deferred collection with a stateful operator is going to be iterated over multiple times, materialized snapshot evaluation (like `.ToList()`) might still be necessary. Always balance the memory savings of lazy evaluation against the CPU cost of re-evaluating the pipeline.
+## 2026-10-23 - Avoid O(N) linq enumerations inside hot paths and avoid dynamic compiled regex
+**Learning:** O(N) aggregations on ConcurrentDictionary.Values inside hot paths can be avoided by maintaining aggregated metrics incrementally, and using RegexOptions.Compiled inside loop bodies causes extreme CPU usage.
+**Action:** Maintain counts using Interlocked on inserts/removes instead of calculating them lazily. Also always place RegexOptions.Compiled on static fields.
