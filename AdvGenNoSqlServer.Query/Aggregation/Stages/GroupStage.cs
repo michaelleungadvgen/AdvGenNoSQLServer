@@ -348,14 +348,39 @@ internal class ObjectEqualityComparer : IEqualityComparer<object?>
         // Try numeric comparison
         if (x is IConvertible cx && y is IConvertible cy)
         {
-            try
+            if (TryGetDouble(cx, out double xDouble) && TryGetDouble(cy, out double yDouble))
             {
-                return cx.ToDouble(null) == cy.ToDouble(null);
+                return xDouble == yDouble;
             }
-            catch { }
         }
 
         return x.Equals(y);
+    }
+
+    private bool TryGetDouble(IConvertible convertible, out double result)
+    {
+        result = 0;
+
+        switch (convertible.GetTypeCode())
+        {
+            case TypeCode.Byte:
+            case TypeCode.SByte:
+            case TypeCode.UInt16:
+            case TypeCode.UInt32:
+            case TypeCode.UInt64:
+            case TypeCode.Int16:
+            case TypeCode.Int32:
+            case TypeCode.Int64:
+            case TypeCode.Decimal:
+            case TypeCode.Double:
+            case TypeCode.Single:
+                result = convertible.ToDouble(null);
+                return true;
+            case TypeCode.String:
+                return double.TryParse((string)convertible, out result);
+            default:
+                return false;
+        }
     }
 
     public int GetHashCode(object? obj)
