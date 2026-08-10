@@ -21,3 +21,8 @@
 **Vulnerability:** Regular Expression Denial of Service (ReDoS) vulnerability in `AdvGenNoSqlServer.Core/Validation/DocumentValidator.cs` when evaluating the string "pattern" property and the email, ipv4, and hostname formats using `Regex.IsMatch`.
 **Learning:** Hardcoding regular expression checks on user-supplied strings using `Regex.IsMatch` without providing a `TimeSpan` timeout makes the application vulnerable to excessive CPU consumption, especially for inherently complex regex patterns.
 **Prevention:** For `Regex.IsMatch` calls evaluating external inputs against patterns (even static/precompiled ones for formats), always inject a static readonly timeout configuration (e.g. `RegexTimeout = TimeSpan.FromMilliseconds(100)`) and safely handle the resulting `RegexMatchTimeoutException`.
+
+## 2026-03-05 - [Path Traversal in Storage Components]
+**Vulnerability:** Widespread Path Traversal vulnerabilities in storage layer classes (`DatabaseManager`, `GarbageCollectedDocumentStore`, `AttachmentStore`, and `DataExporter`). They used `Path.Combine` directly on unvalidated user input.
+**Learning:** Even if `SanitizeFileName` is applied to individual segments, appending or concatenating these elements to base paths using `Path.Combine` doesn't protect against `..` escapes if the combination traverses up the filesystem. This is a common pattern in multiple internal storage components.
+**Prevention:** Systematically wrap any filesystem path calculation involving user-supplied directory or filenames using `PathValidator.GetSafePath` to ensure the final absolute path structurally remains confined within the intended base directory.

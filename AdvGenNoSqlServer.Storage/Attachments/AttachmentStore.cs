@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 // See LICENSE.txt for license information.
 
+using AdvGenNoSqlServer.Core.Security;
 using System.Security.Cryptography;
 using System.Text.Json;
 using AdvGenNoSqlServer.Core.Attachments;
@@ -83,7 +84,7 @@ public class AttachmentStore : IAttachmentStore, IDisposable
         };
         
         var docPath = GetDocumentPath(collectionName, documentId);
-        var attachmentPath = Path.Combine(docPath, SanitizeFileName(name));
+        var attachmentPath = PathValidator.GetSafePath(docPath, Path.Combine(docPath, SanitizeFileName(name)));
         var metadataPath = Path.Combine(docPath, _metadataFileName);
         var tempPath = attachmentPath + ".tmp";
         
@@ -174,7 +175,8 @@ public class AttachmentStore : IAttachmentStore, IDisposable
     {
         ThrowIfDisposed();
         
-        var metadataPath = Path.Combine(GetDocumentPath(collectionName, documentId), _metadataFileName);
+        var docPath = GetDocumentPath(collectionName, documentId);
+        var metadataPath = Path.Combine(docPath, _metadataFileName);
         
         if (!File.Exists(metadataPath))
             return Task.FromResult<AttachmentInfo?>(null);
@@ -200,7 +202,8 @@ public class AttachmentStore : IAttachmentStore, IDisposable
     {
         ThrowIfDisposed();
         
-        var metadataPath = Path.Combine(GetDocumentPath(collectionName, documentId), _metadataFileName);
+        var docPath = GetDocumentPath(collectionName, documentId);
+        var metadataPath = Path.Combine(docPath, _metadataFileName);
         
         if (!File.Exists(metadataPath))
             return new List<AttachmentInfo>();
@@ -219,7 +222,7 @@ public class AttachmentStore : IAttachmentStore, IDisposable
         ThrowIfDisposed();
         
         var docPath = GetDocumentPath(collectionName, documentId);
-        var attachmentPath = Path.Combine(docPath, SanitizeFileName(name));
+        var attachmentPath = PathValidator.GetSafePath(docPath, Path.Combine(docPath, SanitizeFileName(name)));
         var metadataPath = Path.Combine(docPath, _metadataFileName);
         
         await _lock.WaitAsync(cancellationToken);
@@ -293,7 +296,7 @@ public class AttachmentStore : IAttachmentStore, IDisposable
                 // Delete all attachment files
                 foreach (var name in attachments.Keys)
                 {
-                    var attachmentPath = Path.Combine(docPath, SanitizeFileName(name));
+                    var attachmentPath = PathValidator.GetSafePath(docPath, Path.Combine(docPath, SanitizeFileName(name)));
                     if (File.Exists(attachmentPath))
                     {
                         File.Delete(attachmentPath);
@@ -363,12 +366,13 @@ public class AttachmentStore : IAttachmentStore, IDisposable
 
     private string GetDocumentPath(string collectionName, string documentId)
     {
-        return Path.Combine(_options.BasePath, SanitizeFileName(collectionName), SanitizeFileName(documentId));
+        return PathValidator.GetSafePath(_options.BasePath, Path.Combine(_options.BasePath, SanitizeFileName(collectionName), SanitizeFileName(documentId)));
     }
 
     private string GetAttachmentPath(string collectionName, string documentId, string attachmentName)
     {
-        return Path.Combine(GetDocumentPath(collectionName, documentId), SanitizeFileName(attachmentName));
+        var docPath = GetDocumentPath(collectionName, documentId);
+        return PathValidator.GetSafePath(docPath, Path.Combine(docPath, SanitizeFileName(attachmentName)));
     }
 
     private static string SanitizeFileName(string name)
