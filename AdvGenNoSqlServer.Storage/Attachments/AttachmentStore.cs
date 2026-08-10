@@ -5,6 +5,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using AdvGenNoSqlServer.Core.Attachments;
+using AdvGenNoSqlServer.Core.Security;
 
 namespace AdvGenNoSqlServer.Storage.Attachments;
 
@@ -83,7 +84,8 @@ public class AttachmentStore : IAttachmentStore, IDisposable
         };
         
         var docPath = GetDocumentPath(collectionName, documentId);
-        var attachmentPath = Path.Combine(docPath, SanitizeFileName(name));
+        var combinedAttachmentPath = Path.Combine(docPath, SanitizeFileName(name));
+        var attachmentPath = PathValidator.GetSafePath(docPath, combinedAttachmentPath);
         var metadataPath = Path.Combine(docPath, _metadataFileName);
         var tempPath = attachmentPath + ".tmp";
         
@@ -219,7 +221,8 @@ public class AttachmentStore : IAttachmentStore, IDisposable
         ThrowIfDisposed();
         
         var docPath = GetDocumentPath(collectionName, documentId);
-        var attachmentPath = Path.Combine(docPath, SanitizeFileName(name));
+        var combinedAttachmentPath = Path.Combine(docPath, SanitizeFileName(name));
+        var attachmentPath = PathValidator.GetSafePath(docPath, combinedAttachmentPath);
         var metadataPath = Path.Combine(docPath, _metadataFileName);
         
         await _lock.WaitAsync(cancellationToken);
@@ -293,7 +296,8 @@ public class AttachmentStore : IAttachmentStore, IDisposable
                 // Delete all attachment files
                 foreach (var name in attachments.Keys)
                 {
-                    var attachmentPath = Path.Combine(docPath, SanitizeFileName(name));
+                    var combinedAttachmentPath = Path.Combine(docPath, SanitizeFileName(name));
+                    var attachmentPath = PathValidator.GetSafePath(docPath, combinedAttachmentPath);
                     if (File.Exists(attachmentPath))
                     {
                         File.Delete(attachmentPath);
@@ -363,12 +367,15 @@ public class AttachmentStore : IAttachmentStore, IDisposable
 
     private string GetDocumentPath(string collectionName, string documentId)
     {
-        return Path.Combine(_options.BasePath, SanitizeFileName(collectionName), SanitizeFileName(documentId));
+        var combinedPath = Path.Combine(_options.BasePath, SanitizeFileName(collectionName), SanitizeFileName(documentId));
+        return PathValidator.GetSafePath(_options.BasePath, combinedPath);
     }
 
     private string GetAttachmentPath(string collectionName, string documentId, string attachmentName)
     {
-        return Path.Combine(GetDocumentPath(collectionName, documentId), SanitizeFileName(attachmentName));
+        var documentPath = GetDocumentPath(collectionName, documentId);
+        var combinedPath = Path.Combine(documentPath, SanitizeFileName(attachmentName));
+        return PathValidator.GetSafePath(documentPath, combinedPath);
     }
 
     private static string SanitizeFileName(string name)
