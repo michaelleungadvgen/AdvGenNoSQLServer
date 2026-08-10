@@ -253,10 +253,18 @@ public class TtlIndexService : ITtlIndexService
     public TtlIndexStatistics GetStatistics()
     {
         var runs = Interlocked.Read(ref _cleanupRuns);
+
+        // ⚡ Bolt: Iterate key-value pairs to avoid O(N) snapshot allocation from .Values.Sum
+        int documentsTracked = 0;
+        foreach (var kvp in _documentExpirationTimes)
+        {
+            documentsTracked += kvp.Value.Count;
+        }
+
         return new TtlIndexStatistics
         {
             DocumentsExpired = Interlocked.Read(ref _documentsExpired),
-            DocumentsTracked = _documentExpirationTimes.Values.Sum(d => d.Count),
+            DocumentsTracked = documentsTracked,
             LastCleanupTime = _lastCleanupTime,
             CleanupRuns = runs,
             AverageCleanupTimeMs = runs > 0 ? (double)Interlocked.Read(ref _totalCleanupTimeMs) / runs : 0
