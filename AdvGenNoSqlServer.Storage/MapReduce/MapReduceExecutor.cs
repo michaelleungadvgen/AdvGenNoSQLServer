@@ -71,8 +71,7 @@ namespace AdvGenNoSqlServer.Storage.MapReduce
             {
                 // Get all documents from the collection
                 var documents = await _documentStore.GetAllAsync(collectionName, cancellationToken);
-                var documentList = documents.ToList();
-                var totalDocuments = documentList.Count;
+                var totalDocuments = await _documentStore.CountAsync(collectionName, cancellationToken);
 
                 if (totalDocuments == 0)
                 {
@@ -84,7 +83,7 @@ namespace AdvGenNoSqlServer.Storage.MapReduce
                 // Phase 1: Map
                 var mapStopwatch = Stopwatch.StartNew();
                 var intermediateResults = await ExecuteMapPhaseAsync(
-                    documentList, job, options, collectionName, totalDocuments, progress, cancellationToken);
+                    documents, job, options, collectionName, totalDocuments, progress, cancellationToken);
                 mapStopwatch.Stop();
                 statistics.MapDuration = mapStopwatch.Elapsed;
                 statistics.IntermediatePairsEmitted = intermediateResults.Count;
@@ -124,7 +123,7 @@ namespace AdvGenNoSqlServer.Storage.MapReduce
         }
 
         private async Task<ConcurrentBag<(TIntermediateKey Key, TIntermediateValue Value)>> ExecuteMapPhaseAsync<TIntermediateKey, TIntermediateValue, TResult>(
-            List<Document> documents,
+            IEnumerable<Document> documents,
             IMapReduceJob<TIntermediateKey, TIntermediateValue, TResult> job,
             MapReduceOptions options,
             string collectionName,
