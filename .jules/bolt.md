@@ -12,3 +12,7 @@
 ## 2026-05-04 - Avoid repeated enumeration on deferred Distinct queries
 **Learning:** When replacing `.ToList()` with deferred execution (lazy evaluation) on LINQ queries that contain stateful or expensive operators like `.Distinct()`, verify that the caller does not enumerate the result multiple times. Repeated enumeration of deferred pipelines re-executes the O(N) logic and re-allocates internal structures (like HashSets) every time, which can cause severe performance regressions.
 **Action:** If a deferred collection with a stateful operator is going to be iterated over multiple times, materialized snapshot evaluation (like `.ToList()`) might still be necessary. Always balance the memory savings of lazy evaluation against the CPU cost of re-evaluating the pipeline.
+
+## 2026-10-23 - Track aggregate stats via O(1) state variables instead of calculating O(N) over dictionaries
+**Learning:** O(N) operations such as `.Values.Average()` and `.Values.Sum()` on a `ConcurrentDictionary` represent severe bottlenecks when invoked on nested hot paths (e.g. calculating TF-IDF in an inner full-text search loop). These calls allocate internal snapshots and trigger full iteration over the collection every time they are called, giving O(N*M) runtime complexity.
+**Action:** Replace `ConcurrentDictionary.Values` aggregations with incremental tracking mechanisms, such as atomic state variables using `Interlocked.Add`. Pre-calculate aggregate state components (e.g. `double avgDocLength = GetAverageDocumentLength();`) outside inner nested hot loops.
