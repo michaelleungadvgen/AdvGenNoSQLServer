@@ -689,6 +689,26 @@ public class AggregationPipelineTests
         Assert.Throws<ArgumentException>(() => new SkipStage(-1));
     }
 
+    [Fact]
+    public void SkipStage_ExecutionError_ThrowsAggregationStageException()
+    {
+        // Arrange
+        var documents = GetThrowingEnumerable();
+        var stage = new SkipStage(2);
+
+        // Act & Assert
+        var ex = Assert.Throws<AggregationStageException>(() => stage.Execute(documents));
+        Assert.Equal("$skip", ex.StageType);
+        Assert.Contains("Failed to execute skip stage", ex.Message);
+        Assert.Equal("Simulated exception during enumeration", ex.InnerException!.Message);
+    }
+
+    private IEnumerable<Document> GetThrowingEnumerable()
+    {
+        yield return new Document { Id = "1" };
+        throw new Exception("Simulated exception during enumeration");
+    }
+
     #endregion
 
     #region Pipeline Integration Tests
