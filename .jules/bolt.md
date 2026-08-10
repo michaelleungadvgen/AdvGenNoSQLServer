@@ -12,3 +12,7 @@
 ## 2026-05-04 - Avoid repeated enumeration on deferred Distinct queries
 **Learning:** When replacing `.ToList()` with deferred execution (lazy evaluation) on LINQ queries that contain stateful or expensive operators like `.Distinct()`, verify that the caller does not enumerate the result multiple times. Repeated enumeration of deferred pipelines re-executes the O(N) logic and re-allocates internal structures (like HashSets) every time, which can cause severe performance regressions.
 **Action:** If a deferred collection with a stateful operator is going to be iterated over multiple times, materialized snapshot evaluation (like `.ToList()`) might still be necessary. Always balance the memory savings of lazy evaluation against the CPU cost of re-evaluating the pipeline.
+
+## 2026-10-23 - Optimize FullTextIndex Search O(N*M) Aggregations
+**Learning:** Calling `.Values.Average(...)` on a `ConcurrentDictionary` inside a nested loop in a critical path (like `FullTextIndex.Search()`) causes massive performance degradation. The $O(N)$ calculation executes for every posting of every token, turning a fast search into an $O(N \times T \times P)$ operation with immense snapshot allocations and GC pressure.
+**Action:** When working with statistics required during querying, maintain these statistics incrementally using $O(1)$ atomic updates (e.g., `Interlocked.Add`) during insert/remove operations, and hoist invariant statistical reads out of inner loops so they are evaluated exactly once per query.
