@@ -336,9 +336,9 @@ namespace AdvGenNoSqlServer.Network
                 var bytes = File.ReadAllBytes(resolvedPath);
                 if (string.IsNullOrEmpty(password))
                 {
-                    return X509CertificateLoader.LoadPkcs12(bytes, null, X509KeyStorageFlags.Exportable);
+                    return X509CertificateLoader.LoadPkcs12(bytes, null, X509KeyStorageFlags.DefaultKeySet);
                 }
-                return X509CertificateLoader.LoadPkcs12(bytes, password, X509KeyStorageFlags.Exportable);
+                return X509CertificateLoader.LoadPkcs12(bytes, password, X509KeyStorageFlags.DefaultKeySet);
             }
             catch (Exception ex)
             {
@@ -418,7 +418,7 @@ namespace AdvGenNoSqlServer.Network
             var loadedCert = X509CertificateLoader.LoadPkcs12(
                 export,
                 null,
-                X509KeyStorageFlags.Exportable | X509KeyStorageFlags.PersistKeySet);
+                X509KeyStorageFlags.DefaultKeySet);
 
             return loadedCert;
         }
@@ -881,7 +881,7 @@ namespace AdvGenNoSqlServer.Network
             return X509CertificateLoader.LoadPkcs12(
                 export,
                 null,
-                X509KeyStorageFlags.Exportable | X509KeyStorageFlags.PersistKeySet);
+                X509KeyStorageFlags.DefaultKeySet);
         }
     }
 }
