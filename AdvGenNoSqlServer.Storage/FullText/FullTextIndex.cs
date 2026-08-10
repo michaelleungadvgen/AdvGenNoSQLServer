@@ -165,6 +165,8 @@ public class FullTextIndex : IFullTextIndex
             var scores = new Dictionary<string, double>();
             var termFrequencies = new Dictionary<string, Dictionary<string, int>>();
 
+            double avgDocLength = GetAverageDocumentLength();
+
             foreach (var token in queryTokens)
             {
                 if (_invertedIndex.TryGetValue(token, out var postings))
@@ -182,7 +184,6 @@ public class FullTextIndex : IFullTextIndex
                             double docLength = _documents.TryGetValue(posting.DocumentId, out var docInfo) 
                                 ? docInfo.TokenCount 
                                 : 1;
-                            double avgDocLength = GetAverageDocumentLength();
                             
                             // BM25 parameters
                             const double k1 = 1.2;
@@ -338,7 +339,16 @@ public class FullTextIndex : IFullTextIndex
     private double GetAverageDocumentLength()
     {
         if (_documents.IsEmpty) return 1.0;
-        return _documents.Values.Average(d => (double)d.TokenCount);
+
+        long totalTokens = 0;
+        int count = 0;
+        foreach (var kvp in _documents)
+        {
+            totalTokens += kvp.Value.TokenCount;
+            count++;
+        }
+
+        return count == 0 ? 1.0 : (double)totalTokens / count;
     }
 
     /// <inheritdoc />
@@ -359,8 +369,14 @@ public class FullTextIndex : IFullTextIndex
     /// <inheritdoc />
     public FullTextIndexStats GetStats()
     {
-        long totalTokens = _documents.Values.Sum(d => (long)d.TokenCount);
-        double avgLength = _documents.IsEmpty ? 0 : _documents.Values.Average(d => (double)d.TokenCount);
+        long totalTokens = 0;
+        int count = 0;
+        foreach (var kvp in _documents)
+        {
+            totalTokens += kvp.Value.TokenCount;
+            count++;
+        }
+        double avgLength = count == 0 ? 0 : (double)totalTokens / count;
 
         return new FullTextIndexStats(
             IndexName,
