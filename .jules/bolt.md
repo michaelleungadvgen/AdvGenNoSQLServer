@@ -9,6 +9,11 @@
 ## 2026-10-23 - Consolidate LINQ aggregations on ConcurrentDictionary
 **Learning:** Performing multiple sequential LINQ aggregations (e.g., `.Values.Sum()`, `.Values.Average()`, `.Values.Max()`) on a `ConcurrentDictionary` causes significant performance degradation. Each LINQ method triggers a separate enumeration of the dictionary, leading to multiple internal snapshot allocations and $O(M \times N)$ time complexity where M is the number of aggregations.
 **Action:** When calculating multiple statistics or aggregates over a `ConcurrentDictionary` or any concurrent collection, manually consolidate the logic into a single `foreach` loop. This ensures only a single pass ($O(N)$) is made over the data, dramatically reducing CPU overhead and Garbage Collection pressure.
+
 ## 2026-05-04 - Avoid repeated enumeration on deferred Distinct queries
 **Learning:** When replacing `.ToList()` with deferred execution (lazy evaluation) on LINQ queries that contain stateful or expensive operators like `.Distinct()`, verify that the caller does not enumerate the result multiple times. Repeated enumeration of deferred pipelines re-executes the O(N) logic and re-allocates internal structures (like HashSets) every time, which can cause severe performance regressions.
 **Action:** If a deferred collection with a stateful operator is going to be iterated over multiple times, materialized snapshot evaluation (like `.ToList()`) might still be necessary. Always balance the memory savings of lazy evaluation against the CPU cost of re-evaluating the pipeline.
+
+## 2026-06-12 - Optimize O(N) operations in FullTextSearch using O(1) state variables
+**Learning:** Calling `.Values.Sum()` and `.Values.Average()` inside the search loop on a `ConcurrentDictionary` (such as in `GetAverageDocumentLength()`) results in $O(N)$ execution time and continuous memory allocations for snapshot arrays, critically impacting performance during concurrent search operations.
+**Action:** When an aggregate value like total token count needs to be frequently accessed during read operations (e.g., in TF-IDF/BM25 calculations), increment and decrement the total value using `Interlocked.Add()` upon document insertion and removal. This makes retrieval $O(1)$ without locking or snapshot allocations.
