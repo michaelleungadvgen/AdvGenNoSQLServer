@@ -50,8 +50,10 @@ public sealed class GeospatialIndex : IGeospatialIndex
         
         var results = new List<GeospatialQueryResult>();
 
-        foreach (var entry in _entries.Values)
+        // Bolt Performance Optimization: Avoid .Values allocation on ConcurrentDictionary
+        foreach (var kvp in _entries)
         {
+            var entry = kvp.Value;
             var distance = center.DistanceTo(entry.Location, options.DistanceUnit);
             
             // Check min distance
@@ -82,9 +84,15 @@ public sealed class GeospatialIndex : IGeospatialIndex
     {
         options ??= GeospatialQueryOptions.Default;
 
-        var results = _entries.Values
-            .Where(e => box.Contains(e.Location))
-            .ToList();
+        // Bolt Performance Optimization: Avoid .Values allocation on ConcurrentDictionary
+        var results = new List<GeospatialIndexEntry>();
+        foreach (var kvp in _entries)
+        {
+            if (box.Contains(kvp.Value.Location))
+            {
+                results.Add(kvp.Value);
+            }
+        }
 
         return ApplyPagination(results, options);
     }
@@ -95,8 +103,10 @@ public sealed class GeospatialIndex : IGeospatialIndex
         
         var results = new List<GeospatialQueryResult>();
 
-        foreach (var entry in _entries.Values)
+        // Bolt Performance Optimization: Avoid .Values allocation on ConcurrentDictionary
+        foreach (var kvp in _entries)
         {
+            var entry = kvp.Value;
             var distance = circle.Center.DistanceTo(entry.Location, circle.Unit);
             
             if (distance <= circle.Radius)
@@ -121,9 +131,15 @@ public sealed class GeospatialIndex : IGeospatialIndex
     {
         options ??= GeospatialQueryOptions.Default;
         
-        var results = _entries.Values
-            .Where(e => polygon.Contains(e.Location))
-            .ToList();
+        // Bolt Performance Optimization: Avoid .Values allocation on ConcurrentDictionary
+        var results = new List<GeospatialIndexEntry>();
+        foreach (var kvp in _entries)
+        {
+            if (polygon.Contains(kvp.Value.Location))
+            {
+                results.Add(kvp.Value);
+            }
+        }
 
         return ApplyPagination(results, options);
     }
