@@ -334,7 +334,12 @@ public class MvccDocumentStore : IMvccStore, IDisposable
             return new MvccCollectionStats(collectionName, 0, 0, 0);
 
         int documentCount = collection.Count;
-        int versionCount = collection.Values.Sum(c => c.VersionCount);
+        // Avoid .Values array allocation and lock acquisition
+        int versionCount = 0;
+        foreach (var kvp in collection)
+        {
+            versionCount += kvp.Value.VersionCount;
+        }
         int avgVersionsPerDoc = documentCount > 0 ? versionCount / documentCount : 0;
 
         return new MvccCollectionStats(collectionName, documentCount, versionCount, avgVersionsPerDoc);
