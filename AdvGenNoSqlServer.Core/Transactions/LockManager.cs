@@ -36,7 +36,13 @@ public class LockManager : ILockManager, IDisposable
             _lock.EnterReadLock();
             try
             {
-                return _resourceLocks.Values.Sum(list => list.Count);
+                // Bolt: Avoid O(N) allocation from .Values.Sum()
+                int count = 0;
+                foreach (var kvp in _resourceLocks)
+                {
+                    count += kvp.Value.Count;
+                }
+                return count;
             }
             finally
             {
@@ -53,7 +59,13 @@ public class LockManager : ILockManager, IDisposable
             _lock.EnterReadLock();
             try
             {
-                return _waitingQueues.Values.Sum(queue => queue.Count);
+                // Bolt: Avoid O(N) allocation from .Values.Sum()
+                int count = 0;
+                foreach (var kvp in _waitingQueues)
+                {
+                    count += kvp.Value.Count;
+                }
+                return count;
             }
             finally
             {
