@@ -5,6 +5,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using AdvGenNoSqlServer.Core.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace AdvGenNoSqlServer.Core.Authentication;
 
@@ -23,6 +24,7 @@ public class EncryptionService : IEncryptionService
     private readonly byte[] _masterKey;
     private readonly IKeyStore? _keyStore;
     private readonly string _keyId;
+    private readonly ILogger<EncryptionService>? _logger;
 
     /// <inheritdoc />
     public string? CurrentKeyId => _keyId;
@@ -32,12 +34,14 @@ public class EncryptionService : IEncryptionService
     /// </summary>
     /// <param name="configuration">Server configuration containing encryption settings</param>
     /// <param name="keyStore">Optional key store for key management</param>
-    public EncryptionService(ServerConfiguration configuration, IKeyStore? keyStore = null)
+    /// <param name="logger">Optional logger for the service</param>
+    public EncryptionService(ServerConfiguration configuration, IKeyStore? keyStore = null, ILogger<EncryptionService>? logger = null)
     {
         if (configuration == null)
             throw new ArgumentNullException(nameof(configuration));
 
         _keyStore = keyStore;
+        _logger = logger;
 
         // Use configured encryption key or generate a new one
         if (!string.IsNullOrEmpty(configuration.EncryptionKey))
@@ -50,7 +54,7 @@ public class EncryptionService : IEncryptionService
         {
             // Generate a secure random key
             _masterKey = GenerateKey();
-            // TODO: Log warning that a new key was generated
+            _logger?.LogWarning("A new master encryption key has been generated. Ensure this key is securely backed up.");
         }
 
         _keyId = configuration.EncryptionKeyId ?? GenerateKeyId();
@@ -62,7 +66,8 @@ public class EncryptionService : IEncryptionService
     /// <param name="key">The master encryption key (must be 32 bytes for AES-256)</param>
     /// <param name="keyStore">Optional key store for key management</param>
     /// <param name="keyId">Optional key identifier</param>
-    public EncryptionService(byte[] key, IKeyStore? keyStore = null, string? keyId = null)
+    /// <param name="logger">Optional logger for the service</param>
+    public EncryptionService(byte[] key, IKeyStore? keyStore = null, string? keyId = null, ILogger<EncryptionService>? logger = null)
     {
         if (key == null)
             throw new ArgumentNullException(nameof(key));
@@ -73,6 +78,7 @@ public class EncryptionService : IEncryptionService
         Buffer.BlockCopy(key, 0, _masterKey, 0, key.Length);
         _keyStore = keyStore;
         _keyId = keyId ?? GenerateKeyId();
+        _logger = logger;
     }
 
     #region Encryption Methods
