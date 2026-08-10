@@ -12,3 +12,7 @@
 ## 2026-05-04 - Avoid repeated enumeration on deferred Distinct queries
 **Learning:** When replacing `.ToList()` with deferred execution (lazy evaluation) on LINQ queries that contain stateful or expensive operators like `.Distinct()`, verify that the caller does not enumerate the result multiple times. Repeated enumeration of deferred pipelines re-executes the O(N) logic and re-allocates internal structures (like HashSets) every time, which can cause severe performance regressions.
 **Action:** If a deferred collection with a stateful operator is going to be iterated over multiple times, materialized snapshot evaluation (like `.ToList()`) might still be necessary. Always balance the memory savings of lazy evaluation against the CPU cost of re-evaluating the pipeline.
+
+## 2026-10-23 - Optimize FullTextIndex GetAverageDocumentLength Performance
+**Learning:** In full text search engines like TF-IDF/BM25 implementations, calculating the average document length is often done in the hot path of searching. In C#, calculating this by evaluating `.Values.Average()` on a `ConcurrentDictionary` requires materializing a snapshot of the dictionary, which acquires locks and allocates arrays. This gives O(N) execution time during every single query term scoring loop, causing severe CPU spikes and Garbage Collection pressure.
+**Action:** When a collection's count and sum can be incrementally tracked during indexing operations (e.g. using `Interlocked.Add` to track `_totalTokens`), the aggregation can be reduced to an O(1) division instead of O(N) evaluation.
