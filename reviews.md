@@ -355,7 +355,7 @@ Review against `plan.md` Section 2.1:
 - [x] Network/Protocol Layer (TCP) correctness **[REVIEWED 2026-11-13 - FRAMING OK: exact-length reads, big-endian header, magic/version/type validation, per-connection pre-auth payload limit checked before allocation, serialized writes. 5 ISSUES: NET-005 (High - no effective read timeout), NET-006 (Medium - rejection reason sent as empty payload), NET-007 (Medium - flags never honoured or rejected), NET-008 (Low - CRC excludes header), NET-009 (Low - protocol errors close silently)]**
 - [x] Security & Authentication Layer integration **[REVIEWED 2026-11-13 - TCP gate in Host is sound when auth is required (per-connection identity, fail-closed `CommandAuthorizer`, real role in JWT). 7 ISSUES: SEC-038 (Critical - Server project HTTP API has no authentication), SEC-039 (High - Host HTTP writes skip role check), SEC-040 (High - anonymous role never enforced on TCP), SEC-041 (Medium - role changes do not reach live connections), SEC-042 (Medium - database select mutates shared state), ARCH-004 (Medium - parallel unused RBAC stack), AUDIT-002 (Low - denials not audited)]**
 - [x] Query Processing & Command Layer design **[REVIEWED 2026-11-13 - NOT INTEGRATED: the Query project (parser, filter engine, executor, aggregation, cursors) is used only by the Embedded library; neither server reaches it. 4 ISSUES: QRY-001 (High - query engine not wired into Host/Server), QRY-002 (Medium - duplicated, divergent command dispatch), QRY-003 (Medium - listdocuments full scan + sort per page), QRY-004 (Low - Transaction message type has no handler)]**
-- [ ] Transaction Management Layer implementation
+- [x] Transaction Management Layer implementation **[REVIEWED 2026-11-13 - NOT INTEGRATED: components exist (WAL, lock manager, 2PC coordinator, MVCC) but no server write path goes through them. 5 ISSUES: TXN-001 (High - layer registered in DI but never used; WAL recovery never invoked), TXN-002 (High - Session writes bypass the transaction, rollback undoes nothing), TXN-003 (High - MVCC visibility/conflict defects in the pending P0-1 change), TXN-004 (Medium - four competing transaction implementations), TXN-005 (Medium - pending WAL change truncates on any CRC mismatch)]**
 - [ ] Storage Engine Layer architecture
 - [ ] Caching & Memory Management integration
 - [ ] Persistence & File I/O Layer reliability
@@ -811,6 +811,11 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | QRY-002 | Program.cs (Host) | 1088-1110 | Medium | The command layer is a string `switch` inside a 1,586-line `Program.cs`, duplicated in the 1,896-line `NoSqlServer.cs`, and the two have drifted: Server dispatches `insert`, `replace`, `upsert`, `find_one`, `touch`, `cluster`; Host does not, although `CommandAuthorizer` maps them. Host rejects `BulkOperation` as `UNSUPPORTED`, so the client's `BatchInsertAsync`/`BatchUpdateAsync`/`BatchDeleteAsync`/`ExecuteBatchAsync`/`BulkInsertAsync` cannot succeed against Host. Authorization, auditing and metrics are woven into the switch by hand. | Open |
 | QRY-003 | Program.cs (Host) | HandleListDocumentsCommandAsync | Medium | `listdocuments` loads the entire collection with `GetAllAsync`, materializes it, and sorts by Id on every page request. Paging a collection of N documents costs O(N log N) time and O(N) memory per page, on the request thread, with no upper bound. | Open |
 | QRY-004 | Program.cs (Host) | 903-911 | Low | `MessageType.Transaction` (0x08) and `Notification` (0x0A) are part of the documented protocol but have no dispatch arm in Host or Server; they return `UNSUPPORTED_MESSAGE`. The transaction coordinator and MVCC code are not reachable by network clients. | Open |
+| TXN-001 | Program.cs (Host) | 587-611 | High | `IWriteAheadLog`, `ILockManager` and `ITransactionCoordinator` are registered as singletons but nothing resolves them: command handlers and HTTP endpoints call `IDocumentStore` directly. `IWriteAheadLog.RecoverAsync` has no caller outside tests, so this WAL is never replayed after a crash. Server writes have no atomicity or isolation beyond what the document store itself provides. | Open |
+| TXN-002 | Session.cs | 99-149, 317-350 | High | `Session.SaveChangesAsync` applies deletes, inserts and updates straight to `IDocumentStore`; `TransactionCoordinator` holds no store reference and only writes WAL records and releases locks. `RollbackAsync` after `SaveChangesAsync` therefore undoes nothing, a failure part-way through `SaveChangesAsync` leaves a partial write, and `CommitAsync` applies the data before the coordinator commit can fail. The unit-of-work API promises atomicity it does not deliver. | Open |
+| TXN-003 | DocumentVersion.cs, MvccTransactionContext.cs, MvccDocumentStore.cs | 155, 241, 296, 91 | High | Found in the uncommitted P0-1 MVCC change (working tree, 2026-11-13). (a) `VersionChain.GetVisibleVersion` walks past a version whose deletion is visible and returns the older version, so a document that was updated then deleted reappears with stale content. (b) Callers still filter on the raw `IsDeleted` flag, so another transaction's uncommitted delete is observed. (c) `EnsureNoWriteConflictAsync` checks only the latest version's creator, not its deleter, and is a non-atomic check-then-write. (d) A failed commit leaves the transaction's versions in the chains with the record stuck Active, and `RollbackAsync` refuses a Failed transaction. | Open |
+| TXN-004 | Core/Transactions/ | - | Medium | Four transaction implementations coexist: `TransactionManager` and `AdvancedTransactionManager` (stubs, DATA-010/012, still injected into `DocumentService` in `Class1.cs`), `TransactionCoordinator` + `TransactionContext` (lock-based, used by `Session`), and `MvccTransactionCoordinator` + `MvccDocumentStore` (referenced only by tests). Embedded has a fifth, separate WAL. None is the defined production path. | Open |
+| TXN-005 | WriteAheadLog.cs (Core) | 552, 671, 744 | Medium | In the uncommitted P0-3 change, any CRC mismatch in the current log is treated as a torn tail: recovery stops, truncates the file at that point and reports success. A single corrupted entry in the middle of the log silently discards every later committed transaction. Supersedes the direction suggested in DATA-001. | Open |
 | ARCH-002 | Client.cs | 73 | Low | No `IAdvGenNoSqlClient` abstraction. `AdvGenNoSqlClient` is a concrete partial class and the factory returns the concrete type, so consumers (Admin, AdminClient, Examples) cannot substitute or mock the client without a live server. | Open |
 | ARCH-003 | AdvGenNoSqlServer.Client.csproj | 14, 20 | Low | Package `Description` and `PackageTags` call the TCP client an "embedded NoSQL database", which now collides with the separate `AdvGenNoSqlServer.Embedded` library and misleads package consumers. | Open |
 
@@ -2086,6 +2091,78 @@ public interface ICommandHandler
 ### QRY-004: Handle or Remove the Transaction Message Type (Low)
 **File:** `AdvGenNoSqlServer.Host/Program.cs` lines 903-911
 **Required Action:** Either implement `MessageType.Transaction` (begin/commit/rollback bound to the connection, rolled back on disconnect) once the MVCC issues are fixed, or mark 0x08 and 0x0A as reserved in `AGENTS.md` and the client documentation so users do not expect network transactions.
+
+### TXN-001: Put Server Writes Behind the Transaction Layer (High)
+**Section:** 4.1 Transaction Management Layer implementation
+**File:** `AdvGenNoSqlServer.Host/Program.cs` lines 587-611
+**Current:** WAL, lock manager and coordinator are constructed by DI and never used.
+**Required Actions:**
+1. Choose the single production transaction path first (TXN-004). Do not wire two.
+2. Introduce a transactional store decorator registered as the server's `IDocumentStore`, so every existing handler becomes an auto-commit transaction without code changes:
+```csharp
+public sealed class TransactionalDocumentStore : IDocumentStore
+{
+    public async Task<Document> InsertAsync(string collection, Document document)
+    {
+        await using var tx = await _coordinator.BeginTransactionAsync();
+        var result = await tx.InsertAsync(collection, document); // logs to WAL, takes locks
+        await tx.CommitAsync();                                  // durable before returning
+        return result;
+    }
+    // Update/Delete likewise; reads go through the snapshot
+}
+```
+3. Call `RecoverAsync` during startup, before the TCP and HTTP listeners accept traffic, and fail readiness (`/health/ready`) until it completes. Log the number of redone and discarded transactions.
+4. If the decision is instead that the server relies only on `PersistentDocumentStore`'s atomic file writes, remove the three unused registrations and state that guarantee in `Documentation/ProductionReadiness.md`.
+5. Add a crash test: kill the process between WAL append and store apply, restart, and assert the committed write is present and an uncommitted one is absent.
+
+### TXN-002: Make Session Writes Transactional (High)
+**File:** `AdvGenNoSqlServer.Core/Sessions/Session.cs` lines 99-149, 317-350
+**Required Actions:**
+1. Route `SaveChangesAsync` through the transaction context instead of `_documentStore`, so changes are buffered (or versioned) until commit:
+```csharp
+var tx = _transactionCoordinator.GetTransaction(_currentTransactionId!);
+foreach (var added in _changeTracker.Added)
+    await tx.RecordInsertAsync(added.CollectionName, added.Entity);   // WAL + write set, not the store
+// the coordinator applies the write set to the store only on commit
+```
+2. Give the coordinator the store (or an `IMvccStore`) so commit applies the write set and rollback discards it.
+3. Until that is done, change the XML docs on `ISession.RollbackAsync` to state that saved changes are not undone, and make `TryCommitAsync` stop swallowing the exception type.
+4. Add tests: insert + `SaveChangesAsync` + `RollbackAsync` leaves the document absent; a failure on the second of three saves leaves none applied.
+
+### TXN-003: Fix MVCC Visibility and Conflict Handling Before Merging P0-1 (High)
+**File:** `DocumentVersion.cs` line 155; `MvccDocumentStore.cs` lines 91, 226; `MvccTransactionContext.cs` lines 241, 296, 439
+**Required Actions:**
+1. Stop the chain walk at a version whose deletion is visible:
+```csharp
+while (current != null)
+{
+    if (current.IsCreationVisible(snapshot, resolve))
+        return current.IsDeletionVisible(snapshot, resolve) ? null : current;
+    current = current.PreviousVersion;
+}
+return null;
+```
+   (split `IsVisibleToSnapshot` into creation and deletion visibility so the two cases are distinguishable).
+2. Remove every remaining `IsDeleted` filter from callers; visibility must come only from the snapshot check.
+3. In the conflict check, treat an uncommitted or post-snapshot `DeletedByTransactionId` as a conflict, and perform check + version install under the chain lock (a `TryAddVersion(expectedLatest, newVersion)` compare-and-swap).
+4. On commit failure run the undo log and mark the record Aborted; allow `RollbackAsync` from the Failed state; replace the fire-and-forget rollback in `Dispose` with `DisposeAsync`.
+5. Add tests for: insert → update → delete → read returns null; reader does not see an uncommitted delete; delete vs. concurrent update raises a conflict; documents are writable again after a failed commit.
+
+### TXN-004: Reduce to One Transaction Implementation (Medium)
+**File:** `AdvGenNoSqlServer.Core/Transactions/`
+**Required Actions:**
+1. Delete `TransactionManager`, `AdvancedTransactionManager`, `ITransactionManager` and `DocumentService` in `Class1.cs` (closes DATA-010, DATA-011, DATA-012, MEM-004, MEM-005, CONC-006, API-005).
+2. Decide between the lock-based coordinator and MVCC. Recommendation: MVCC once TXN-003 is fixed, with the lock manager kept only for write-write ordering; mark the other `[Obsolete]` and remove it in the following release.
+3. Record the decision and the resulting isolation guarantees in `Documentation/`.
+
+### TXN-005: Distinguish a Torn Tail from Mid-Log Corruption (Medium)
+**File:** `AdvGenNoSqlServer.Core/Transactions/WriteAheadLog.cs` lines 552, 671, 744
+**Required Actions:**
+1. Treat a bad entry as a torn tail only if nothing valid follows it: after a CRC or length failure, scan forward for another entry with a valid header and CRC. If one exists, this is corruption, not a torn write.
+2. On corruption, fail recovery with `InvalidDataException` by default; never truncate. Offer an explicit `WalOptions.CorruptionPolicy` (`Fail`, `SalvageAndQuarantine`) for operators, where salvage copies the damaged file aside before continuing.
+3. Do not continue into the next archive file after stopping mid-file; that replays a log with a gap.
+4. Add tests: flip one bit in a middle entry and assert recovery fails and the file length is unchanged; truncate the last entry and assert recovery succeeds and trims only that entry.
 
 ### NET-005: Enforce Read, Idle and Handshake Timeouts (High)
 **Section:** 4.1 Network/Protocol Layer (TCP) correctness
