@@ -352,7 +352,7 @@ Files to review:
 Review against `plan.md` Section 2.1:
 
 - [x] Client Application Layer isolation **[REVIEWED 2026-11-13 - DIRECTION OK: Client references only Core + Network; no Storage/Query/Server/Host reference and no server project references Client. 3 ISSUES: ARCH-001 (Medium - client transitively ships server-only code), ARCH-002 (Low - no client interface), ARCH-003 (Low - package description says "embedded")]**
-- [ ] Network/Protocol Layer (TCP) correctness
+- [x] Network/Protocol Layer (TCP) correctness **[REVIEWED 2026-11-13 - FRAMING OK: exact-length reads, big-endian header, magic/version/type validation, per-connection pre-auth payload limit checked before allocation, serialized writes. 5 ISSUES: NET-005 (High - no effective read timeout), NET-006 (Medium - rejection reason sent as empty payload), NET-007 (Medium - flags never honoured or rejected), NET-008 (Low - CRC excludes header), NET-009 (Low - protocol errors close silently)]**
 - [ ] Security & Authentication Layer integration
 - [ ] Query Processing & Command Layer design
 - [ ] Transaction Management Layer implementation
@@ -795,6 +795,11 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | TEST-003 | LoadTests.cs | 443-459 | Low | `LoadTest_MixedWorkload` simulates Read/Write/Query with `Task.Delay` instead of real store operations. Throughput metrics for these operations are not meaningful for capacity planning. | Open |
 | TEST-004 | LoadTests.cs | 53 | Low | `Dispose()` calls `_server?.StopAsync().Wait(TimeSpan.FromSeconds(5))` — sync-over-async in `IDisposable.Dispose`. Should be `DisposeAsync`. | Open |
 | ARCH-001 | AdvGenNoSqlServer.Client.csproj | 31-34 | Medium | Client layer is not isolated from server internals. It references the whole `Core` and `Network` assemblies but uses only `Core.Models` (Document, batch models), `MessageProtocol`/`NoSqlMessage` and `TlsStreamHelper.CreateClientSslStreamAsync`. The published client package therefore carries `TcpServer`, `ConnectionHandler`, `P2PServer`, `CertificateReloader`, the authentication/transaction/caching code and the `Microsoft.Extensions.Caching.Memory` dependency, and any server-side change forces a client release. | Open |
+| NET-005 | TcpServer.cs | 224-225, 247-265 | High | No effective read or idle timeout. `ReceiveTimeout`/`SendTimeout` only affect synchronous socket calls, and every read here is `_stream.ReadAsync` with only the server shutdown token. A client that sends part of a header and then stalls holds its connection-pool slot forever. The TLS handshake also runs before `_connectionPool.TryAcquire()`, so handshakes in progress are not counted against the connection limit. | Open |
+| NET-006 | TcpServer.cs | 351-355 | Medium | `SendConnectionRejectedAsync` sets `Payload` but not `PayloadLength`. `MessageProtocol.Serialize` writes `message.PayloadLength` (0), so the client receives an empty Error frame and never sees "Server at maximum capacity". Root cause: `NoSqlMessage.Payload` and `PayloadLength` are independent settable properties that can disagree. | Open |
+| NET-007 | MessageProtocol.cs | 72-98, 326-341 | Medium | `MessageFlags` (`Compressed`, `Encrypted`, `RequireAck`, `EndOfBatch`) are parsed and copied onto the message but no production code reads them, and `ValidateHeader` accepts any flag byte. A frame flagged `Compressed` or `Encrypted` is processed as plain JSON, and `RequireAck` is silently ignored. | Open |
+| NET-008 | MessageProtocol.cs | 289-291, 398-422 | Low | CRC32 covers the payload only, so a corrupted type or flags byte that is still a valid value passes validation, and zero-length frames have no integrity check at all. `Deserialize` additionally skips the checksum when the payload is empty and allocates `new byte[payloadLength]` (up to 100MB) before checking that the buffer actually holds that many bytes. | Open |
+| NET-009 | TcpServer.cs | 341-344 | Low | On a `ProtocolException` (bad magic, version mismatch, oversized frame, checksum failure) the loop logs and drops the connection without sending an Error frame; `ConnectionHandler.SendErrorAsync` exists but is unused. Version is checked with strict equality and there is no negotiation, so any future protocol version bump is a silent disconnect for old clients. | Open |
 | ARCH-002 | Client.cs | 73 | Low | No `IAdvGenNoSqlClient` abstraction. `AdvGenNoSqlClient` is a concrete partial class and the factory returns the concrete type, so consumers (Admin, AdminClient, Examples) cannot substitute or mock the client without a live server. | Open |
 | ARCH-003 | AdvGenNoSqlServer.Client.csproj | 14, 20 | Low | Package `Description` and `PackageTags` call the TCP client an "embedded NoSQL database", which now collides with the separate `AdvGenNoSqlServer.Embedded` library and misleads package consumers. | Open |
 
@@ -1952,6 +1957,84 @@ public void ClientAssembly_ReferencesOnlyProtocol_NoServerAssemblies()
 <Description>TCP client library for AdvGen NoSQL Server</Description>
 <PackageTags>nosql;database;client;tcp;document-database</PackageTags>
 ```
+
+### NET-005: Enforce Read, Idle and Handshake Timeouts (High)
+**Section:** 4.1 Network/Protocol Layer (TCP) correctness
+**File:** `TcpServer.cs` lines 224-225, 247-265; `ConnectionHandler.cs` lines 179-292
+**Current:** `client.ReceiveTimeout`/`SendTimeout` are set, but they are ignored by async I/O. `ReadExactAsync` waits indefinitely, and the pool slot is acquired only after the TLS handshake.
+**Required Actions:**
+1. Apply a per-frame read deadline once the first header byte has arrived, and a separate (longer) idle deadline while waiting for the next frame:
+```csharp
+private async Task<byte[]?> ReadExactAsync(int count, TimeSpan timeout, CancellationToken cancellationToken)
+{
+    using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+    cts.CancelAfter(timeout);
+    try
+    {
+        // existing read loop, passing cts.Token to _stream.ReadAsync
+    }
+    catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+    {
+        throw new ProtocolException($"Read timed out after {timeout.TotalSeconds:F0}s");
+    }
+}
+```
+2. Add `ReadTimeout`, `IdleTimeout` and `HandshakeTimeout` to `ServerConfiguration` (validated as positive) and stop relying on the socket-level timeout properties.
+3. Acquire the connection-pool slot before the TLS handshake and wrap the handshake in `HandshakeTimeout`, releasing the slot on failure.
+4. Add tests: a client that sends 5 header bytes then stalls is disconnected within the read timeout; a client that connects and never completes TLS is disconnected and does not consume a slot afterwards.
+
+### NET-006: Make Payload and PayloadLength Impossible to Desynchronise (Medium)
+**File:** `TcpServer.cs` lines 351-355; `MessageProtocol.cs` lines 128-133
+**Current:** `new NoSqlMessage { MessageType = MessageType.Error, Payload = bytes }` is serialized with `PayloadLength == 0`.
+**Required Actions:**
+1. Immediate fix: build the rejection with `NoSqlMessage.CreateError("SERVER_BUSY", reason)` (after SEC-026 makes `CreateError` use `JsonSerializer`).
+2. Structural fix: derive the length from the payload so it cannot be forgotten:
+```csharp
+private byte[]? _payload;
+public byte[]? Payload
+{
+    get => _payload;
+    set { _payload = value; PayloadLength = value?.Length ?? 0; }
+}
+```
+   and have `Serialize` throw `ArgumentException` when `PayloadLength > (Payload?.Length ?? 0)`.
+3. Add a test that fills the pool, connects once more, and asserts the Error frame payload contains the capacity message.
+
+### NET-007: Reject Unsupported Message Flags (Medium)
+**File:** `MessageProtocol.cs` lines 72-98, 326-341
+**Recommendation:** Until compression, payload encryption and acknowledgements are implemented, a frame carrying those flags must be refused instead of being misread.
+**Required Actions:**
+```csharp
+private const MessageFlags SupportedFlags = MessageFlags.EndOfBatch; // extend as features land
+
+public bool ValidateHeader(MessageHeader header)
+{
+    // ... existing checks ...
+    if ((header.Flags & ~SupportedFlags) != 0)
+        return false;
+    return true;
+}
+```
+Either implement `Compressed`/`Encrypted`/`RequireAck` end to end (client and server) or remove them from the public enum and from the protocol documentation in `AGENTS.md`.
+
+### NET-008: Extend Checksum Coverage and Bounds-Check Deserialize (Low)
+**File:** `MessageProtocol.cs` lines 289-291, 398-422
+**Recommendation:** Covering the header in the CRC is a wire-format change, so schedule it with the next protocol version (see NET-009) rather than changing version 1.
+**Required Actions:**
+1. In protocol version 2, compute the CRC over header + payload.
+2. In `Deserialize`, validate the length before allocating and always verify the checksum:
+```csharp
+long required = (long)MessageHeader.HeaderSize + header.PayloadLength + 4;
+if (buffer.Length - offset < required)
+    throw new ProtocolException("Buffer shorter than declared payload length");
+```
+
+### NET-009: Report Protocol Errors and Add Version Negotiation (Low)
+**File:** `TcpServer.cs` lines 341-344; `MessageProtocol.cs` lines 331-332
+**Required Actions:**
+1. In `ProcessConnectionLoopAsync`, catch `ProtocolException` separately and make a best-effort `handler.SendErrorAsync("PROTOCOL_ERROR", ex.Message)` before closing (bounded by a short timeout so a dead peer cannot delay cleanup).
+2. Return distinct failure reasons from `ValidateHeader` (bad magic, unsupported version, unknown type, bad length) so the error frame and the log say which check failed.
+3. Accept a supported version range (`MinProtocolVersion..ProtocolVersion`) and reply with the server's supported range during Handshake, to satisfy the "ensure backward compatibility" rule in `AGENTS.md`.
 
 ---
 
