@@ -354,7 +354,7 @@ Review against `plan.md` Section 2.1:
 - [x] Client Application Layer isolation **[REVIEWED 2026-11-13 - DIRECTION OK: Client references only Core + Network; no Storage/Query/Server/Host reference and no server project references Client. 3 ISSUES: ARCH-001 (Medium - client transitively ships server-only code), ARCH-002 (Low - no client interface), ARCH-003 (Low - package description says "embedded")]**
 - [x] Network/Protocol Layer (TCP) correctness **[REVIEWED 2026-11-13 - FRAMING OK: exact-length reads, big-endian header, magic/version/type validation, per-connection pre-auth payload limit checked before allocation, serialized writes. 5 ISSUES: NET-005 (High - no effective read timeout), NET-006 (Medium - rejection reason sent as empty payload), NET-007 (Medium - flags never honoured or rejected), NET-008 (Low - CRC excludes header), NET-009 (Low - protocol errors close silently)]**
 - [x] Security & Authentication Layer integration **[REVIEWED 2026-11-13 - TCP gate in Host is sound when auth is required (per-connection identity, fail-closed `CommandAuthorizer`, real role in JWT). 7 ISSUES: SEC-038 (Critical - Server project HTTP API has no authentication), SEC-039 (High - Host HTTP writes skip role check), SEC-040 (High - anonymous role never enforced on TCP), SEC-041 (Medium - role changes do not reach live connections), SEC-042 (Medium - database select mutates shared state), ARCH-004 (Medium - parallel unused RBAC stack), AUDIT-002 (Low - denials not audited)]**
-- [ ] Query Processing & Command Layer design
+- [x] Query Processing & Command Layer design **[REVIEWED 2026-11-13 - NOT INTEGRATED: the Query project (parser, filter engine, executor, aggregation, cursors) is used only by the Embedded library; neither server reaches it. 4 ISSUES: QRY-001 (High - query engine not wired into Host/Server), QRY-002 (Medium - duplicated, divergent command dispatch), QRY-003 (Medium - listdocuments full scan + sort per page), QRY-004 (Low - Transaction message type has no handler)]**
 - [ ] Transaction Management Layer implementation
 - [ ] Storage Engine Layer architecture
 - [ ] Caching & Memory Management integration
@@ -807,6 +807,10 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | SEC-042 | Program.cs (Host) | 301-308 | Medium | `POST /api/databases/{name}/select` assigns `data.DocumentStore` on the singleton `ApiDataService`. Any authenticated user switches the active database for every other HTTP caller, and concurrent requests can read or write the wrong database. | Open |
 | ARCH-004 | AuthenticationService.cs, RoleManager.cs | - | Medium | Two authorization stacks exist. Host and Server use `AuthenticationManager` + `UserRole` + `CommandAuthorizer`; `AuthenticationService` and the permission-based `RoleManager` are referenced only by tests and `Example.ConsoleApp`. Policy is therefore defined in three places (CommandAuthorizer map, HTTP attributes, RoleManager defaults) that already disagree, and the gate code is duplicated between `Host/Program.cs` and `Server/NoSqlServer.cs`. | Open |
 | AUDIT-002 | Program.cs (Host) | 1064-1069 | Low | `AUTH_REQUIRED` and `FORBIDDEN` results are returned without an audit event, although `IAuditLogger` has an authorization-failure method. Privilege probing leaves no trail. | Open |
+| QRY-001 | Program.cs (Host) | 346-363, 675 | High | The query engine is not reachable from either server. Host and Server reference `AdvGenNoSqlServer.Query` but contain no `using` of it; only `AdvGenNoSqlServer.Embedded` uses it. `POST /api/query` ignores `QueryRequest.Query`, returns the first 100 documents of the collection and reports `totalCount` as the page size. Host's TCP dispatch has no query, find or aggregate command; Server's `find_one` re-implements filtering in a private `MatchesFilter` (NoSqlServer.cs 1019) with a full scan instead of using `FilterEngine`/`QueryExecutor`. Indexes, cursors and aggregation are therefore unused over the network. | Open |
+| QRY-002 | Program.cs (Host) | 1088-1110 | Medium | The command layer is a string `switch` inside a 1,586-line `Program.cs`, duplicated in the 1,896-line `NoSqlServer.cs`, and the two have drifted: Server dispatches `insert`, `replace`, `upsert`, `find_one`, `touch`, `cluster`; Host does not, although `CommandAuthorizer` maps them. Host rejects `BulkOperation` as `UNSUPPORTED`, so the client's `BatchInsertAsync`/`BatchUpdateAsync`/`BatchDeleteAsync`/`ExecuteBatchAsync`/`BulkInsertAsync` cannot succeed against Host. Authorization, auditing and metrics are woven into the switch by hand. | Open |
+| QRY-003 | Program.cs (Host) | HandleListDocumentsCommandAsync | Medium | `listdocuments` loads the entire collection with `GetAllAsync`, materializes it, and sorts by Id on every page request. Paging a collection of N documents costs O(N log N) time and O(N) memory per page, on the request thread, with no upper bound. | Open |
+| QRY-004 | Program.cs (Host) | 903-911 | Low | `MessageType.Transaction` (0x08) and `Notification` (0x0A) are part of the documented protocol but have no dispatch arm in Host or Server; they return `UNSUPPORTED_MESSAGE`. The transaction coordinator and MVCC code are not reachable by network clients. | Open |
 | ARCH-002 | Client.cs | 73 | Low | No `IAdvGenNoSqlClient` abstraction. `AdvGenNoSqlClient` is a concrete partial class and the factory returns the concrete type, so consumers (Admin, AdminClient, Examples) cannot substitute or mock the client without a live server. | Open |
 | ARCH-003 | AdvGenNoSqlServer.Client.csproj | 14, 20 | Low | Package `Description` and `PackageTags` call the TCP client an "embedded NoSQL database", which now collides with the separate `AdvGenNoSqlServer.Embedded` library and misleads package consumers. | Open |
 
@@ -2032,6 +2036,56 @@ Add tests: with `RequireAuthentication=false` and the default `AnonymousRole`, `
 ### AUDIT-002: Audit Authorization Denials (Low)
 **File:** `AdvGenNoSqlServer.Host/Program.cs` lines 1064-1069
 **Required Action:** Call `_auditLogger.LogAuthorizationFailure(username, command, ...)` before returning `AUTH_REQUIRED` or `FORBIDDEN`, and add the equivalent `OnForbidden`/`OnChallenge` JWT bearer events for HTTP.
+
+### QRY-001: Wire the Query Engine into the Server (High)
+**Section:** 4.1 Query Processing & Command Layer design
+**File:** `AdvGenNoSqlServer.Host/Program.cs` lines 346-363, 675; `AdvGenNoSqlServer.Server/NoSqlServer.cs` line 1019
+**Current:** `/api/query` returns `GetAllAsync(...).Take(100)` and ignores the query; no TCP query command exists in Host.
+**Required Actions:**
+1. Register `IQueryParser`, `IFilterEngine`, `IQueryExecutor` (and `IndexManager`) in DI, the same way `AdvGenDatabase` composes them for Embedded.
+2. Replace the `/api/query` body with a real execution, and return 400 on a parse error instead of an unfiltered result:
+```csharp
+app.MapPost("/api/query", async (QueryRequest req, IQueryParser parser, IQueryExecutor executor, CancellationToken ct) =>
+{
+    if (!parser.TryParse(req.Query, out var query, out var error))
+        return Results.BadRequest(new { success = false, error });
+    query.Collection ??= req.Collection;
+    var result = await executor.ExecuteAsync(query, ct);
+    return Results.Ok(new { success = true, documents = result.Documents, totalCount = result.TotalCount });
+}).RequireAuthorization("Read");
+```
+3. Add TCP commands `find`, `find_one`, `count` (with filter) and `aggregate` that delegate to the same executor; map them in `CommandAuthorizer` as `Read`. Delete the private `MatchesFilter` in `NoSqlServer.cs`.
+4. Apply server-side limits on every query: maximum result size, maximum execution time via `CancellationToken`, and the regex timeout from SEC-031.
+5. Add integration tests over HTTP and TCP: a filter that matches a subset returns only that subset and the correct total.
+
+### QRY-002: Replace the Command Switch with Registered Handlers (Medium)
+**File:** `AdvGenNoSqlServer.Host/Program.cs` lines 1088-1110; `AdvGenNoSqlServer.Server/NoSqlServer.cs` lines 350-377
+**Recommendation:** One handler per command, registered once, shared by both hosts. This is also the Command pattern item in section 4.2.
+**Required Actions:**
+```csharp
+public interface ICommandHandler
+{
+    string Name { get; }               // "get", "set", ...
+    CommandAccess RequiredAccess { get; }
+    bool IsMutating { get; }           // drives auditing
+    Task<NoSqlMessage> HandleAsync(CommandContext context, JsonElement command, CancellationToken ct);
+}
+```
+1. Move each `Handle*Command` method into its own `ICommandHandler` in a shared assembly; build a `CommandDispatcher` that looks up the handler by name and applies authorization (`RequiredAccess`), auditing (`IsMutating`) and metrics in one place.
+2. Derive `CommandAuthorizer`'s map from the registered handlers so a command cannot be authorized without existing, or exist without an access level.
+3. Have both `Host` and `Server` use the dispatcher, then decide whether `Server` is still needed (see SEC-038).
+4. Either implement `BulkOperation` in the dispatcher or remove the batch methods from the client; today they are a client API that always fails against Host.
+
+### QRY-003: Page listdocuments Without Loading the Collection (Medium)
+**File:** `AdvGenNoSqlServer.Host/Program.cs` `HandleListDocumentsCommandAsync`
+**Required Actions:**
+1. Add a paged, ordered read to `IDocumentStore` (for example `GetPageAsync(collection, afterId, take)`) backed by the primary-key order, and use `CountAsync` for `total`.
+2. Prefer keyset paging (`afterId`) over `skip`; keep `skip` only as a compatibility parameter with a documented maximum.
+3. Until then, cap the collection size for which `listdocuments` is allowed and return a clear error above it.
+
+### QRY-004: Handle or Remove the Transaction Message Type (Low)
+**File:** `AdvGenNoSqlServer.Host/Program.cs` lines 903-911
+**Required Action:** Either implement `MessageType.Transaction` (begin/commit/rollback bound to the connection, rolled back on disconnect) once the MVCC issues are fixed, or mark 0x08 and 0x0A as reserved in `AGENTS.md` and the client documentation so users do not expect network transactions.
 
 ### NET-005: Enforce Read, Idle and Handshake Timeouts (High)
 **Section:** 4.1 Network/Protocol Layer (TCP) correctness
