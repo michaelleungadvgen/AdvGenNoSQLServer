@@ -353,7 +353,7 @@ Review against `plan.md` Section 2.1:
 
 - [x] Client Application Layer isolation **[REVIEWED 2026-11-13 - DIRECTION OK: Client references only Core + Network; no Storage/Query/Server/Host reference and no server project references Client. 3 ISSUES: ARCH-001 (Medium - client transitively ships server-only code), ARCH-002 (Low - no client interface), ARCH-003 (Low - package description says "embedded")]**
 - [x] Network/Protocol Layer (TCP) correctness **[REVIEWED 2026-11-13 - FRAMING OK: exact-length reads, big-endian header, magic/version/type validation, per-connection pre-auth payload limit checked before allocation, serialized writes. 5 ISSUES: NET-005 (High - no effective read timeout), NET-006 (Medium - rejection reason sent as empty payload), NET-007 (Medium - flags never honoured or rejected), NET-008 (Low - CRC excludes header), NET-009 (Low - protocol errors close silently)]**
-- [ ] Security & Authentication Layer integration
+- [x] Security & Authentication Layer integration **[REVIEWED 2026-11-13 - TCP gate in Host is sound when auth is required (per-connection identity, fail-closed `CommandAuthorizer`, real role in JWT). 7 ISSUES: SEC-038 (Critical - Server project HTTP API has no authentication), SEC-039 (High - Host HTTP writes skip role check), SEC-040 (High - anonymous role never enforced on TCP), SEC-041 (Medium - role changes do not reach live connections), SEC-042 (Medium - database select mutates shared state), ARCH-004 (Medium - parallel unused RBAC stack), AUDIT-002 (Low - denials not audited)]**
 - [ ] Query Processing & Command Layer design
 - [ ] Transaction Management Layer implementation
 - [ ] Storage Engine Layer architecture
@@ -800,6 +800,13 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | NET-007 | MessageProtocol.cs | 72-98, 326-341 | Medium | `MessageFlags` (`Compressed`, `Encrypted`, `RequireAck`, `EndOfBatch`) are parsed and copied onto the message but no production code reads them, and `ValidateHeader` accepts any flag byte. A frame flagged `Compressed` or `Encrypted` is processed as plain JSON, and `RequireAck` is silently ignored. | Open |
 | NET-008 | MessageProtocol.cs | 289-291, 398-422 | Low | CRC32 covers the payload only, so a corrupted type or flags byte that is still a valid value passes validation, and zero-length frames have no integrity check at all. `Deserialize` additionally skips the checksum when the payload is empty and allocates `new byte[payloadLength]` (up to 100MB) before checking that the buffer actually holds that many bytes. | Open |
 | NET-009 | TcpServer.cs | 341-344 | Low | On a `ProtocolException` (bad magic, version mismatch, oversized frame, checksum failure) the loop logs and drops the connection without sending an Error frame; `ConnectionHandler.SendErrorAsync` exists but is unused. Version is checked with strict equality and there is no negotiation, so any future protocol version bump is a silent disconnect for old clients. | Open |
+| SEC-038 | Program.cs (Server) | 84, 123-196 | Critical | The `AdvGenNoSqlServer.Server` HTTP API binds `http://0.0.0.0:{httpPort}` and maps every endpoint, including `POST`/`DELETE /api/databases/{name}` and `DELETE /api/collections/{name}`, with no `[Authorize]`, no `UseAuthentication` and no `RequireAuthorization`. Anyone who can reach the port can read and destroy data regardless of `RequireAuthentication`. | Open |
+| SEC-039 | Program.cs (Host) | 401, 418, 301, 346 | High | HTTP document `POST` and `PUT` carry a bare `[Authorize]`, so a `ReadOnly` user can insert and overwrite documents over HTTP while the same user is refused `set` over TCP. The HTTP matrix also disagrees with `CommandAuthorizer` elsewhere: document delete and collection create are Admin-only over HTTP but `ReadWrite` over TCP. | Open |
+| SEC-040 | Program.cs (Host) | 940-949, 1062-1070 | High | With `RequireAuthentication=false` the anonymous identity is stored with `AnonymousRole` (default ReadOnly), but the role check is inside `if (RequireAuthentication && ...)` and never runs. Anonymous TCP clients can run every command including `createuser`, `setrole` and `dropcollection`. The startup warning "anonymous connections get role X" describes behaviour the code does not implement. Same pattern in `NoSqlServer.cs` 278, 332. | Open |
+| SEC-041 | Program.cs (Host) | 694, 996 | Medium | `_authConnections` caches `(Username, Role)` for the life of the connection and is only cleared on disconnect. `setrole`, `deleteuser` and `setpassword` do not update or evict it, so a demoted or deleted user keeps the old privileges on open connections indefinitely (and on HTTP until the JWT expires, see SEC-007). | Open |
+| SEC-042 | Program.cs (Host) | 301-308 | Medium | `POST /api/databases/{name}/select` assigns `data.DocumentStore` on the singleton `ApiDataService`. Any authenticated user switches the active database for every other HTTP caller, and concurrent requests can read or write the wrong database. | Open |
+| ARCH-004 | AuthenticationService.cs, RoleManager.cs | - | Medium | Two authorization stacks exist. Host and Server use `AuthenticationManager` + `UserRole` + `CommandAuthorizer`; `AuthenticationService` and the permission-based `RoleManager` are referenced only by tests and `Example.ConsoleApp`. Policy is therefore defined in three places (CommandAuthorizer map, HTTP attributes, RoleManager defaults) that already disagree, and the gate code is duplicated between `Host/Program.cs` and `Server/NoSqlServer.cs`. | Open |
+| AUDIT-002 | Program.cs (Host) | 1064-1069 | Low | `AUTH_REQUIRED` and `FORBIDDEN` results are returned without an audit event, although `IAuditLogger` has an authorization-failure method. Privilege probing leaves no trail. | Open |
 | ARCH-002 | Client.cs | 73 | Low | No `IAdvGenNoSqlClient` abstraction. `AdvGenNoSqlClient` is a concrete partial class and the factory returns the concrete type, so consumers (Admin, AdminClient, Examples) cannot substitute or mock the client without a live server. | Open |
 | ARCH-003 | AdvGenNoSqlServer.Client.csproj | 14, 20 | Low | Package `Description` and `PackageTags` call the TCP client an "embedded NoSQL database", which now collides with the separate `AdvGenNoSqlServer.Embedded` library and misleads package consumers. | Open |
 
@@ -1957,6 +1964,74 @@ public void ClientAssembly_ReferencesOnlyProtocol_NoServerAssemblies()
 <Description>TCP client library for AdvGen NoSQL Server</Description>
 <PackageTags>nosql;database;client;tcp;document-database</PackageTags>
 ```
+
+### SEC-038: Authenticate the Server Project's HTTP API (Critical)
+**Section:** 4.1 Security & Authentication Layer integration
+**File:** `AdvGenNoSqlServer.Server/Program.cs` lines 84, 123-196
+**Current:** All endpoints are anonymous and the listener binds all interfaces.
+**Required Actions:**
+1. Decide whether `AdvGenNoSqlServer.Server` is still a supported entry point. If `Host` has replaced it, delete its HTTP API (or the project) rather than maintain a second, unprotected copy.
+2. If it stays: register the same JWT bearer setup as Host, call `app.UseAuthentication(); app.UseAuthorization();`, and make authorization the default so a new endpoint cannot be added unprotected:
+```csharp
+builder.Services.AddAuthorization(o =>
+    o.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+```
+3. Bind to `127.0.0.1` unless an explicit `HttpBindAddress` is configured.
+4. Add an integration test that enumerates every mapped endpoint and asserts 401 without a token (health endpoints excepted).
+
+### SEC-039: One Authorization Matrix for HTTP and TCP (High)
+**File:** `AdvGenNoSqlServer.Host/Program.cs` lines 401, 418 (and 267-434 generally)
+**Required Actions:**
+1. Define named policies that mirror `CommandAccess` and apply them instead of ad-hoc attributes:
+```csharp
+services.AddAuthorization(o =>
+{
+    o.AddPolicy("Read",  p => p.RequireRole(UserRole.Admin, UserRole.ReadWrite, UserRole.ReadOnly));
+    o.AddPolicy("Write", p => p.RequireRole(UserRole.Admin, UserRole.ReadWrite));
+    o.AddPolicy("Admin", p => p.RequireRole(UserRole.Admin));
+    o.FallbackPolicy = o.GetPolicy("Admin"); // unmapped endpoint = Admin only, same as CommandAuthorizer
+});
+```
+2. Document `POST`/`PUT` → `Write`; align document delete and collection create with the TCP mapping (`Write`), or change `CommandAuthorizer` if Admin-only is the intended rule. Record the decision in one table in `Documentation/`.
+3. Add a test per role that runs the same operation over HTTP and TCP and asserts the same allow/deny result.
+
+### SEC-040: Enforce the Anonymous Role When Authentication Is Disabled (High)
+**File:** `AdvGenNoSqlServer.Host/Program.cs` lines 940-949, 1062-1070; `AdvGenNoSqlServer.Server/NoSqlServer.cs` lines 278, 332
+**Current:** Role check is skipped entirely when `RequireAuthentication` is false.
+**Required Action:** Always resolve an identity and always authorize; only the source of the identity depends on the setting:
+```csharp
+if (!_authConnections.TryGetValue(connectionId, out var identity))
+{
+    if (config.RequireAuthentication)
+        return NoSqlMessage.CreateError("AUTH_REQUIRED", "Authenticate before sending commands");
+    identity = ("anonymous", UserRole.IsValid(config.AnonymousRole) ? config.AnonymousRole : UserRole.ReadOnly);
+}
+if (!CommandAuthorizer.IsAllowed(command, identity.Role))
+    return NoSqlMessage.CreateError("FORBIDDEN", $"Role '{identity.Role}' may not run '{command}'");
+```
+Add tests: with `RequireAuthentication=false` and the default `AnonymousRole`, `get` succeeds and `set`, `createuser` and `dropcollection` return `FORBIDDEN`.
+
+### SEC-041: Propagate Role and Account Changes to Live Sessions (Medium)
+**File:** `AdvGenNoSqlServer.Host/Program.cs` lines 694, 996
+**Required Actions:**
+1. Cache only the username per connection and resolve the role from `AuthenticationManager` on each command (a dictionary lookup), or
+2. Have `setrole`, `deleteuser` and `setpassword` evict matching entries from `_authConnections` and close those connections.
+3. Pair with SEC-007 (token revocation) so the HTTP path has the same guarantee.
+
+### SEC-042: Make Database Selection Per-Request (Medium)
+**File:** `AdvGenNoSqlServer.Host/Program.cs` lines 301-308
+**Required Action:** Remove the mutable `ApiDataService.DocumentStore` selection. Carry the database in the route (`/api/databases/{db}/collections/...`) or an `X-Database` header and resolve the store per request via `DatabaseManager.GetDatabase(db)`; keep the existing routes as aliases for the default database.
+
+### ARCH-004: Consolidate the Authorization Stack (Medium)
+**File:** `Core/Authentication/AuthenticationService.cs`, `RoleManager.cs`, `CommandAuthorizer.cs`
+**Recommendation:** Keep one model. The role-based `UserRole` + `CommandAuthorizer` model is the one in production use.
+**Required Actions:**
+1. Either delete `AuthenticationService`/`RoleManager` (and close SEC-011..014, SEC-034, BUG-003, CONC-007 as obsolete), or wire `RoleManager` in as the single policy source and derive `CommandAuthorizer` and the HTTP policies from it. Do not keep both.
+2. Extract the duplicated authenticate/authorize/audit code from `Host/Program.cs` and `Server/NoSqlServer.cs` into one `ConnectionAuthorizationGate` class in Core that both call.
+
+### AUDIT-002: Audit Authorization Denials (Low)
+**File:** `AdvGenNoSqlServer.Host/Program.cs` lines 1064-1069
+**Required Action:** Call `_auditLogger.LogAuthorizationFailure(username, command, ...)` before returning `AUTH_REQUIRED` or `FORBIDDEN`, and add the equivalent `OnForbidden`/`OnChallenge` JWT bearer events for HTTP.
 
 ### NET-005: Enforce Read, Idle and Handshake Timeouts (High)
 **Section:** 4.1 Network/Protocol Layer (TCP) correctness
