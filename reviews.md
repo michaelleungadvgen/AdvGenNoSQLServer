@@ -361,7 +361,7 @@ Review against `plan.md` Section 2.1:
 - [x] Persistence & File I/O Layer reliability **[REVIEWED 2026-11-13 - The new `AtomicFileWriter` (temp + fsync + rename, pending P0-5 change) is the right pattern but is used by only two classes. 5 ISSUES: IO-001 (High - durable-write pattern not applied to most persistent files), IO-002 (Medium - `AtomicFileWriter` gaps: no directory fsync, orphan temp files, internal to Storage), IO-003 (Medium - corrupt user file silently becomes an empty user list), IO-004 (Medium - no data-directory lock; non-atomic collection drop), IO-005 (Low - no I/O failure policy)]**
 
 ### 4.2 Design Pattern Usage
-- [ ] Repository pattern in Storage layer
+- [x] Repository pattern in Storage layer **[REVIEWED 2026-11-13 - PRESENT: `IDocumentStore` (Core/Abstractions) is a proper repository abstraction, implementations and decorators depend on the interface, and a reusable `DocumentStoreContractTests` suite exists. 5 ISSUES: REPO-001 (Medium - CRUD-only interface forces full scans), REPO-002 (Medium - stores hand out and keep live mutable instances), REPO-003 (Medium - no decorator base; capability downcast to concrete store), REPO-004 (Low - cancellation tokens accepted but ignored), REPO-005 (Low - duplicate `IDatabaseManager`/`DatabaseManager` names; contract tests cover 3 of ~15 stores)]**
 - [ ] Factory pattern in Client creation
 - [ ] Command pattern in Query processing
 - [ ] Observer pattern in Event handling
@@ -830,6 +830,11 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | IO-003 | FileUserStore.cs | 24-38 | Medium | If the users file fails to parse, `Load` copies it aside and returns an empty list. The server then starts with no persisted users instead of refusing to start, so a torn or damaged file silently removes every account and role assignment (and the next `Save` overwrites the original). File permissions are also applied after the rename, leaving a brief window with default permissions on a file of password hashes. | Open |
 | IO-004 | HybridDocumentStore.cs, DatabaseManager.cs | 347 | Medium | No lock file or exclusive handle guards the data directory, so two server processes pointed at the same path (an overlapping container restart, or Host and Server started together) both load and write the same files. `DropCollectionAsync` uses recursive `Directory.Delete`, which is not atomic: a crash part-way leaves a collection with a random subset of its documents that loads normally on restart. | Open |
 | IO-005 | (storage layer) | - | Low | There is no defined behaviour for disk-full or I/O errors: background write failures are counted and printed to stderr (STOR-005) while the server keeps accepting writes, quarantine failures are swallowed (`PersistentDocumentStore.cs` 425), and no free-space check gates writes. | Open |
+| REPO-001 | IDocumentStore.cs | 22-113 | Medium | The repository exposes only key lookups and `GetAllAsync`, which returns an entire collection. There is no filtered, paged or streaming read, so every consumer that needs a subset (`listdocuments`, `find_one`, `/api/query`, cursors PERF-013, the query executor) loads the whole collection and filters in the caller, and an index can never be pushed down into the store. | Open |
+| REPO-002 | HybridDocumentStore.cs | 116-143, 172-186 | Medium | The store keeps the caller's `Document` instance on insert (it also mutates the caller's object to set timestamps and version) and returns the same live instance from reads. Any caller that modifies a returned document changes stored state without `UpdateAsync`, without a version bump and without a disk write; concurrent readers see half-applied edits. This is the root cause behind PERF-009. | Open |
+| REPO-003 | WriteConcernDocumentStore.cs | 300-312 | Medium | There is no shared decorator base: each of about twelve decorators re-implements all twelve `IDocumentStore` members by hand, so any interface change touches every one. Capabilities are discovered by downcast (`_innerStore is HybridDocumentStore`), which silently stops working as soon as another decorator is placed in between; `HybridDocumentStore` has `FlushAsync` but does not implement `IPersistentDocumentStore`. `PersistentDocumentStore` reaches into `InMemoryDocumentCollection` by reflection (CODE-001). | Open |
+| REPO-004 | HybridDocumentStore.cs | - | Low | Every `IDocumentStore` method takes a `CancellationToken`, but `HybridDocumentStore` never observes it (no `ThrowIfCancellationRequested`, not passed to the write queue or file reads). Request timeouts and client disconnects cannot stop a store operation. | Open |
+| REPO-005 | Core/Abstractions/IDatabaseManager.cs, Core/Database/, Storage/DatabaseManager.cs | - | Low | Two different `IDatabaseManager` interfaces and two `DatabaseManager` classes share the same simple names in different namespaces, so which one a file gets depends on its `using` lines. `DocumentStoreContractTests` is run against `DocumentStore` and the two Embedded stores only; `HybridDocumentStore`, `PersistentDocumentStore` and the decorators are not held to the contract. | Open |
 | ARCH-002 | Client.cs | 73 | Low | No `IAdvGenNoSqlClient` abstraction. `AdvGenNoSqlClient` is a concrete partial class and the factory returns the concrete type, so consumers (Admin, AdminClient, Examples) cannot substitute or mock the client without a live server. | Open |
 | ARCH-003 | AdvGenNoSqlServer.Client.csproj | 14, 20 | Low | Package `Description` and `PackageTags` call the TCP client an "embedded NoSQL database", which now collides with the separate `AdvGenNoSqlServer.Embedded` library and misleads package consumers. | Open |
 
@@ -2347,6 +2352,65 @@ private static void FlushDirectory(string directory)
 1. After a persistent write fails, switch the store to read-only, return `STORAGE_UNAVAILABLE` for writes, and fail `/health/ready` until an operator intervenes or a retry succeeds.
 2. Add a minimum-free-space setting checked by the existing disk health check and before large writes (attachments, export).
 3. Log quarantine failures instead of swallowing them, and route all storage diagnostics through `ILogger`.
+
+### REPO-001: Add Streaming and Paged Reads to the Repository (Medium)
+**Section:** 4.2 Repository pattern in Storage layer
+**File:** `AdvGenNoSqlServer.Core/Abstractions/IDocumentStore.cs`
+**Required Actions:**
+1. Add read methods that do not require materializing a collection. Use default interface implementations so existing stores keep compiling, then override them in the real stores:
+```csharp
+IAsyncEnumerable<Document> ScanAsync(string collectionName, CancellationToken cancellationToken = default);
+
+Task<IReadOnlyList<Document>> GetPageAsync(
+    string collectionName, string? afterId, int take, CancellationToken cancellationToken = default);
+```
+2. Change the query executor, cursors and `listdocuments` to use `ScanAsync`/`GetPageAsync`; mark `GetAllAsync` as intended for small collections in its XML doc.
+3. Add both methods to `DocumentStoreContractTests` (ordering by Id, stable paging, empty collection).
+
+### REPO-002: Do Not Share Mutable Document Instances Across the Repository Boundary (Medium)
+**File:** `AdvGenNoSqlServer.Storage/HybridDocumentStore.cs` lines 116-143, 172-186 (same pattern in `DocumentStore`/`InMemoryDocumentCollection`)
+**Required Actions:**
+1. Copy on the way in and on the way out:
+```csharp
+var stored = document.DeepClone();        // keep our own copy
+stored.CreatedAt = stored.UpdatedAt = DateTime.UtcNow;
+stored.Version = 1;
+collection.TryAdd(stored.Id, stored);
+return stored.DeepClone();                // caller gets an independent copy
+```
+   Implement `Document.DeepClone()` once in Core (clone the `Data` dictionary recursively).
+2. If cloning cost is a concern, store an immutable representation (serialized bytes or a frozen dictionary) and materialize on read.
+3. Add a contract test: mutate a document returned by `GetAsync`, read again, and assert the stored value is unchanged; same for the instance passed to `InsertAsync`.
+
+### REPO-003: Introduce a Decorator Base and Capability Interfaces (Medium)
+**File:** all `*DocumentStore` decorators in `AdvGenNoSqlServer.Storage`; `WriteConcernDocumentStore.cs` lines 300-312
+**Required Actions:**
+1. Add a pass-through base class and have every decorator derive from it, overriding only what it changes:
+```csharp
+public abstract class DocumentStoreDecorator : IDocumentStore
+{
+    protected IDocumentStore Inner { get; }
+    protected DocumentStoreDecorator(IDocumentStore inner) => Inner = inner ?? throw new ArgumentNullException(nameof(inner));
+
+    public virtual Task<Document> InsertAsync(string c, Document d, CancellationToken ct = default) => Inner.InsertAsync(c, d, ct);
+    // ... remaining members forward to Inner
+
+    /// <summary>Finds a capability anywhere in the decorator chain.</summary>
+    public virtual T? GetCapability<T>() where T : class
+        => this as T ?? (Inner as DocumentStoreDecorator)?.GetCapability<T>() ?? Inner as T;
+}
+```
+2. Define `IFlushableStore { Task FlushAsync(CancellationToken ct); }`, implement it on `HybridDocumentStore` and `PersistentDocumentStore`, and replace the downcasts in `WriteConcernDocumentStore.FlushToJournalAsync` with `GetCapability<IFlushableStore>()`. Throw if a durable write concern is requested and no flushable store exists, instead of silently doing nothing.
+3. Replace the reflection in `PersistentDocumentStore` with an internal load method (CODE-001).
+
+### REPO-004: Honour Cancellation in Store Operations (Low)
+**File:** `AdvGenNoSqlServer.Storage/HybridDocumentStore.cs`
+**Required Action:** Call `cancellationToken.ThrowIfCancellationRequested()` on entry and inside scan loops, and pass the token to `_writeQueue.Writer.WriteAsync`, `File.ReadAllTextAsync` and awaited completions. Do not cancel after the in-memory state has been changed; from that point the operation must run to completion.
+
+### REPO-005: Remove Duplicate Names and Widen the Contract Tests (Low)
+**Required Actions:**
+1. Keep one `IDatabaseManager` (in `Core/Abstractions`) and one implementation; rename or delete the `Core/Database` pair.
+2. Move `DocumentStoreContractTests` to `AdvGenNoSqlServer.Tests` (or a shared test library) and add a subclass per store and per decorator wrapping a base store, so each is held to the same behaviour.
 
 ### NET-005: Enforce Read, Idle and Handshake Timeouts (High)
 **Section:** 4.1 Network/Protocol Layer (TCP) correctness
