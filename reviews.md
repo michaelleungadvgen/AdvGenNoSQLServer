@@ -364,7 +364,7 @@ Review against `plan.md` Section 2.1:
 - [x] Repository pattern in Storage layer **[REVIEWED 2026-11-13 - PRESENT: `IDocumentStore` (Core/Abstractions) is a proper repository abstraction, implementations and decorators depend on the interface, and a reusable `DocumentStoreContractTests` suite exists. 5 ISSUES: REPO-001 (Medium - CRUD-only interface forces full scans), REPO-002 (Medium - stores hand out and keep live mutable instances), REPO-003 (Medium - no decorator base; capability downcast to concrete store), REPO-004 (Low - cancellation tokens accepted but ignored), REPO-005 (Low - duplicate `IDatabaseManager`/`DatabaseManager` names; contract tests cover 3 of ~15 stores)]**
 - [x] Factory pattern in Client creation **[REVIEWED 2026-11-13 - NOMINAL ONLY: `AdvGenNoSqlClientFactory` is a static two-method wrapper used by two unit tests; every real caller uses `new AdvGenNoSqlClient(...)`. 3 ISSUES: FACT-001 (High - factory drops `UseSsl`, so a TLS request becomes a plaintext connection; raises BUG-002), FACT-002 (Low - factory adds no value: no DI, no interface, no validation), FACT-003 (Low - server address has two sources and a lenient parser)]**
 - [x] Command pattern in Query processing **[REVIEWED 2026-11-13 - PARTIAL: aggregation stages are proper command objects (`IAggregationStage.Execute`, six stage classes, fluent builder) and `Query` is a self-contained request object handed to `IQueryExecutor`. Filter operators and server commands are not. 3 ISSUES: CMD-001 (Medium - filter operators are a hard-coded switch re-interpreted per document, validated only at evaluation time), CMD-002 (Medium - no wire-format factory for aggregation stages, so pipelines cannot be sent by a client), CMD-003 (Low - server command dispatch is a string switch; see QRY-002)]**
-- [ ] Observer pattern in Event handling
+- [x] Observer pattern in Event handling **[REVIEWED 2026-11-13 - WIDELY USED: 79 public events across Core/Storage/Network/Query with typed `EventArgs`; both hosts subscribe and unsubscribe symmetrically. 4 ISSUES: OBS-001 (Medium - request/response dispatch built on a multicast event), OBS-002 (Medium - subscriber exceptions are not isolated; `ConnectionClosed` can skip disposal), OBS-003 (Low - remaining `async void` handlers), OBS-004 (Low - change events never reach clients)]**
 - [ ] Strategy pattern in Caching policies
 - [ ] Builder pattern in Aggregation pipelines
 
@@ -841,6 +841,10 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | CMD-001 | FilterEngine.cs | 97-115, 182-219 | Medium | `QueryFilter.Conditions` is an untyped `Dictionary<string, object>`, and `FilterEngine` walks it and switches on operator-name strings (`$and`, `$eq`, `$regex`, ...) again for every document. Operators are not objects: adding one means editing the switch, and an unknown or misspelled operator is only reported as `FilterEvaluationException` when the first document is evaluated (and not at all on an empty collection). `QueryParser` has no validation step. Per-document string dispatch and boxing also put a ceiling on scan speed. | Open |
 | CMD-002 | Aggregation/ | - | Medium | Stages can only be composed in C# through `AggregationPipelineBuilder`. Nothing maps a stage's `StageType` (`"$match"`, `"$group"`, ...) back to a stage instance from JSON: there is no stage factory or registry, and `QueryParser` does not parse pipelines. A network client therefore has no way to submit an aggregation even after QRY-001 wires the engine in. | Open |
 | CMD-003 | Program.cs (Host), NoSqlServer.cs | 1088-1110, 350-377 | Low | At the server boundary the Command pattern is absent: commands are string literals in a `switch`, with authorization, auditing and metrics inlined. Tracked with a concrete design under QRY-002; listed here so section 4.2 has a complete picture. | Open |
+| OBS-001 | TcpServer.cs | 311-335, 473-525 | Medium | Request handling is modelled as an observer notification: `MessageReceived?.Invoke(...)` followed by `await eventArgs.WaitForResponseAsync(...)`, with the handler expected to call `SendResponseAsync` exactly once. An event has zero-to-many subscribers, and neither end case works: with no subscriber (or a handler path that never responds) the wait never completes and the connection hangs until shutdown, since there is no timeout; with two subscribers the client receives two responses to one request and the stream desynchronizes. It also forces `async void` handlers in both hosts. | Open |
+| OBS-002 | TcpServer.cs | 277, 285-298 | Medium | Events are raised inline with no exception isolation. In the `finally` of `HandleConnectionAsync`, `ConnectionClosed?.Invoke(...)` runs before `handler?.Dispose()`, so a subscriber that throws leaves the socket and stream undisposed and the exception goes to an unobserved fire-and-forget task. A throwing `ConnectionEstablished` subscriber drops a connection that was already accepted. With multicast delegates, the first subscriber to throw also prevents later subscribers from being notified. | Open |
+| OBS-003 | TransactionCoordinator.cs, GossipProtocol.cs | 289, 301; 289 | Low | `async void` remains in `TransactionCoordinator.OnDeadlockDetected`/`CleanupTimedOutTransactions` (ASYNC-002) and `GossipProtocol.OnGossipTimer`. Each depends on a hand-written try/catch covering the whole body to avoid crashing the process. | Open |
+| OBS-004 | ChangeStreamEnabledDocumentStore.cs, MessageProtocol.cs | - | Low | Data-change observation stops inside the process: the change-stream decorator is not in the server's store pipeline (STOR-004) and `MessageType.Notification` has no sender (QRY-004), so the documented server notification message is never produced and clients cannot subscribe to changes. | Open |
 | ARCH-002 | Client.cs | 73 | Low | No `IAdvGenNoSqlClient` abstraction. `AdvGenNoSqlClient` is a concrete partial class and the factory returns the concrete type, so consumers (Admin, AdminClient, Examples) cannot substitute or mock the client without a live server. | Open |
 | ARCH-003 | AdvGenNoSqlServer.Client.csproj | 14, 20 | Low | Package `Description` and `PackageTags` call the TCP client an "embedded NoSQL database", which now collides with the separate `AdvGenNoSqlServer.Embedded` library and misleads package consumers. | Open |
 
@@ -2506,6 +2510,56 @@ public AggregationPipeline ParsePipeline(JsonElement stagesArray);   // [ { "$ma
 
 ### CMD-003: Server Command Dispatch (Low)
 **Required Action:** Implement the `ICommandHandler`/`CommandDispatcher` design recorded under QRY-002. No separate work item.
+
+### OBS-001: Use a Handler Delegate for Requests, Keep Events for Notifications (Medium)
+**Section:** 4.2 Observer pattern in Event handling
+**File:** `AdvGenNoSqlServer.Network/TcpServer.cs` lines 311-335, 473-525
+**Recommendation:** A request needs exactly one handler and a returned response; that is a function call, not an event.
+**Required Actions:**
+1. Add a single-handler contract and have the read loop await it directly:
+```csharp
+public interface IMessageHandler
+{
+    Task<NoSqlMessage> HandleAsync(string connectionId, NoSqlMessage message, CancellationToken cancellationToken);
+}
+
+// ProcessConnectionLoopAsync
+var response = await _handler.HandleAsync(handler.ConnectionId, message, requestCts.Token);
+await handler.SendAsync(response, cancellationToken);
+```
+   Require the handler in the `TcpServer` constructor (or in `StartAsync`), so a server cannot run without one.
+2. Wrap each call in a per-request timeout (`ServerConfiguration.RequestTimeout`) and reply `TIMEOUT` when it elapses.
+3. Keep `MessageReceived` only as an optional, non-blocking notification for diagnostics, or mark it `[Obsolete]`; remove `WaitForResponseAsync` and `CompleteWithoutResponse`.
+4. Convert both hosts' `async void OnMessageReceivedAsync` into `IMessageHandler` implementations (closes ASYNC-005 structurally).
+5. Tests: a handler that never completes yields a `TIMEOUT` response and the connection stays usable; a handler that throws yields `INTERNAL_ERROR`.
+
+### OBS-002: Isolate Event Subscribers from the Connection Lifecycle (Medium)
+**File:** `AdvGenNoSqlServer.Network/TcpServer.cs` lines 277, 285-298
+**Required Actions:**
+1. Raise events through a helper that invokes each subscriber separately and logs failures:
+```csharp
+private void Raise<T>(EventHandler<T>? handlers, T args, string eventName)
+{
+    if (handlers == null) return;
+    foreach (EventHandler<T> h in handlers.GetInvocationList())
+    {
+        try { h(this, args); }
+        catch (Exception ex) { _logger?.LogError(ex, "Subscriber to {Event} threw", eventName); }
+    }
+}
+```
+2. In the `finally` block, dispose the handler and release the pool slot before raising `ConnectionClosed`.
+3. Apply the same helper to the other event sources that raise on critical paths (lock manager deadlock event, configuration reload, cache eviction).
+4. Test: a `ConnectionClosed` subscriber that throws does not leak the connection (`ActiveConnectionCount` returns to zero and the pool slot is released).
+
+### OBS-003: Remove the Remaining async void Handlers (Low)
+**File:** `TransactionCoordinator.cs` lines 289, 301; `Clustering/GossipProtocol.cs` line 289
+**Required Action:** Replace timer callbacks with a `PeriodicTimer` loop in a tracked `Task` that is awaited on dispose, and have the deadlock event handler start a tracked task (`_ = HandleDeadlockAsync(e)` with a continuation that logs faults) instead of being `async void`.
+
+### OBS-004: Deliver Change Events to Clients (Low)
+**Required Actions:**
+1. After STOR-004 adds `ChangeStreamEnabledDocumentStore` to the server pipeline, add `subscribe`/`unsubscribe` commands and send changes as `MessageType.Notification` frames through `TcpServer.SendToClientAsync`, with a bounded per-connection queue that drops the subscription (with an error frame) when the client falls behind.
+2. Until then, mark Notification as reserved in the protocol documentation.
 
 ### NET-005: Enforce Read, Idle and Handshake Timeouts (High)
 **Section:** 4.1 Network/Protocol Layer (TCP) correctness
