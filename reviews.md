@@ -357,7 +357,7 @@ Review against `plan.md` Section 2.1:
 - [x] Query Processing & Command Layer design **[REVIEWED 2026-11-13 - NOT INTEGRATED: the Query project (parser, filter engine, executor, aggregation, cursors) is used only by the Embedded library; neither server reaches it. 4 ISSUES: QRY-001 (High - query engine not wired into Host/Server), QRY-002 (Medium - duplicated, divergent command dispatch), QRY-003 (Medium - listdocuments full scan + sort per page), QRY-004 (Low - Transaction message type has no handler)]**
 - [x] Transaction Management Layer implementation **[REVIEWED 2026-11-13 - NOT INTEGRATED: components exist (WAL, lock manager, 2PC coordinator, MVCC) but no server write path goes through them. 5 ISSUES: TXN-001 (High - layer registered in DI but never used; WAL recovery never invoked), TXN-002 (High - Session writes bypass the transaction, rollback undoes nothing), TXN-003 (High - MVCC visibility/conflict defects in the pending P0-1 change), TXN-004 (Medium - four competing transaction implementations), TXN-005 (Medium - pending WAL change truncates on any CRC mismatch)]**
 - [x] Storage Engine Layer architecture **[REVIEWED 2026-11-13 - Clean `IDocumentStore` abstraction with a decorator family, but the server runs on `HybridDocumentStore` only. 5 ISSUES: STOR-001 (Critical - production store acknowledges writes before they are durable and writes non-atomically), STOR-002 (High - drop/clear races the write queue; dropped collections can reappear), STOR-003 (Medium - full dataset in memory, file per document, unbounded queue), STOR-004 (Medium - decorators and indexes not composed into the server), STOR-005 (Low - FlushAsync reports success after failed writes)]**
-- [ ] Caching & Memory Management integration
+- [x] Caching & Memory Management integration **[REVIEWED 2026-11-13 - NOT INTEGRATED: `ICacheManager` is registered in both hosts and resolved by nothing; the pooling module has no production caller. 4 ISSUES: CACHE-001 (Medium - cache registered but unused), CACHE-002 (Medium - cache/pooling configuration keys have no effect), CACHE-003 (Medium - no overall memory budget), CACHE-004 (Low - three cache implementations and an unused pooling module)]**
 - [ ] Persistence & File I/O Layer reliability
 
 ### 4.2 Design Pattern Usage
@@ -821,6 +821,10 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | STOR-003 | HybridDocumentStore.cs | 23, 51, 87 | Medium | `_cache` is the whole database, not a cache: every document of every collection is loaded at `InitializeAsync` and never evicted, one JSON file per document. Memory grows with data size, startup time grows with file count, and the unbounded write channel grows without back-pressure under a write burst. No stated capacity limit. | Open |
 | STOR-004 | DatabaseManager.cs | 54-65, 106 | Medium | `DatabaseManager` hard-codes `new HybridDocumentStore(...)` (with sync-over-async `InitializeAsync().GetAwaiter().GetResult()` in the constructor). The storage features built as `IDocumentStore` decorators (TTL, ETag, encryption, full-text, revisions, write concern, change streams, capped, sharding) and `IndexManager` are not composed into the server and no store maintains indexes on write, so those features exist only in tests and examples. | Open |
 | STOR-005 | HybridDocumentStore.cs | 396-403, 480-491, 566-576 | Low | `FlushAsync` polls `_pendingWrites` with `Task.Delay(10)` and no timeout, and a failed write still decrements the counter, so flush (and graceful shutdown) completes "successfully" with data that was never persisted. On dispose, writes still queued after 30 seconds are cancelled without a log entry. | Open |
+| CACHE-001 | Program.cs (Host) | 501-516 | Medium | `AddMemoryEngine` and `ICacheManager` (`AdvancedMemoryCacheManager`) are registered in Host and Server, but no handler, endpoint or store takes `ICacheManager`; the only consumer is the unused `DocumentService` in `Core/Class1.cs`. The caching layer in the architecture diagram is not on any read or write path. (The store is already fully in memory, see STOR-003, so a JSON-serializing cache in front of it would add cost, not remove it.) | Open |
+| CACHE-002 | Program.cs (Host) | 501-508 | Medium | Host hard-codes `MemoryManagementConfiguration` (Managed, 512 MB, 75%, LRU, 1800 s) while Server binds the `MemoryManagement` section. `ServerConfiguration.MaxCacheItemCount`, `MaxCacheSizeInBytes`, `DefaultCacheTtlMilliseconds` are parsed and validated but never passed to the cache, and `EnableObjectPooling` is read by no code. These keys ship in `appsettings.json` and operators can change them with no effect. | Open |
+| CACHE-003 | Program.cs (Host) | 501-508, 642 | Medium | There is no overall memory budget. The cache engine has its own 512 MB limit, the document store holds the full dataset with no limit, the write queue is unbounded, and per-connection payload limits are independent of all three. `AddMemoryHealthCheck(null, ...)` runs without a profiler, and `MemoryProfiler`/`MemoryTuner` are not registered in Host, so nothing reacts to memory pressure. | Open |
+| CACHE-004 | Core/Caching/, Core/Pooling/ | - | Low | Three cache implementations exist (`MemoryCacheManager` whose `Clear()` throws, `LruCache`, `AdvancedMemoryCacheManager`), and the pooling module (`ObjectPoolManager`, `BufferPool`, `StringBuilderPool`, `ObjectPool<T>`) is referenced only by tests and benchmarks; the network layer rents from `ArrayPool<byte>.Shared` directly. `ICacheManager` keys are a bare string with no database/collection scope. | Open |
 | ARCH-002 | Client.cs | 73 | Low | No `IAdvGenNoSqlClient` abstraction. `AdvGenNoSqlClient` is a concrete partial class and the factory returns the concrete type, so consumers (Admin, AdminClient, Examples) cannot substitute or mock the client without a live server. | Open |
 | ARCH-003 | AdvGenNoSqlServer.Client.csproj | 14, 20 | Low | Package `Description` and `PackageTags` call the TCP client an "embedded NoSQL database", which now collides with the separate `AdvGenNoSqlServer.Embedded` library and misleads package consumers. | Open |
 
@@ -2230,6 +2234,53 @@ public DatabaseManager(string basePath, Func<string, Task<IDocumentStore>> store
 1. Implement `FlushAsync(CancellationToken)` by enqueuing a marker operation and awaiting its completion instead of polling.
 2. Throw (or return a result) from `FlushAsync` when `WriteFailureCount` increased since the previous flush, and fail `/health/ready` while it is non-zero.
 3. Log the number of abandoned writes when dispose times out, and replace `Console.Error.WriteLine` with `ILogger`.
+
+### CACHE-001: Decide the Cache's Role, Then Wire or Remove It (Medium)
+**Section:** 4.1 Caching & Memory Management integration
+**File:** `AdvGenNoSqlServer.Host/Program.cs` lines 501-516; `AdvGenNoSqlServer.Server/Program.cs` lines 215-224
+**Recommendation:** With the current in-memory `HybridDocumentStore`, a document cache has nothing to accelerate. Remove the registrations now; reintroduce a cache only when the store becomes disk-backed (STOR-003 item 4).
+**Required Actions:**
+1. Remove `AddMemoryEngine` and the `ICacheManager` registration from both hosts, and delete `DocumentService` in `Core/Class1.cs`.
+2. When a disk-backed store is adopted, add the cache as an `IDocumentStore` decorator so every path uses it and invalidation lives in one place:
+```csharp
+public sealed class CachedDocumentStore : IDocumentStore
+{
+    private static string Key(string db, string collection, string id) => $"{db}\u001f{collection}\u001f{id}";
+
+    public async Task<Document?> GetAsync(string collection, string id, CancellationToken ct = default)
+        => _cache.Get(Key(_db, collection, id)) ?? await LoadAndCacheAsync(collection, id, ct);
+
+    public async Task<Document> UpdateAsync(string collection, Document doc, CancellationToken ct = default)
+    {
+        var result = await _inner.UpdateAsync(collection, doc, ct);
+        _cache.Remove(Key(_db, collection, doc.Id));   // invalidate after the write succeeds
+        return result;
+    }
+    // Delete, DropCollection and ClearCollection must invalidate as well
+}
+```
+3. Add tests for read-after-update, read-after-delete and drop-collection through the cached store.
+
+### CACHE-002: Remove or Honour Dead Configuration Keys (Medium)
+**File:** `AdvGenNoSqlServer.Host/Program.cs` lines 501-508; `Core/Configuration/ServerConfiguration.cs` lines 50-60, 164
+**Required Actions:**
+1. If the cache is removed (CACHE-001), delete `MaxCacheItemCount`, `MaxCacheSizeInBytes`, `DefaultCacheTtlMilliseconds`, `CacheTimeoutMinutes` and `EnableObjectPooling` from `ServerConfiguration`, `ConfigurationManager`, `config-schema.json`, the `appsettings*.json` files and `Documentation/Deployment.md`.
+2. If it is kept, bind one configuration source in both hosts (the `MemoryManagement` section) and map the legacy keys onto it, logging a deprecation warning when a legacy key is set.
+3. Add a startup log line listing configuration keys that were supplied but are not recognized.
+
+### CACHE-003: Introduce a Single Memory Budget (Medium)
+**File:** `AdvGenNoSqlServer.Host/Program.cs` lines 501-508, 642
+**Required Actions:**
+1. Add `MaxMemoryMb` to `ServerConfiguration` (default derived from the container limit via `GC.GetGCMemoryInfo().TotalAvailableMemoryBytes`) and divide it explicitly between the document store, the write queue and in-flight request payloads.
+2. Enforce it on the write path: reject inserts with a clear `OUT_OF_MEMORY_BUDGET` error when the store is at its share, instead of letting the process be OOM-killed.
+3. Register `IMemoryProfiler` and pass it to `AddMemoryHealthCheck`, and report store bytes, queue depth and budget on `/metrics`.
+
+### CACHE-004: Prune Unused Cache and Pool Implementations (Low)
+**File:** `AdvGenNoSqlServer.Core/Caching/`, `AdvGenNoSqlServer.Core/Pooling/`
+**Required Actions:**
+1. Delete `MemoryCacheManager` (closes BUG-004) and keep at most one cache implementation.
+2. Either adopt the pooling module where allocations are measurable (for example pooled `StringBuilder` in response building, pooled buffers in `ConnectionHandler.ReadExactAsync`, guided by the existing benchmarks) or move it out of Core into a separate optional package.
+3. If `ICacheManager` is kept, change the key to a structured type (database, collection, id).
 
 ### NET-005: Enforce Read, Idle and Handshake Timeouts (High)
 **Section:** 4.1 Network/Protocol Layer (TCP) correctness
