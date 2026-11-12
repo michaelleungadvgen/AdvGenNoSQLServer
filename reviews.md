@@ -351,7 +351,7 @@ Files to review:
 ### 4.1 Layered Architecture Compliance
 Review against `plan.md` Section 2.1:
 
-- [ ] Client Application Layer isolation
+- [x] Client Application Layer isolation **[REVIEWED 2026-11-13 - DIRECTION OK: Client references only Core + Network; no Storage/Query/Server/Host reference and no server project references Client. 3 ISSUES: ARCH-001 (Medium - client transitively ships server-only code), ARCH-002 (Low - no client interface), ARCH-003 (Low - package description says "embedded")]**
 - [ ] Network/Protocol Layer (TCP) correctness
 - [ ] Security & Authentication Layer integration
 - [ ] Query Processing & Command Layer design
@@ -794,6 +794,9 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | TEST-002 | SecurityPenetrationTests.cs | 606 | Low | `Assert.True(failedAuthEvents.Count >= 0, ...)` is vacuously true (any int ≥ 0). Provides zero coverage guarantee for audit logging of failed auth attempts. | Open |
 | TEST-003 | LoadTests.cs | 443-459 | Low | `LoadTest_MixedWorkload` simulates Read/Write/Query with `Task.Delay` instead of real store operations. Throughput metrics for these operations are not meaningful for capacity planning. | Open |
 | TEST-004 | LoadTests.cs | 53 | Low | `Dispose()` calls `_server?.StopAsync().Wait(TimeSpan.FromSeconds(5))` — sync-over-async in `IDisposable.Dispose`. Should be `DisposeAsync`. | Open |
+| ARCH-001 | AdvGenNoSqlServer.Client.csproj | 31-34 | Medium | Client layer is not isolated from server internals. It references the whole `Core` and `Network` assemblies but uses only `Core.Models` (Document, batch models), `MessageProtocol`/`NoSqlMessage` and `TlsStreamHelper.CreateClientSslStreamAsync`. The published client package therefore carries `TcpServer`, `ConnectionHandler`, `P2PServer`, `CertificateReloader`, the authentication/transaction/caching code and the `Microsoft.Extensions.Caching.Memory` dependency, and any server-side change forces a client release. | Open |
+| ARCH-002 | Client.cs | 73 | Low | No `IAdvGenNoSqlClient` abstraction. `AdvGenNoSqlClient` is a concrete partial class and the factory returns the concrete type, so consumers (Admin, AdminClient, Examples) cannot substitute or mock the client without a live server. | Open |
+| ARCH-003 | AdvGenNoSqlServer.Client.csproj | 14, 20 | Low | Package `Description` and `PackageTags` call the TCP client an "embedded NoSQL database", which now collides with the separate `AdvGenNoSqlServer.Embedded` library and misleads package consumers. | Open |
 
 ### Severity Levels
 - **Critical**: Security vulnerability, data loss risk, crash
@@ -1913,6 +1916,42 @@ public void Clear()
 }
 ```
 2. Or remove `Clear()` from `ICacheManager` interface if not needed
+
+### ARCH-001: Isolate the Client Layer from Server Internals (Medium)
+**Section:** 4.1 Client Application Layer isolation
+**File:** `AdvGenNoSqlServer.Client/AdvGenNoSqlServer.Client.csproj` lines 31-34
+**Current:** The dependency direction is correct (Client → Core + Network, nothing server-side → Client), but the client consumes only a thin slice of those assemblies: `Core.Models` (`Document`, `BatchOperation*`), `MessageProtocol`/`NoSqlMessage`/`MessageType`, and the client half of `TlsStreamHelper`. Everything else in Core and Network (TCP server, connection pool, P2P clustering, certificate reload, authentication, transactions, caching) ships to every client consumer.
+**Recommendation:** Split the shared contract out of the server assemblies so the client depends on contracts only.
+**Required Actions:**
+1. Create `AdvGenNoSqlServer.Protocol` (no project references) containing `MessageProtocol`, `NoSqlMessage`, `MessageHeader`, `MessageType`, `MessageFlags`, `ProtocolException`, the client-side TLS helper and pinning types, and the wire models `Document` / `BatchOperation*`.
+2. Reference `Protocol` from `Client`, `Network` and `Core`; remove the `Core` and `Network` project references from `Client`.
+3. Keep the existing namespaces, or add `[TypeForwardedTo]` in Core/Network, so current consumers compile unchanged.
+4. Add an architecture test that fails if the Client assembly references anything other than `Protocol`:
+```csharp
+[Fact]
+public void ClientAssembly_ReferencesOnlyProtocol_NoServerAssemblies()
+{
+    var refs = typeof(AdvGenNoSqlClient).Assembly.GetReferencedAssemblies()
+        .Select(a => a.Name!)
+        .Where(n => n.StartsWith("AdvGenNoSqlServer."));
+    Assert.Equal(new[] { "AdvGenNoSqlServer.Protocol" }, refs);
+}
+```
+
+### ARCH-002: Add a Client Interface (Low)
+**File:** `AdvGenNoSqlServer.Client/Client.cs` line 73, `ClientFactory.cs`
+**Current:** `public partial class AdvGenNoSqlClient : IDisposable, IAsyncDisposable` with no interface; the factory returns the concrete class.
+**Required Actions:**
+1. Extract `IAdvGenNoSqlClient : IAsyncDisposable` covering connect/disconnect, authentication, CRUD, batch, user and attachment operations.
+2. Have `AdvGenNoSqlClientFactory.CreateClient` return the interface, and inject the interface in Admin/AdminClient so their logic can be unit-tested without a server.
+
+### ARCH-003: Correct Client Package Metadata (Low)
+**File:** `AdvGenNoSqlServer.Client/AdvGenNoSqlServer.Client.csproj` lines 14, 20
+**Required Action:** Describe the package as the TCP client, and drop the `embedded` tag:
+```xml
+<Description>TCP client library for AdvGen NoSQL Server</Description>
+<PackageTags>nosql;database;client;tcp;document-database</PackageTags>
+```
 
 ---
 
