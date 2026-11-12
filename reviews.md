@@ -356,7 +356,7 @@ Review against `plan.md` Section 2.1:
 - [x] Security & Authentication Layer integration **[REVIEWED 2026-11-13 - TCP gate in Host is sound when auth is required (per-connection identity, fail-closed `CommandAuthorizer`, real role in JWT). 7 ISSUES: SEC-038 (Critical - Server project HTTP API has no authentication), SEC-039 (High - Host HTTP writes skip role check), SEC-040 (High - anonymous role never enforced on TCP), SEC-041 (Medium - role changes do not reach live connections), SEC-042 (Medium - database select mutates shared state), ARCH-004 (Medium - parallel unused RBAC stack), AUDIT-002 (Low - denials not audited)]**
 - [x] Query Processing & Command Layer design **[REVIEWED 2026-11-13 - NOT INTEGRATED: the Query project (parser, filter engine, executor, aggregation, cursors) is used only by the Embedded library; neither server reaches it. 4 ISSUES: QRY-001 (High - query engine not wired into Host/Server), QRY-002 (Medium - duplicated, divergent command dispatch), QRY-003 (Medium - listdocuments full scan + sort per page), QRY-004 (Low - Transaction message type has no handler)]**
 - [x] Transaction Management Layer implementation **[REVIEWED 2026-11-13 - NOT INTEGRATED: components exist (WAL, lock manager, 2PC coordinator, MVCC) but no server write path goes through them. 5 ISSUES: TXN-001 (High - layer registered in DI but never used; WAL recovery never invoked), TXN-002 (High - Session writes bypass the transaction, rollback undoes nothing), TXN-003 (High - MVCC visibility/conflict defects in the pending P0-1 change), TXN-004 (Medium - four competing transaction implementations), TXN-005 (Medium - pending WAL change truncates on any CRC mismatch)]**
-- [ ] Storage Engine Layer architecture
+- [x] Storage Engine Layer architecture **[REVIEWED 2026-11-13 - Clean `IDocumentStore` abstraction with a decorator family, but the server runs on `HybridDocumentStore` only. 5 ISSUES: STOR-001 (Critical - production store acknowledges writes before they are durable and writes non-atomically), STOR-002 (High - drop/clear races the write queue; dropped collections can reappear), STOR-003 (Medium - full dataset in memory, file per document, unbounded queue), STOR-004 (Medium - decorators and indexes not composed into the server), STOR-005 (Low - FlushAsync reports success after failed writes)]**
 - [ ] Caching & Memory Management integration
 - [ ] Persistence & File I/O Layer reliability
 
@@ -816,6 +816,11 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | TXN-003 | DocumentVersion.cs, MvccTransactionContext.cs, MvccDocumentStore.cs | 155, 241, 296, 91 | High | Found in the uncommitted P0-1 MVCC change (working tree, 2026-11-13). (a) `VersionChain.GetVisibleVersion` walks past a version whose deletion is visible and returns the older version, so a document that was updated then deleted reappears with stale content. (b) Callers still filter on the raw `IsDeleted` flag, so another transaction's uncommitted delete is observed. (c) `EnsureNoWriteConflictAsync` checks only the latest version's creator, not its deleter, and is a non-atomic check-then-write. (d) A failed commit leaves the transaction's versions in the chains with the record stuck Active, and `RollbackAsync` refuses a Failed transaction. | Open |
 | TXN-004 | Core/Transactions/ | - | Medium | Four transaction implementations coexist: `TransactionManager` and `AdvancedTransactionManager` (stubs, DATA-010/012, still injected into `DocumentService` in `Class1.cs`), `TransactionCoordinator` + `TransactionContext` (lock-based, used by `Session`), and `MvccTransactionCoordinator` + `MvccDocumentStore` (referenced only by tests). Embedded has a fifth, separate WAL. None is the defined production path. | Open |
 | TXN-005 | WriteAheadLog.cs (Core) | 552, 671, 744 | Medium | In the uncommitted P0-3 change, any CRC mismatch in the current log is treated as a torn tail: recovery stops, truncates the file at that point and reports success. A single corrupted entry in the middle of the log silently discards every later committed transaction. Supersedes the direction suggested in DATA-001. | Open |
+| STOR-001 | HybridDocumentStore.cs | 51, 457-468, 508-525 | Critical | Both servers use `HybridDocumentStore` (`DatabaseManager.cs` 54/64/106, `NoSqlServer.cs` 83). It updates the in-memory map, enqueues the disk write on an unbounded channel and returns, so a client receives success before anything is on disk. The background writer uses `File.WriteAllTextAsync` (non-atomic, no fsync), and load-time parse failures are swallowed (lines 100, 451). A crash loses every acknowledged write still in the queue and can leave a torn file that is then silently dropped. The P0-5 atomic writer (`AtomicFileWriter`) was applied to `PersistentDocumentStore` and `FileStorageManager`, which no server uses. | Open |
+| STOR-002 | HybridDocumentStore.cs | 336-391, 510-515 | High | `DropCollectionAsync` and `ClearCollectionAsync` delete from disk immediately without draining or invalidating queued writes for that collection. The background writer later recreates the directory (`Directory.CreateDirectory`) and writes the queued documents, so a dropped or cleared collection reappears with stale documents after restart. | Open |
+| STOR-003 | HybridDocumentStore.cs | 23, 51, 87 | Medium | `_cache` is the whole database, not a cache: every document of every collection is loaded at `InitializeAsync` and never evicted, one JSON file per document. Memory grows with data size, startup time grows with file count, and the unbounded write channel grows without back-pressure under a write burst. No stated capacity limit. | Open |
+| STOR-004 | DatabaseManager.cs | 54-65, 106 | Medium | `DatabaseManager` hard-codes `new HybridDocumentStore(...)` (with sync-over-async `InitializeAsync().GetAwaiter().GetResult()` in the constructor). The storage features built as `IDocumentStore` decorators (TTL, ETag, encryption, full-text, revisions, write concern, change streams, capped, sharding) and `IndexManager` are not composed into the server and no store maintains indexes on write, so those features exist only in tests and examples. | Open |
+| STOR-005 | HybridDocumentStore.cs | 396-403, 480-491, 566-576 | Low | `FlushAsync` polls `_pendingWrites` with `Task.Delay(10)` and no timeout, and a failed write still decrements the counter, so flush (and graceful shutdown) completes "successfully" with data that was never persisted. On dispose, writes still queued after 30 seconds are cancelled without a log entry. | Open |
 | ARCH-002 | Client.cs | 73 | Low | No `IAdvGenNoSqlClient` abstraction. `AdvGenNoSqlClient` is a concrete partial class and the factory returns the concrete type, so consumers (Admin, AdminClient, Examples) cannot substitute or mock the client without a live server. | Open |
 | ARCH-003 | AdvGenNoSqlServer.Client.csproj | 14, 20 | Low | Package `Description` and `PackageTags` call the TCP client an "embedded NoSQL database", which now collides with the separate `AdvGenNoSqlServer.Embedded` library and misleads package consumers. | Open |
 
@@ -2163,6 +2168,68 @@ return null;
 2. On corruption, fail recovery with `InvalidDataException` by default; never truncate. Offer an explicit `WalOptions.CorruptionPolicy` (`Fail`, `SalvageAndQuarantine`) for operators, where salvage copies the damaged file aside before continuing.
 3. Do not continue into the next archive file after stopping mid-file; that replays a log with a gap.
 4. Add tests: flip one bit in a middle entry and assert recovery fails and the file length is unchanged; truncate the last entry and assert recovery succeeds and trims only that entry.
+
+### STOR-001: Make the Production Store Durable (Critical)
+**Section:** 4.1 Storage Engine Layer architecture
+**File:** `AdvGenNoSqlServer.Storage/HybridDocumentStore.cs` lines 51, 100, 422, 451, 457-468, 508-525
+**Current:** Write-behind with acknowledgement before persistence; non-atomic file writes; corrupted files silently ignored.
+**Required Actions:**
+1. Replace all three `File.WriteAllTextAsync` calls (lines 422, 524 and any in init) with `AtomicFileWriter.WriteAllTextAsync` (temp file + fsync + rename), as already done for `PersistentDocumentStore`.
+2. Make the acknowledgement honest. Carry a completion source on each queued operation and await it before returning from `InsertAsync`/`UpdateAsync`/`DeleteAsync`:
+```csharp
+private sealed class WriteOperation
+{
+    public TaskCompletionSource Completed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    // Type, CollectionName, Document ...
+}
+
+// writer loop
+try { await ProcessWriteOperationAsync(op); op.Completed.SetResult(); }
+catch (Exception ex) { op.Completed.SetException(ex); /* count + log */ }
+
+// caller
+await QueueWriteAsync(op);
+if (_durability == Durability.Synchronous) await op.Completed.Task;
+```
+   Default to `Synchronous`; keep write-behind only as an explicit, documented `Durability.Relaxed` option. The writer may batch several operations per fsync to recover throughput.
+3. On a failed synchronous write, roll the in-memory map back to the previous value and surface the exception to the client.
+4. On load, quarantine unreadable files (`.corrupt` suffix) and log an error, as done in `PersistentDocumentStore` (closes DATA-013).
+5. Alternatively, put the WAL in front of the store (TXN-001) and keep the file writes asynchronous; either way an acknowledged write must survive a crash.
+6. Add a test that kills the store after `InsertAsync` returns (without dispose), reopens it, and asserts the document is present.
+
+### STOR-002: Order Drop/Clear with the Write Queue (High)
+**File:** `AdvGenNoSqlServer.Storage/HybridDocumentStore.cs` lines 336-391, 510-515
+**Required Actions:**
+1. Send drop and clear through the same queue as `WriteOperationType.DropCollection` / `ClearCollection`, so they are applied in order after earlier writes and before later ones, and await their completion.
+2. Do not call `Directory.CreateDirectory` in the writer for a collection that no longer exists in `_cache`; skip the write instead.
+3. Add a test: enqueue 1,000 inserts, drop the collection immediately, flush, reopen the store, and assert the collection is absent.
+
+### STOR-003: State and Enforce the In-Memory Capacity Model (Medium)
+**File:** `AdvGenNoSqlServer.Storage/HybridDocumentStore.cs` lines 23, 51, 87
+**Required Actions:**
+1. Rename `_cache` to reflect that it is the primary copy, and document the limit in `Documentation/Deployment.md`: dataset must fit in memory.
+2. Use a bounded channel (`BoundedChannelOptions { FullMode = Wait }`) so writers get back-pressure instead of unbounded memory growth.
+3. Add a configurable maximum document count/bytes with a clear error when exceeded, and expose current usage on `/metrics`.
+4. Longer term, move the server onto the page-based `AdvGenNoSqlServer.Embedded` storage engine (WAL + pages + compaction) rather than maintaining two engines.
+
+### STOR-004: Compose the Storage Pipeline in One Place (Medium)
+**File:** `AdvGenNoSqlServer.Storage/DatabaseManager.cs` lines 54-65, 106
+**Required Actions:**
+1. Inject a store factory instead of constructing the store inline:
+```csharp
+public DatabaseManager(string basePath, Func<string, Task<IDocumentStore>> storeFactory)
+```
+   and build the decorator chain there from configuration (for example base store → write concern → TTL → ETag → change streams).
+2. Move initialization out of the constructor into `InitializeAsync`, called from host startup (removes the sync-over-async calls).
+3. Add index maintenance to the write path (a decorator that calls `IndexManager` on insert/update/delete) so the query engine wired in by QRY-001 has indexes to use.
+4. For each decorator not included in the server pipeline, either add it behind a configuration switch or mark it as library-only in the documentation.
+
+### STOR-005: Make Flush Truthful and Bounded (Low)
+**File:** `AdvGenNoSqlServer.Storage/HybridDocumentStore.cs` lines 396-403, 480-491, 566-576
+**Required Actions:**
+1. Implement `FlushAsync(CancellationToken)` by enqueuing a marker operation and awaiting its completion instead of polling.
+2. Throw (or return a result) from `FlushAsync` when `WriteFailureCount` increased since the previous flush, and fail `/health/ready` while it is non-zero.
+3. Log the number of abandoned writes when dispose times out, and replace `Console.Error.WriteLine` with `ILogger`.
 
 ### NET-005: Enforce Read, Idle and Handshake Timeouts (High)
 **Section:** 4.1 Network/Protocol Layer (TCP) correctness
