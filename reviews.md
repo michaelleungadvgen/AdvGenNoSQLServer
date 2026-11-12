@@ -358,7 +358,7 @@ Review against `plan.md` Section 2.1:
 - [x] Transaction Management Layer implementation **[REVIEWED 2026-11-13 - NOT INTEGRATED: components exist (WAL, lock manager, 2PC coordinator, MVCC) but no server write path goes through them. 5 ISSUES: TXN-001 (High - layer registered in DI but never used; WAL recovery never invoked), TXN-002 (High - Session writes bypass the transaction, rollback undoes nothing), TXN-003 (High - MVCC visibility/conflict defects in the pending P0-1 change), TXN-004 (Medium - four competing transaction implementations), TXN-005 (Medium - pending WAL change truncates on any CRC mismatch)]**
 - [x] Storage Engine Layer architecture **[REVIEWED 2026-11-13 - Clean `IDocumentStore` abstraction with a decorator family, but the server runs on `HybridDocumentStore` only. 5 ISSUES: STOR-001 (Critical - production store acknowledges writes before they are durable and writes non-atomically), STOR-002 (High - drop/clear races the write queue; dropped collections can reappear), STOR-003 (Medium - full dataset in memory, file per document, unbounded queue), STOR-004 (Medium - decorators and indexes not composed into the server), STOR-005 (Low - FlushAsync reports success after failed writes)]**
 - [x] Caching & Memory Management integration **[REVIEWED 2026-11-13 - NOT INTEGRATED: `ICacheManager` is registered in both hosts and resolved by nothing; the pooling module has no production caller. 4 ISSUES: CACHE-001 (Medium - cache registered but unused), CACHE-002 (Medium - cache/pooling configuration keys have no effect), CACHE-003 (Medium - no overall memory budget), CACHE-004 (Low - three cache implementations and an unused pooling module)]**
-- [ ] Persistence & File I/O Layer reliability
+- [x] Persistence & File I/O Layer reliability **[REVIEWED 2026-11-13 - The new `AtomicFileWriter` (temp + fsync + rename, pending P0-5 change) is the right pattern but is used by only two classes. 5 ISSUES: IO-001 (High - durable-write pattern not applied to most persistent files), IO-002 (Medium - `AtomicFileWriter` gaps: no directory fsync, orphan temp files, internal to Storage), IO-003 (Medium - corrupt user file silently becomes an empty user list), IO-004 (Medium - no data-directory lock; non-atomic collection drop), IO-005 (Low - no I/O failure policy)]**
 
 ### 4.2 Design Pattern Usage
 - [ ] Repository pattern in Storage layer
@@ -825,6 +825,11 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | CACHE-002 | Program.cs (Host) | 501-508 | Medium | Host hard-codes `MemoryManagementConfiguration` (Managed, 512 MB, 75%, LRU, 1800 s) while Server binds the `MemoryManagement` section. `ServerConfiguration.MaxCacheItemCount`, `MaxCacheSizeInBytes`, `DefaultCacheTtlMilliseconds` are parsed and validated but never passed to the cache, and `EnableObjectPooling` is read by no code. These keys ship in `appsettings.json` and operators can change them with no effect. | Open |
 | CACHE-003 | Program.cs (Host) | 501-508, 642 | Medium | There is no overall memory budget. The cache engine has its own 512 MB limit, the document store holds the full dataset with no limit, the write queue is unbounded, and per-connection payload limits are independent of all three. `AddMemoryHealthCheck(null, ...)` runs without a profiler, and `MemoryProfiler`/`MemoryTuner` are not registered in Host, so nothing reacts to memory pressure. | Open |
 | CACHE-004 | Core/Caching/, Core/Pooling/ | - | Low | Three cache implementations exist (`MemoryCacheManager` whose `Clear()` throws, `LruCache`, `AdvancedMemoryCacheManager`), and the pooling module (`ObjectPoolManager`, `BufferPool`, `StringBuilderPool`, `ObjectPool<T>`) is referenced only by tests and benchmarks; the network layer rents from `ArrayPool<byte>.Shared` directly. `ICacheManager` keys are a bare string with no database/collection scope. | Open |
+| IO-001 | (multiple) | see description | High | Persistent files are written four different ways, most of them not crash-safe. Direct overwrite, no fsync: `HybridDocumentStore.cs` 422/524 (the production store, STOR-001), `AdvancedFileStorageManager.cs` 62 (DATA-022), `Core/Database/DatabaseManager.cs` 356 (database metadata), `Core/Transactions/WriteAheadLog.cs` 469 (checkpoint file; a torn checkpoint is then swallowed, DATA-002). Temp + rename but no fsync: `FileUserStore.cs` 47-48 (user accounts and password hashes), `AttachmentStore.cs` 97-104 and 456-462 (content and metadata as two separate non-atomic steps, so a crash can leave one without the other). Append without fsync: `AuditLogger.cs` 280. Only `PersistentDocumentStore` and `FileStorageManager` use `AtomicFileWriter`. | Open |
+| IO-002 | AtomicFileWriter.cs | 11-47 | Medium | (a) The parent directory is not fsynced after `File.Move`; on Linux (the Docker deployment target) the rename itself is not durable until the directory is synced, so a power loss can revert to the old file or lose a newly created one. (b) Temp files are named `<file>.<guid>.tmp` and a crash between write and rename leaves them behind permanently; nothing sweeps them at startup. (c) The class is `internal` to Storage, so Core (`FileUserStore`, WAL checkpoint, database metadata) cannot use it. (d) The async overload opens the stream without `FileOptions.Asynchronous` and calls synchronous `Flush(true)`, blocking a thread-pool thread per write. | Open |
+| IO-003 | FileUserStore.cs | 24-38 | Medium | If the users file fails to parse, `Load` copies it aside and returns an empty list. The server then starts with no persisted users instead of refusing to start, so a torn or damaged file silently removes every account and role assignment (and the next `Save` overwrites the original). File permissions are also applied after the rename, leaving a brief window with default permissions on a file of password hashes. | Open |
+| IO-004 | HybridDocumentStore.cs, DatabaseManager.cs | 347 | Medium | No lock file or exclusive handle guards the data directory, so two server processes pointed at the same path (an overlapping container restart, or Host and Server started together) both load and write the same files. `DropCollectionAsync` uses recursive `Directory.Delete`, which is not atomic: a crash part-way leaves a collection with a random subset of its documents that loads normally on restart. | Open |
+| IO-005 | (storage layer) | - | Low | There is no defined behaviour for disk-full or I/O errors: background write failures are counted and printed to stderr (STOR-005) while the server keeps accepting writes, quarantine failures are swallowed (`PersistentDocumentStore.cs` 425), and no free-space check gates writes. | Open |
 | ARCH-002 | Client.cs | 73 | Low | No `IAdvGenNoSqlClient` abstraction. `AdvGenNoSqlClient` is a concrete partial class and the factory returns the concrete type, so consumers (Admin, AdminClient, Examples) cannot substitute or mock the client without a live server. | Open |
 | ARCH-003 | AdvGenNoSqlServer.Client.csproj | 14, 20 | Low | Package `Description` and `PackageTags` call the TCP client an "embedded NoSQL database", which now collides with the separate `AdvGenNoSqlServer.Embedded` library and misleads package consumers. | Open |
 
@@ -2281,6 +2286,67 @@ public sealed class CachedDocumentStore : IDocumentStore
 1. Delete `MemoryCacheManager` (closes BUG-004) and keep at most one cache implementation.
 2. Either adopt the pooling module where allocations are measurable (for example pooled `StringBuilder` in response building, pooled buffers in `ConnectionHandler.ReadExactAsync`, guided by the existing benchmarks) or move it out of Core into a separate optional package.
 3. If `ICacheManager` is kept, change the key to a structured type (database, collection, id).
+
+### IO-001: One Durable-Write Primitive for Every Persistent File (High)
+**Section:** 4.1 Persistence & File I/O Layer reliability
+**Files:** `HybridDocumentStore.cs` 422/524, `AdvancedFileStorageManager.cs` 62, `Core/Database/DatabaseManager.cs` 356, `Core/Transactions/WriteAheadLog.cs` 469, `FileUserStore.cs` 47-48, `AttachmentStore.cs` 97-104 and 456-462, `AuditLogger.cs` 280
+**Required Actions:**
+1. Move `AtomicFileWriter` to Core as a public type (IO-002) and replace every write listed above with it. Add `WriteAllBytesAsync` and a stream overload for attachments.
+2. Attachments: write content first, then metadata, each atomically; treat metadata as the commit record, and on startup delete content files that have no metadata.
+3. Audit log: keep append mode but open one `FileStream` and call `Flush(flushToDisk: true)` for critical events and on the existing periodic flush.
+4. Add a build-time guard so the pattern does not regress, for example a test that scans the production assemblies' source for `File.WriteAll`:
+```csharp
+[Fact]
+public void ProductionCode_DoesNotWritePersistentFilesDirectly()
+{
+    var offenders = Directory.EnumerateFiles(RepoRoot, "*.cs", SearchOption.AllDirectories)
+        .Where(IsProductionSource)                       // exclude tests, examples, import/export
+        .Where(f => File.ReadAllText(f).Contains("File.WriteAll") && !f.EndsWith("AtomicFileWriter.cs"));
+    Assert.Empty(offenders);
+}
+```
+
+### IO-002: Complete AtomicFileWriter (Medium)
+**File:** `AdvGenNoSqlServer.Storage/AtomicFileWriter.cs`
+**Required Actions:**
+1. Fsync the parent directory after the rename on Unix:
+```csharp
+[DllImport("libc", SetLastError = true)] private static extern int open(string path, int flags);
+[DllImport("libc", SetLastError = true)] private static extern int fsync(int fd);
+[DllImport("libc")] private static extern int close(int fd);
+
+private static void FlushDirectory(string directory)
+{
+    if (OperatingSystem.IsWindows()) return;           // NTFS journals the rename
+    int fd = open(directory, 0 /* O_RDONLY */);
+    if (fd < 0) throw new IOException($"Cannot open directory '{directory}' for fsync");
+    try { if (fsync(fd) != 0) throw new IOException($"fsync failed for '{directory}'"); }
+    finally { close(fd); }
+}
+```
+2. Add `CleanupTempFiles(string directory)` that deletes `*.tmp` and call it when a store opens a directory.
+3. Open the stream with `FileOptions.Asynchronous | FileOptions.WriteThrough` in the async overload and accept a `CancellationToken`.
+4. Accept an optional Unix file mode so secrets are created with restricted permissions before the rename (used by IO-003).
+5. Tests: content is intact after a simulated failure between write and rename; no `.tmp` remains after cleanup.
+
+### IO-003: Fail Closed on a Corrupt User Store (Medium)
+**File:** `AdvGenNoSqlServer.Core/Authentication/FileUserStore.cs` lines 24-50
+**Required Actions:**
+1. On `JsonException`, throw a dedicated `UserStoreCorruptException` instead of returning an empty list; in Production the host must refuse to start and name the file and the `.corrupt-*` copy in the error.
+2. Keep the previous good file as `users.json.bak` on every successful save and document the manual restore step in `Documentation/Deployment.md`.
+3. Write through `AtomicFileWriter` with mode `0600` applied to the temp file before the rename.
+
+### IO-004: Lock the Data Directory and Make Drop Atomic (Medium)
+**File:** `AdvGenNoSqlServer.Storage/DatabaseManager.cs`, `HybridDocumentStore.cs` line 347
+**Required Actions:**
+1. On startup, open `<StoragePath>/.lock` with `FileShare.None` and hold it for the process lifetime; if it cannot be opened, exit with a clear "data directory is in use by another process" error.
+2. Drop a collection by renaming its directory to `<name>.dropped-<guid>` (one atomic step) and then deleting the renamed directory; on startup, delete any leftover `*.dropped-*` directories and ignore them when listing collections.
+
+### IO-005: Define an I/O Failure Policy (Low)
+**Required Actions:**
+1. After a persistent write fails, switch the store to read-only, return `STORAGE_UNAVAILABLE` for writes, and fail `/health/ready` until an operator intervenes or a retry succeeds.
+2. Add a minimum-free-space setting checked by the existing disk health check and before large writes (attachments, export).
+3. Log quarantine failures instead of swallowing them, and route all storage diagnostics through `ILogger`.
 
 ### NET-005: Enforce Read, Idle and Handshake Timeouts (High)
 **Section:** 4.1 Network/Protocol Layer (TCP) correctness
