@@ -362,7 +362,7 @@ Review against `plan.md` Section 2.1:
 
 ### 4.2 Design Pattern Usage
 - [x] Repository pattern in Storage layer **[REVIEWED 2026-11-13 - PRESENT: `IDocumentStore` (Core/Abstractions) is a proper repository abstraction, implementations and decorators depend on the interface, and a reusable `DocumentStoreContractTests` suite exists. 5 ISSUES: REPO-001 (Medium - CRUD-only interface forces full scans), REPO-002 (Medium - stores hand out and keep live mutable instances), REPO-003 (Medium - no decorator base; capability downcast to concrete store), REPO-004 (Low - cancellation tokens accepted but ignored), REPO-005 (Low - duplicate `IDatabaseManager`/`DatabaseManager` names; contract tests cover 3 of ~15 stores)]**
-- [ ] Factory pattern in Client creation
+- [x] Factory pattern in Client creation **[REVIEWED 2026-11-13 - NOMINAL ONLY: `AdvGenNoSqlClientFactory` is a static two-method wrapper used by two unit tests; every real caller uses `new AdvGenNoSqlClient(...)`. 3 ISSUES: FACT-001 (High - factory drops `UseSsl`, so a TLS request becomes a plaintext connection; raises BUG-002), FACT-002 (Low - factory adds no value: no DI, no interface, no validation), FACT-003 (Low - server address has two sources and a lenient parser)]**
 - [ ] Command pattern in Query processing
 - [ ] Observer pattern in Event handling
 - [ ] Strategy pattern in Caching policies
@@ -835,6 +835,9 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | REPO-003 | WriteConcernDocumentStore.cs | 300-312 | Medium | There is no shared decorator base: each of about twelve decorators re-implements all twelve `IDocumentStore` members by hand, so any interface change touches every one. Capabilities are discovered by downcast (`_innerStore is HybridDocumentStore`), which silently stops working as soon as another decorator is placed in between; `HybridDocumentStore` has `FlushAsync` but does not implement `IPersistentDocumentStore`. `PersistentDocumentStore` reaches into `InMemoryDocumentCollection` by reflection (CODE-001). | Open |
 | REPO-004 | HybridDocumentStore.cs | - | Low | Every `IDocumentStore` method takes a `CancellationToken`, but `HybridDocumentStore` never observes it (no `ThrowIfCancellationRequested`, not passed to the write queue or file reads). Request timeouts and client disconnects cannot stop a store operation. | Open |
 | REPO-005 | Core/Abstractions/IDatabaseManager.cs, Core/Database/, Storage/DatabaseManager.cs | - | Low | Two different `IDatabaseManager` interfaces and two `DatabaseManager` classes share the same simple names in different namespaces, so which one a file gets depends on its `using` lines. `DocumentStoreContractTests` is run against `DocumentStore` and the two Embedded stores only; `HybridDocumentStore`, `PersistentDocumentStore` and the decorators are not held to the contract. | Open |
+| FACT-001 | ClientFactory.cs | 13-16 | High | BUG-002 is still present and its impact is a security one: `CreateClient(options)` calls `new AdvGenNoSqlClient(options.ServerAddress)`, which substitutes default options where `UseSsl = false`. A caller that sets `UseSsl = true`, `ClientCertificate` or `SslTargetHost` and uses the factory gets an unencrypted connection with no error, and then sends credentials over it. The existing test `AdvGenNoSqlClientFactory_CreateClientWithOptions_ShouldCreateClient` passes because it only checks that a client is returned. | Open |
+| FACT-002 | ClientFactory.cs | 6-27 | Low | The factory is a static class that forwards to a public constructor, so it centralizes nothing: no options validation (CODE-006), no interface return type (ARCH-002), no `IServiceCollection` registration, no named or pooled clients. No production or example code uses it; `AdminClient/Services/TcpAdminService.cs` 31 and all examples construct the client directly. The file also lacks the required copyright header. | Open |
+| FACT-003 | Client.cs | 139-151; ClientOptions.cs 17 | Low | The server address exists twice: the constructor parameter and `AdvGenNoSqlClientOptions.ServerAddress`; the constructor ignores the one in options. Parsing uses `Split(':')`, so IPv6 literals such as `[::1]:9090` are mis-parsed, and an unparsable port (`host:abc`) silently becomes 9090 instead of failing. | Open |
 | ARCH-002 | Client.cs | 73 | Low | No `IAdvGenNoSqlClient` abstraction. `AdvGenNoSqlClient` is a concrete partial class and the factory returns the concrete type, so consumers (Admin, AdminClient, Examples) cannot substitute or mock the client without a live server. | Open |
 | ARCH-003 | AdvGenNoSqlServer.Client.csproj | 14, 20 | Low | Package `Description` and `PackageTags` call the TCP client an "embedded NoSQL database", which now collides with the separate `AdvGenNoSqlServer.Embedded` library and misleads package consumers. | Open |
 
@@ -2411,6 +2414,49 @@ public abstract class DocumentStoreDecorator : IDocumentStore
 **Required Actions:**
 1. Keep one `IDatabaseManager` (in `Core/Abstractions`) and one implementation; rename or delete the `Core/Database` pair.
 2. Move `DocumentStoreContractTests` to `AdvGenNoSqlServer.Tests` (or a shared test library) and add a subclass per store and per decorator wrapping a base store, so each is held to the same behaviour.
+
+### FACT-001: Factory Must Not Downgrade TLS (High)
+**Section:** 4.2 Factory pattern in Client creation
+**File:** `AdvGenNoSqlServer.Client/ClientFactory.cs` lines 13-16
+**Required Actions:**
+1. Pass the options through (this also closes BUG-002):
+```csharp
+public static AdvGenNoSqlClient CreateClient(AdvGenNoSqlClientOptions options)
+{
+    ArgumentNullException.ThrowIfNull(options);
+    options.Validate();                                   // CODE-006
+    return new AdvGenNoSqlClient(options.ServerAddress, options);
+}
+```
+2. Replace the existing factory test with ones that would have caught this: create a client through the factory with `UseSsl = true` against a TLS test server and assert the connection is secure; create one against a plaintext server and assert the connect fails.
+3. Raise BUG-002 from Medium to High in the findings log when triaging.
+
+### FACT-002: Make the Factory Earn Its Place (Low)
+**File:** `AdvGenNoSqlServer.Client/ClientFactory.cs`
+**Recommendation:** Either remove the static factory and document the constructor as the supported entry point, or turn it into a real, injectable factory.
+**Required Actions (if kept):**
+```csharp
+public interface IAdvGenNoSqlClientFactory
+{
+    IAdvGenNoSqlClient CreateClient(string name = "default");
+}
+
+public static IServiceCollection AddAdvGenNoSqlClient(
+    this IServiceCollection services, string name, Action<AdvGenNoSqlClientOptions> configure);
+```
+1. Validate options once at registration, return the interface from ARCH-002, and let `AdminClient` obtain its client from the factory instead of `new`.
+2. Add the copyright header to `ClientFactory.cs`.
+
+### FACT-003: Single, Strictly Parsed Server Address (Low)
+**File:** `AdvGenNoSqlServer.Client/Client.cs` lines 139-151; `ClientOptions.cs` line 17
+**Required Actions:**
+1. Add a constructor that takes only `AdvGenNoSqlClientOptions` and reads `ServerAddress` from it; keep `(string, options)` as an overload that sets `options.ServerAddress` and is marked `[Obsolete]`.
+2. Parse with a helper that supports IPv6 brackets and rejects bad input:
+```csharp
+if (!IPEndPoint.TryParse(address, out var ep) && !TryParseHostPort(address, out host, out port))
+    throw new ArgumentException($"Invalid server address '{address}'. Expected host:port.", nameof(address));
+```
+3. Tests: `[::1]:9090` connects to port 9090 on `::1`; `host:abc` throws `ArgumentException`; `host` alone uses the documented default port.
 
 ### NET-005: Enforce Read, Idle and Handshake Timeouts (High)
 **Section:** 4.1 Network/Protocol Layer (TCP) correctness
