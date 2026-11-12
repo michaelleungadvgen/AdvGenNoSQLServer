@@ -363,7 +363,7 @@ Review against `plan.md` Section 2.1:
 ### 4.2 Design Pattern Usage
 - [x] Repository pattern in Storage layer **[REVIEWED 2026-11-13 - PRESENT: `IDocumentStore` (Core/Abstractions) is a proper repository abstraction, implementations and decorators depend on the interface, and a reusable `DocumentStoreContractTests` suite exists. 5 ISSUES: REPO-001 (Medium - CRUD-only interface forces full scans), REPO-002 (Medium - stores hand out and keep live mutable instances), REPO-003 (Medium - no decorator base; capability downcast to concrete store), REPO-004 (Low - cancellation tokens accepted but ignored), REPO-005 (Low - duplicate `IDatabaseManager`/`DatabaseManager` names; contract tests cover 3 of ~15 stores)]**
 - [x] Factory pattern in Client creation **[REVIEWED 2026-11-13 - NOMINAL ONLY: `AdvGenNoSqlClientFactory` is a static two-method wrapper used by two unit tests; every real caller uses `new AdvGenNoSqlClient(...)`. 3 ISSUES: FACT-001 (High - factory drops `UseSsl`, so a TLS request becomes a plaintext connection; raises BUG-002), FACT-002 (Low - factory adds no value: no DI, no interface, no validation), FACT-003 (Low - server address has two sources and a lenient parser)]**
-- [ ] Command pattern in Query processing
+- [x] Command pattern in Query processing **[REVIEWED 2026-11-13 - PARTIAL: aggregation stages are proper command objects (`IAggregationStage.Execute`, six stage classes, fluent builder) and `Query` is a self-contained request object handed to `IQueryExecutor`. Filter operators and server commands are not. 3 ISSUES: CMD-001 (Medium - filter operators are a hard-coded switch re-interpreted per document, validated only at evaluation time), CMD-002 (Medium - no wire-format factory for aggregation stages, so pipelines cannot be sent by a client), CMD-003 (Low - server command dispatch is a string switch; see QRY-002)]**
 - [ ] Observer pattern in Event handling
 - [ ] Strategy pattern in Caching policies
 - [ ] Builder pattern in Aggregation pipelines
@@ -838,6 +838,9 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | FACT-001 | ClientFactory.cs | 13-16 | High | BUG-002 is still present and its impact is a security one: `CreateClient(options)` calls `new AdvGenNoSqlClient(options.ServerAddress)`, which substitutes default options where `UseSsl = false`. A caller that sets `UseSsl = true`, `ClientCertificate` or `SslTargetHost` and uses the factory gets an unencrypted connection with no error, and then sends credentials over it. The existing test `AdvGenNoSqlClientFactory_CreateClientWithOptions_ShouldCreateClient` passes because it only checks that a client is returned. | Open |
 | FACT-002 | ClientFactory.cs | 6-27 | Low | The factory is a static class that forwards to a public constructor, so it centralizes nothing: no options validation (CODE-006), no interface return type (ARCH-002), no `IServiceCollection` registration, no named or pooled clients. No production or example code uses it; `AdminClient/Services/TcpAdminService.cs` 31 and all examples construct the client directly. The file also lacks the required copyright header. | Open |
 | FACT-003 | Client.cs | 139-151; ClientOptions.cs 17 | Low | The server address exists twice: the constructor parameter and `AdvGenNoSqlClientOptions.ServerAddress`; the constructor ignores the one in options. Parsing uses `Split(':')`, so IPv6 literals such as `[::1]:9090` are mis-parsed, and an unparsable port (`host:abc`) silently becomes 9090 instead of failing. | Open |
+| CMD-001 | FilterEngine.cs | 97-115, 182-219 | Medium | `QueryFilter.Conditions` is an untyped `Dictionary<string, object>`, and `FilterEngine` walks it and switches on operator-name strings (`$and`, `$eq`, `$regex`, ...) again for every document. Operators are not objects: adding one means editing the switch, and an unknown or misspelled operator is only reported as `FilterEvaluationException` when the first document is evaluated (and not at all on an empty collection). `QueryParser` has no validation step. Per-document string dispatch and boxing also put a ceiling on scan speed. | Open |
+| CMD-002 | Aggregation/ | - | Medium | Stages can only be composed in C# through `AggregationPipelineBuilder`. Nothing maps a stage's `StageType` (`"$match"`, `"$group"`, ...) back to a stage instance from JSON: there is no stage factory or registry, and `QueryParser` does not parse pipelines. A network client therefore has no way to submit an aggregation even after QRY-001 wires the engine in. | Open |
+| CMD-003 | Program.cs (Host), NoSqlServer.cs | 1088-1110, 350-377 | Low | At the server boundary the Command pattern is absent: commands are string literals in a `switch`, with authorization, auditing and metrics inlined. Tracked with a concrete design under QRY-002; listed here so section 4.2 has a complete picture. | Open |
 | ARCH-002 | Client.cs | 73 | Low | No `IAdvGenNoSqlClient` abstraction. `AdvGenNoSqlClient` is a concrete partial class and the factory returns the concrete type, so consumers (Admin, AdminClient, Examples) cannot substitute or mock the client without a live server. | Open |
 | ARCH-003 | AdvGenNoSqlServer.Client.csproj | 14, 20 | Low | Package `Description` and `PackageTags` call the TCP client an "embedded NoSQL database", which now collides with the separate `AdvGenNoSqlServer.Embedded` library and misleads package consumers. | Open |
 
@@ -2457,6 +2460,52 @@ if (!IPEndPoint.TryParse(address, out var ep) && !TryParseHostPort(address, out 
     throw new ArgumentException($"Invalid server address '{address}'. Expected host:port.", nameof(address));
 ```
 3. Tests: `[::1]:9090` connects to port 9090 on `::1`; `host:abc` throws `ArgumentException`; `host` alone uses the documented default port.
+
+### CMD-001: Compile Filters into Operator Objects (Medium)
+**Section:** 4.2 Command pattern in Query processing
+**File:** `AdvGenNoSqlServer.Query/Filtering/FilterEngine.cs` lines 97-115, 182-219; `Models/Query.cs` line 51
+**Recommendation:** Parse the filter once into a tree of small predicate objects, then evaluate that tree per document.
+**Required Actions:**
+1. Introduce a predicate abstraction and an operator registry:
+```csharp
+public interface IFilterNode { bool Matches(Document document); }
+
+public interface IFilterOperator
+{
+    string Name { get; }                                   // "$gt"
+    IFilterNode Build(string fieldPath, object operand);   // validates the operand, throws QueryParseException
+}
+
+public sealed class FilterCompiler
+{
+    private readonly Dictionary<string, IFilterOperator> _operators;   // registered once
+    public IFilterNode Compile(QueryFilter filter);                    // unknown operator => QueryParseException here
+}
+```
+2. Move each existing `Evaluate*Operator` method into its own `IFilterOperator` class (`EqOperator`, `InOperator`, `RegexOperator` with the cached, time-limited `Regex` from SEC-031/PERF-008, and the logical `And`/`Or`/`Not`/`Nor` nodes).
+3. Keep `IFilterEngine.Matches(document, filter)` as a thin wrapper that compiles and caches per `QueryFilter` instance, so existing callers and tests keep working; have `QueryExecutor` compile once per query.
+4. Call the compiler from `QueryParser.Parse` so an invalid filter is rejected before execution.
+5. Tests: unknown operator fails at parse time on an empty collection; each operator class has direct unit tests; the existing `QueryEngineTests` pass unchanged. Compare `FilterEngineComplexMatch` in the benchmarks before and after.
+
+### CMD-002: Add a Stage Factory So Pipelines Can Be Deserialized (Medium)
+**File:** `AdvGenNoSqlServer.Query/Aggregation/`
+**Required Actions:**
+1. Add a registry keyed by `StageType` and a parser entry point:
+```csharp
+public interface IAggregationStageFactory
+{
+    string StageType { get; }                                // "$match"
+    IAggregationStage Create(JsonElement specification);     // validates and throws AggregationStageException
+}
+
+public AggregationPipeline ParsePipeline(JsonElement stagesArray);   // [ { "$match": {...} }, { "$group": {...} } ]
+```
+2. Provide one factory per existing stage (`$match`, `$group`, `$project`, `$sort`, `$limit`, `$skip`), with `$match` reusing the filter compiler from CMD-001.
+3. Enforce limits while parsing: maximum number of stages and, during execution, a maximum number of documents held by blocking stages (`$group`, `$sort`).
+4. Expose it through the `aggregate` command proposed in QRY-001, and add round-trip tests (a pipeline built with the builder and the same pipeline parsed from JSON produce identical results).
+
+### CMD-003: Server Command Dispatch (Low)
+**Required Action:** Implement the `ICommandHandler`/`CommandDispatcher` design recorded under QRY-002. No separate work item.
 
 ### NET-005: Enforce Read, Idle and Handshake Timeouts (High)
 **Section:** 4.1 Network/Protocol Layer (TCP) correctness
