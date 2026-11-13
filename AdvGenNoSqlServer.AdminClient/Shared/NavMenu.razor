@@ -1,5 +1,3 @@
-@inject AdvGenNoSqlServer.AdminClient.Services.TcpAdminService AdminService
-
 <MudNavMenu>
     <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">
         Dashboard
@@ -13,10 +11,16 @@
     <MudNavLink Href="query" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Terminal">
         Console
     </MudNavLink>
-    @if (AdminService.CurrentRole == "admin")
+    @if (Role == "admin")
     {
         <MudNavLink Href="users" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.People">
             Users
         </MudNavLink>
     }
 </MudNavMenu>
+
+@code {
+    // Passed from MainLayout so Blazor re-renders the menu when the role changes
+    // after login; a parameterless child would otherwise keep its pre-login state.
+    [Parameter] public string? Role { get; set; }
+}

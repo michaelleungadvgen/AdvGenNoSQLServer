@@ -7,6 +7,7 @@
 @inject ServerConnectionService ConnectionService
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <MudThemeProvider />
 <MudPopoverProvider />
@@ -165,7 +166,4 @@
         Snackbar.Add("Logged out successfully", Severity.Success);
         Navigation.NavigateTo("/login");
     }
-
-    [CascadingParameter]
-    private IDialogService DialogService { get; set; } = default!;
 }
