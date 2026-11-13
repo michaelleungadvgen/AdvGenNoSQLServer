@@ -1,0 +1,150 @@
+@page "/"
+@rendermode InteractiveServer
+@inject TodoService Todos
+
+<PageTitle>Todo · AdvGenNoSQL</PageTitle>
+
+@if (_interactive)
+{
+    <span id="interactive-ready" hidden></span>
+}
+
+<section class="todo-panel">
+    <div class="status">
+        @if (_error != null)
+        {
+            <div class="error">
+                <span>@_error</span>
+                <button @onclick="LoadAsync" disabled="@_busy">Retry</button>
+            </div>
+        }
+        else
+        {
+            <span>Server @Todos.ConnectionDescription · user @Todos.Username · collection "@Todos.Collection"</span>
+        }
+    </div>
+
+    <div class="add-row">
+        <input type="text" @bind="_newTitle" @bind:event="oninput"
+               placeholder="What needs to be done?" maxlength="200"
+               @onkeydown="@(e => { if (e.Key == "Enter") _ = AddAsync(); })" />
+        <button @onclick="AddAsync" disabled="@(_busy || string.IsNullOrWhiteSpace(_newTitle))">Add</button>
+        <button class="secondary" @onclick="LoadAsync" disabled="@_busy">Refresh</button>
+    </div>
+
+    @if (_loading)
+    {
+        <p class="loading">Loading…</p>
+    }
+    else if (_error == null)
+    {
+        <ul class="todo-list">
+            @foreach (var item in _items)
+            {
+                <li class="@(item.IsCompleted ? "done" : "")">
+                    <input type="checkbox" checked="@item.IsCompleted"
+                           @onchange="@(e => ToggleAsync(item, e.Value is true))" />
+                    <span class="title">@item.Title</span>
+                    <span class="created">@item.CreatedAt.ToLocalTime().ToString("g")</span>
+                    <button class="delete" @onclick="() => DeleteAsync(item.Id)">Delete</button>
+                </li>
+            }
+        </ul>
+        @if (_items.Count == 0)
+        {
+            <p class="empty">No todos yet — add one above.</p>
+        }
+        <p class="summary">@_items.Count(i => !i.IsCompleted) remaining · @_items.Count total</p>
+    }
+</section>
+
+@code {
+    private List<TodoItem> _items = new();
+    private string _newTitle = "";
+    private string? _error;
+    private bool _loading = true;
+    private bool _busy;
+    private bool _interactive;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        // Fires only once the interactive circuit is live (never during prerender);
+        // the hidden marker lets E2E tests wait for interactivity deterministically.
+        if (firstRender)
+        {
+            _interactive = true;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _items = await Todos.ListAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task AddAsync()
+    {
+        if (_busy || string.IsNullOrWhiteSpace(_newTitle)) return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            await Todos.AddAsync(_newTitle.Trim());
+            _newTitle = "";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ToggleAsync(TodoItem item, bool completed)
+    {
+        _error = null;
+        var previous = item.IsCompleted;
+        try
+        {
+            item.IsCompleted = completed;
+            await Todos.UpdateAsync(item);
+        }
+        catch (Exception ex)
+        {
+            item.IsCompleted = previous;
+            _error = ex.Message;
+        }
+    }
+
+    private async Task DeleteAsync(string id)
+    {
+        _error = null;
+        try
+        {
+            await Todos.DeleteAsync(id);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+}

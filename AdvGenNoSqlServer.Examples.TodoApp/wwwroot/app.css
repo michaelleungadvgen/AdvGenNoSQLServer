@@ -1,0 +1,42 @@
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    background: #f4f6fb;
+    color: #1c2333;
+}
+
+.page { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
+
+.topbar { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+.topbar h1 { font-size: 1.4rem; margin: 0; }
+.topbar .conn { font-size: .8rem; color: #6b7488; }
+
+.todo-panel { background: #fff; border: 1px solid #e3e7f0; border-radius: 12px; padding: 20px; box-shadow: 0 2px 10px rgba(28, 35, 51, .05); }
+
+.status { font-size: .85rem; color: #6b7488; margin-bottom: 14px; }
+.error { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: #fdecec; color: #a12626; border: 1px solid #f3c1c1; border-radius: 8px; padding: 10px 12px; }
+
+.add-row { display: flex; gap: 8px; margin-bottom: 16px; }
+.add-row input[type="text"] { flex: 1; padding: 10px 12px; border: 1px solid #cfd6e4; border-radius: 8px; font-size: 1rem; }
+.add-row input[type="text"]:focus { outline: 2px solid #4f7cff33; border-color: #4f7cff; }
+
+button { padding: 10px 16px; border: none; border-radius: 8px; background: #4f7cff; color: #fff; font-size: .9rem; cursor: pointer; }
+button:hover:not(:disabled) { background: #3d68e8; }
+button:disabled { opacity: .5; cursor: default; }
+button.secondary { background: #eef1f8; color: #3a4358; }
+button.secondary:hover:not(:disabled) { background: #e2e7f2; }
+button.delete { background: transparent; color: #a12626; padding: 6px 10px; font-size: .8rem; }
+button.delete:hover { background: #fdecec; }
+
+.todo-list { list-style: none; margin: 0; padding: 0; }
+.todo-list li { display: flex; align-items: center; gap: 12px; padding: 10px 6px; border-bottom: 1px solid #eef1f8; }
+.todo-list li:last-child { border-bottom: none; }
+.todo-list input[type="checkbox"] { width: 18px; height: 18px; accent-color: #4f7cff; cursor: pointer; }
+.todo-list .title { flex: 1; }
+.todo-list li.done .title { text-decoration: line-through; color: #9aa2b5; }
+.todo-list .created { font-size: .75rem; color: #9aa2b5; white-space: nowrap; }
+
+.loading, .empty { color: #6b7488; font-size: .9rem; }
+.summary { font-size: .8rem; color: #6b7488; margin: 14px 0 0; }
