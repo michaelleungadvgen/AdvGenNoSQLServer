@@ -40,10 +40,11 @@ public sealed class AdminClientFixture : IAsyncLifetime
         var certPath = Path.Combine(_tempDir, "advgen.pfx");
         await RunDotnetAsync($"dev-certs https -ep \"{certPath}\" -p devpassword", root);
 
-        await RunDotnetAsync($"build \"{Path.Combine(root, "AdvGenNoSqlServer.Host")}\" -c Release --nologo -v q", root);
+        var hostOut = Path.Combine(_tempDir, "host");
+        await RunDotnetAsync($"build \"{Path.Combine(root, "AdvGenNoSqlServer.Host")}\" -c Release --nologo -v q -o \"{hostOut}\"", root);
         await RunDotnetAsync($"build \"{Path.Combine(root, "AdvGenNoSqlServer.AdminClient")}\" -c Release --nologo -v q", root);
 
-        var hostDll = Path.Combine(root, "AdvGenNoSqlServer.Host", "bin", "Release", "net9.0", "AdvGenNoSqlServer.Host.dll");
+        var hostDll = Path.Combine(hostOut, "AdvGenNoSqlServer.Host.dll");
         _host = Launch(hostDll, Path.Combine(root, "AdvGenNoSqlServer.Host"), new Dictionary<string, string>
         {
             ["DOTNET_ENVIRONMENT"] = "Development",

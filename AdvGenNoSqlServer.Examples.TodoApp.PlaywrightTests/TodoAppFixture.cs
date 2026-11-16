@@ -22,6 +22,7 @@ public sealed class TodoAppFixture : IAsyncLifetime
     private Process? _host;
     private Process? _app;
     private string _storageDir = "";
+    private string _hostOut = "";
     private IPlaywright? _playwright;
     private IBrowser? _browser;
 
@@ -33,10 +34,11 @@ public sealed class TodoAppFixture : IAsyncLifetime
         _storageDir = Path.Combine(Path.GetTempPath(), "todoapp-e2e-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_storageDir);
 
-        await RunDotnetAsync($"build \"{Path.Combine(root, "AdvGenNoSqlServer.Host")}\" -c Release --nologo -v q", root);
+        _hostOut = Path.Combine(Path.GetTempPath(), "todoapp-e2e-host-" + Guid.NewGuid().ToString("N"));
+        await RunDotnetAsync($"build \"{Path.Combine(root, "AdvGenNoSqlServer.Host")}\" -c Release --nologo -v q -o \"{_hostOut}\"", root);
         await RunDotnetAsync($"build \"{Path.Combine(root, "AdvGenNoSqlServer.Examples.TodoApp")}\" -c Release --nologo -v q", root);
 
-        var hostDll = Path.Combine(root, "AdvGenNoSqlServer.Host", "bin", "Release", "net9.0", "AdvGenNoSqlServer.Host.dll");
+        var hostDll = Path.Combine(_hostOut, "AdvGenNoSqlServer.Host.dll");
         _host = Launch(hostDll, Path.Combine(root, "AdvGenNoSqlServer.Host"), new Dictionary<string, string>
         {
             ["DOTNET_ENVIRONMENT"] = "Development",
@@ -80,6 +82,7 @@ public sealed class TodoAppFixture : IAsyncLifetime
         Kill(_app);
         Kill(_host);
         try { Directory.Delete(_storageDir, true); } catch (IOException) { }
+        try { Directory.Delete(_hostOut, true); } catch (IOException) { }
     }
 
     private static string FindRepoRoot()
