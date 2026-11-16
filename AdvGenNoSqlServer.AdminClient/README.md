@@ -50,6 +50,8 @@ Restart the Host after making this change. If `EnableSsl` is `false`, the TCP SS
 
 ## Quick Start
 
+> **Windows one-click:** run `run-admin-client.bat` from the repo root. It builds and starts the Host (TCP + SSL) and the Admin Client, trusts/exports the dev certificate, and opens https://localhost:7210. The manual steps below are the equivalent.
+
 **Terminal 1 — start the NoSQL server:**
 
 ```bash
@@ -160,9 +162,16 @@ AdvGenNoSqlServer.Host
 dotnet build AdvGenNoSqlServer.AdminClient/AdvGenNoSqlServer.AdminClient.csproj
 ```
 
+## E2E tests
+
+`AdvGenNoSqlServer.AdminClient.PlaywrightTests` is an xUnit + Playwright suite that builds and launches the Host (TCP + SSL) and this app on isolated ports with a fresh temp data dir, then drives the UI with headless Chromium. It covers login/logout, dashboard, collections & documents CRUD, attachments (upload/download/delete), the command console, users/RBAC, and change-my-password. Run:
+
+```bash
+dotnet test AdvGenNoSqlServer.AdminClient.PlaywrightTests -c Release
+```
+
 ## What Is Not Supported
 
-- **User management** — no TCP command exists for creating or deleting users
 - **Multi-database switching** — all operations target the default database; no `selectdatabase` TCP command exists
 - **Non-SSL connections** — SSL is always required; the client always sets `UseSsl = true`
 

@@ -82,6 +82,20 @@ dotnet run --project AdvGenNoSqlServer.Admin/AdvGenNoSqlServer.Admin.csproj
 
 The Admin app will print its local URL (e.g. `https://localhost:62959`). Open that in a browser and log in with `admin` and the `MasterPassword` from `appsettings.json`.
 
+## Launcher scripts (Windows)
+
+One-click batch scripts in the repo root build and launch the server plus a UI, each in its own console window. They trust the ASP.NET Core dev certificate automatically, wait for the app to be ready, then open the browser. All use Development settings with `admin` / `admin123` (demo only).
+
+| Script | Launches | UI URL |
+|--------|----------|--------|
+| `run-server.bat` | Host only (TCP 9191, SSL off) | — |
+| `run-admin-web.bat` | Host + WASM Admin (REST) | http://localhost:62960 |
+| `run-admin-client.bat` | Host + AdminClient (TCP + SSL) | https://localhost:7210 |
+| `run-server-and-admin.bat` | Host + AdminClient (older equivalent of `run-admin-client.bat`) | https://localhost:7210 |
+| `run-todo-demo.bat` | Host + Blazor TodoApp demo (auto-login) | http://localhost:5090 |
+
+Close the spawned console windows to stop the processes. If a port is already in use, close the previous run's window and run the script again.
+
 ## Configuration
 
 ### Server Configuration (`AdvGenNoSqlServer.Host/appsettings.json`)
@@ -94,6 +108,7 @@ All keys are flat (no nested sections):
   "Port": 9191,
   "MaxConcurrentConnections": 1000,
   "StoragePath": "./storage",
+  "StorageMode": "Persistent",
   "MasterPassword": "admin123",
   "RequireAuthentication": true,
   "JwtSecretKey": "your-secret-key-change-in-production",
@@ -105,6 +120,10 @@ All keys are flat (no nested sections):
 ```
 
 `JwtSecretKey` must be set to the same value on every restart. If omitted, a random key is generated at startup and all existing tokens are invalidated.
+
+`StorageMode` selects how data is stored:
+- `Persistent` (default) — in-memory + disk (the `HybridDocumentStore`), survives restarts.
+- `Cache` — **memory-only, no persistence** (Redis-style). Documents, user accounts, attachments and audit events live only in RAM and are lost on restart; no storage directories or files are created. Set via `StorageMode` in config or the `NOSQL_STORAGE_MODE` environment variable.
 
 ### Port Mapping
 
@@ -159,6 +178,10 @@ dotnet run --project AdvGenNoSqlServer.Admin/AdvGenNoSqlServer.Admin.csproj
 
 Blazor WebAssembly runs in the browser and cannot open TCP sockets, so the Admin communicates exclusively via the HTTPS REST API (port 9192). The TCP binary protocol is for the `AdvGenNoSqlServer.Client` .NET library only.
 
+### Blazor Server alternative (AdminClient)
+
+`AdvGenNoSqlServer.AdminClient` is a second admin UI that runs as a Blazor Server app and talks to the Host over the binary TCP protocol directly (no REST/JWT layer). It adds document attachments and a raw command console. It coexists with the WASM Admin rather than replacing it. See [AdvGenNoSqlServer.AdminClient/README.md](AdvGenNoSqlServer.AdminClient/README.md), or launch it with `run-admin-client.bat`.
+
 ## HTTP API
 
 All endpoints are on `https://localhost:9192`. Every endpoint except `/api/health` and `/api/auth/login` requires a `Bearer` token.
@@ -197,14 +220,34 @@ PUT    https://localhost:9192/api/collections/{name}/documents/{id}
 DELETE https://localhost:9192/api/collections/{name}/documents/{id}
 ```
 
+## End-to-end (E2E) tests
+
+Browser-level E2E suites use xUnit + Microsoft.Playwright (headless Chromium). Each fixture builds and launches the real Host plus the app on isolated ports with a fresh temp data directory, so no manual setup is needed.
+
+| Project | Target | Covers |
+|---------|--------|--------|
+| `AdvGenNoSqlServer.AdminClient.PlaywrightTests` | AdminClient (Blazor Server / TCP + SSL) | login/logout, dashboard, collections & documents CRUD, attachments, command console, users/RBAC, change password |
+| `AdvGenNoSqlServer.Admin.PlaywrightTests` | WASM Admin (REST) | login/logout, dashboard, databases, collections & documents CRUD, query, users, settings |
+| `AdvGenNoSqlServer.Examples.TodoApp.PlaywrightTests` | TodoApp demo | add/toggle/delete todos, persistence across reload |
+
+Run them:
+
+```powershell
+dotnet test AdvGenNoSqlServer.AdminClient.PlaywrightTests -c Release
+dotnet test AdvGenNoSqlServer.Admin.PlaywrightTests -c Release
+dotnet test AdvGenNoSqlServer.Examples.TodoApp.PlaywrightTests -c Release
+```
+
 ## Where to look
 
 - Network layer: `AdvGenNoSqlServer.Network` — `MessageProtocol.cs`, `TcpServer.cs`, `ConnectionHandler.cs`
 - Core models & interfaces: `AdvGenNoSqlServer.Core`
 - Storage engine: `AdvGenNoSqlServer.Storage`
 - Server host: `AdvGenNoSqlServer.Host`
-- Web Admin: `AdvGenNoSqlServer.Admin`
-- Tests: `AdvGenNoSqlServer.Tests`
+- Web Admin (WASM): `AdvGenNoSqlServer.Admin`
+- Admin Client (Blazor Server): `AdvGenNoSqlServer.AdminClient`
+- Unit tests: `AdvGenNoSqlServer.Tests`
+- E2E tests: `AdvGenNoSqlServer.*.PlaywrightTests`
 
 ## Development notes & coding standards
 
