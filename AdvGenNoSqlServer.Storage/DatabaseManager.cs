@@ -13,17 +13,26 @@ using System.Collections.Concurrent;
 public class DatabaseManager : IDatabaseManager
 {
     private readonly string _baseStoragePath;
-    private readonly ConcurrentDictionary<string, HybridDocumentStore> _databases;
+    private readonly bool _cacheMode;
+    private readonly ConcurrentDictionary<string, IDocumentStore> _databases;
     private readonly string _defaultDatabaseName;
 
     /// <summary>
-    /// Creates a new database manager
+    /// Creates a new database manager. When <paramref name="cacheMode"/> is true, databases
+    /// are memory-only and no storage directories are created or read.
     /// </summary>
-    public DatabaseManager(string baseStoragePath, string defaultDatabaseName = "default")
+    public DatabaseManager(string baseStoragePath, string defaultDatabaseName = "default", bool cacheMode = false)
     {
         _baseStoragePath = baseStoragePath;
         _defaultDatabaseName = defaultDatabaseName;
-        _databases = new ConcurrentDictionary<string, HybridDocumentStore>();
+        _cacheMode = cacheMode;
+        _databases = new ConcurrentDictionary<string, IDocumentStore>();
+
+        if (_cacheMode)
+        {
+            _databases[_defaultDatabaseName] = new DocumentStore();
+            return;
+        }
 
         // Ensure base directory exists
         if (!Directory.Exists(_baseStoragePath))
@@ -94,6 +103,17 @@ public class DatabaseManager : IDatabaseManager
             return false;
         }
 
+        if (_databases.ContainsKey(name))
+        {
+            return false; // Already exists
+        }
+
+        if (_cacheMode)
+        {
+            _databases[name] = new DocumentStore();
+            return true;
+        }
+
         var dbPath = Path.Combine(_baseStoragePath, name);
         if (Directory.Exists(dbPath))
         {
@@ -124,7 +144,15 @@ public class DatabaseManager : IDatabaseManager
 
         if (_databases.TryRemove(name, out var store))
         {
-            await store.DisposeAsync();
+            if (store is IAsyncDisposable disposable)
+            {
+                await disposable.DisposeAsync();
+            }
+
+            if (_cacheMode)
+            {
+                return true;
+            }
 
             var dbPath = Path.Combine(_baseStoragePath, name);
             try
@@ -152,7 +180,10 @@ public class DatabaseManager : IDatabaseManager
     {
         foreach (var store in _databases.Values)
         {
-            await store.FlushAsync();
+            if (store is HybridDocumentStore hybrid)
+            {
+                await hybrid.FlushAsync();
+            }
         }
     }
 
@@ -161,9 +192,9 @@ public class DatabaseManager : IDatabaseManager
     {
         foreach (var (name, store) in _databases.ToArray())
         {
-            if (_databases.TryRemove(name, out var removed))
+            if (_databases.TryRemove(name, out var removed) && removed is IAsyncDisposable disposable)
             {
-                await removed.DisposeAsync();
+                await disposable.DisposeAsync();
             }
         }
     }

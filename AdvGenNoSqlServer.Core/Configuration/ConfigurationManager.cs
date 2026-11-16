@@ -407,6 +407,13 @@ public class ConfigurationManager : IConfigurationManager, IDisposable
             config.StoragePath = storagePathEnv;
         }
 
+        // StorageMode (Persistent | Cache)
+        var storageModeEnv = Environment.GetEnvironmentVariable("NOSQL_STORAGE_MODE");
+        if (!string.IsNullOrEmpty(storageModeEnv))
+        {
+            config.StorageMode = storageModeEnv;
+        }
+
         // MaxConcurrentConnections
         var maxConnectionsEnv = Environment.GetEnvironmentVariable("NOSQL_MAX_CONNECTIONS");
         if (!string.IsNullOrEmpty(maxConnectionsEnv) && int.TryParse(maxConnectionsEnv, out int maxConnections))

@@ -70,6 +70,22 @@ public class ServerConfiguration
     public string StoragePath { get; set; } = "data";
 
     /// <summary>
+    /// Storage mode: "Persistent" (default — in-memory + disk) or "Cache"
+    /// (memory-only, no disk persistence, Redis-style). In Cache mode documents,
+    /// user accounts and attachments live only in memory and are lost on restart.
+    /// </summary>
+    public string StorageMode { get; set; } = StorageModePersistent;
+
+    /// <summary>True when running in memory-only cache mode (no disk persistence).</summary>
+    public bool IsCacheMode => string.Equals(StorageMode, StorageModeCache, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Valid <see cref="StorageMode"/> value: in-memory + disk persistence.</summary>
+    public const string StorageModePersistent = "Persistent";
+
+    /// <summary>Valid <see cref="StorageMode"/> value: memory-only, no persistence.</summary>
+    public const string StorageModeCache = "Cache";
+
+    /// <summary>
     /// Path to the JSON file holding user accounts. If empty, defaults to
     /// &lt;StoragePath&gt;/users.json (resolved absolute like StoragePath).
     /// </summary>
@@ -412,7 +428,10 @@ public class ServerConfiguration
         if (MaxFailedLoginAttempts < 0) errors.Add("MaxFailedLoginAttempts cannot be negative.");
         if (LockoutMinutes < 0) errors.Add("LockoutMinutes cannot be negative.");
         if (string.IsNullOrWhiteSpace(AnonymousRole)) errors.Add("AnonymousRole cannot be empty.");
-        if (string.IsNullOrWhiteSpace(StoragePath)) errors.Add("StoragePath cannot be empty.");
+        if (!IsCacheMode && string.IsNullOrWhiteSpace(StoragePath)) errors.Add("StoragePath cannot be empty.");
+        if (!string.Equals(StorageMode, StorageModePersistent, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(StorageMode, StorageModeCache, StringComparison.OrdinalIgnoreCase))
+            errors.Add($"StorageMode must be '{StorageModePersistent}' or '{StorageModeCache}' (got '{StorageMode}').");
 
         if (EnableSsl && !UseCertificateStore)
         {

@@ -28,10 +28,10 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
     private readonly IConfigurationManager _configurationManager;
     private readonly IClusterManager? _clusterManager;
     private readonly ApiDataService _apiData;
-    private HybridDocumentStore? _documentStore;
+    private IDocumentStore? _documentStore;
     private TcpServer? _tcpServer;
     private AuthenticationManager? _authManager;
-    private AttachmentStore? _attachmentStore;
+    private IAttachmentStore? _attachmentStore;
     private readonly ConcurrentDictionary<string, (string Username, string Role)> _authConnections = new();
     private bool _disposed;
     private readonly DateTime _startTime = DateTime.UtcNow;
@@ -66,7 +66,7 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
         _logger.LogInformation("Max connections: {MaxConnections}", config.MaxConcurrentConnections);
         _logger.LogInformation("Storage path: {StoragePath}", config.StoragePath);
 
-        // Initialize hybrid document store (cache + disk)
+        // Resolve the storage path (used only in persistent mode).
         var storagePath = config.StoragePath;
         if (string.IsNullOrEmpty(storagePath))
         {
@@ -79,23 +79,38 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
             storagePath = Path.Combine(AppContext.BaseDirectory, storagePath);
         }
 
-        _logger.LogInformation("Initializing hybrid storage at: {Path}", storagePath);
-        _documentStore = new HybridDocumentStore(storagePath);
-        await _documentStore.InitializeAsync();
-        _logger.LogInformation("Hybrid storage initialized successfully");
-
-        // Initialize authentication (persistent user store)
-        var userPath = string.IsNullOrEmpty(config.UserStorePath)
-            ? Path.Combine(storagePath, "users.json")
-            : config.UserStorePath;
-        _authManager = new AuthenticationManager(config, new FileUserStore(userPath));
-
-        // Initialize attachment storage
-        _attachmentStore = new AttachmentStore(new AttachmentStoreOptions
+        var attachmentOptions = new AttachmentStoreOptions
         {
             BasePath = Path.Combine(storagePath, "attachments"),
             MaxAttachmentSize = (long)Math.Max(config.MaxAttachmentSizeMB, 1) * 1024 * 1024
-        });
+        };
+
+        if (config.IsCacheMode)
+        {
+            // Cache mode: memory-only, no disk persistence (Redis-style).
+            _logger.LogInformation("Storage mode: Cache (memory-only, no persistence)");
+            _documentStore = new DocumentStore();
+            _authManager = new AuthenticationManager(config, new InMemoryUserStore());
+            _attachmentStore = new InMemoryAttachmentStore(attachmentOptions);
+        }
+        else
+        {
+            // Initialize hybrid document store (cache + disk)
+            _logger.LogInformation("Initializing hybrid storage at: {Path}", storagePath);
+            var hybrid = new HybridDocumentStore(storagePath);
+            await hybrid.InitializeAsync();
+            _documentStore = hybrid;
+            _logger.LogInformation("Hybrid storage initialized successfully");
+
+            // Initialize authentication (persistent user store)
+            var userPath = string.IsNullOrEmpty(config.UserStorePath)
+                ? Path.Combine(storagePath, "users.json")
+                : config.UserStorePath;
+            _authManager = new AuthenticationManager(config, new FileUserStore(userPath));
+
+            // Initialize attachment storage
+            _attachmentStore = new AttachmentStore(attachmentOptions);
+        }
 
         // Create and configure the TCP server
         _tcpServer = new TcpServer(config, _logger);
@@ -132,17 +147,20 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
             _tcpServer = null;
         }
 
-        // Flush and dispose document store
+        // Flush and dispose document store (only the persistent store has pending writes)
         if (_documentStore != null)
         {
-            _logger.LogInformation("Flushing pending writes to disk...");
-            await _documentStore.FlushAsync();
-            await _documentStore.DisposeAsync();
+            if (_documentStore is HybridDocumentStore hybrid)
+            {
+                _logger.LogInformation("Flushing pending writes to disk...");
+                await hybrid.FlushAsync();
+                await hybrid.DisposeAsync();
+            }
             _documentStore = null;
             _logger.LogInformation("Storage shutdown complete");
         }
 
-        _attachmentStore?.Dispose();
+        (_attachmentStore as IDisposable)?.Dispose();
         _attachmentStore = null;
 
         _logger.LogInformation("NoSQL Server stopped successfully");
@@ -1888,9 +1906,9 @@ public class NoSqlServer : IHostedService, IAsyncDisposable
         _disposed = true;
         _tcpServer?.Dispose();
 
-        if (_documentStore != null)
+        if (_documentStore is IAsyncDisposable disposable)
         {
-            await _documentStore.DisposeAsync();
+            await disposable.DisposeAsync();
         }
     }
 }

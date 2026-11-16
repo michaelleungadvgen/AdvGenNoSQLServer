@@ -515,12 +515,12 @@ public class Program
             return new AdvancedMemoryCacheManager(engine, metrics);
         });
 
-        // Add audit logger
+        // Add audit logger (in-memory in cache mode; no disk persistence)
         services.AddSingleton<IAuditLogger>(provider =>
         {
             var configManager = provider.GetRequiredService<Core.Configuration.IConfigurationManager>();
             var config = configManager.Configuration;
-            return new AuditLogger(config);
+            return config.IsCacheMode ? new InMemoryAuditLogger() : new AuditLogger(config);
         });
 
         // Add authentication manager (backed by a persistent user store)
@@ -528,6 +528,8 @@ public class Program
         {
             var configManager = provider.GetRequiredService<Core.Configuration.IConfigurationManager>();
             var config = configManager.Configuration;
+            if (config.IsCacheMode)
+                return new AuthenticationManager(config, new InMemoryUserStore());
             var storagePath = string.IsNullOrEmpty(config.StoragePath) ? "data" : config.StoragePath;
             if (!System.IO.Path.IsPathRooted(storagePath))
                 storagePath = System.IO.Path.Combine(AppContext.BaseDirectory, storagePath);
@@ -620,7 +622,7 @@ public class Program
             {
                 storagePath = Path.Combine(AppContext.BaseDirectory, storagePath);
             }
-            return new DatabaseManager(storagePath);
+            return new DatabaseManager(storagePath, cacheMode: config.IsCacheMode);
         });
 
         // Add health checks (liveness/readiness probes for orchestrators)
@@ -692,7 +694,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
     private readonly ApiDataService _apiData;
     private readonly IMetricsCollector _metrics;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string Username, string Role)> _authConnections = new();
-    private AttachmentStore? _attachmentStore;
+    private IAttachmentStore? _attachmentStore;
     private TcpServer? _tcpServer;
     private bool _disposed;
 
@@ -721,18 +723,22 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
         _logger.LogInformation("Starting NoSQL Server on {Host}:{Port}...", config.Host, config.Port);
         _logger.LogInformation("Max connections: {MaxConnections}", config.MaxConcurrentConnections);
 
-        // Ensure data directories exist
-        EnsureDirectoriesExist(config);
+        // Ensure data directories exist (persistent mode only; cache mode is memory-only)
+        if (!config.IsCacheMode)
+            EnsureDirectoriesExist(config);
 
         // Initialize attachment storage
         var attachStoragePath = string.IsNullOrEmpty(config.StoragePath) ? "data" : config.StoragePath;
         if (!System.IO.Path.IsPathRooted(attachStoragePath))
             attachStoragePath = System.IO.Path.Combine(AppContext.BaseDirectory, attachStoragePath);
-        _attachmentStore = new AttachmentStore(new AttachmentStoreOptions
+        var attachmentOptions = new AttachmentStoreOptions
         {
             BasePath = System.IO.Path.Combine(attachStoragePath, "attachments"),
             MaxAttachmentSize = (long)Math.Max(config.MaxAttachmentSizeMB, 1) * 1024 * 1024
-        });
+        };
+        _attachmentStore = config.IsCacheMode
+            ? new InMemoryAttachmentStore(attachmentOptions)
+            : new AttachmentStore(attachmentOptions);
 
         _logger.LogInformation("Initializing database manager...");
         // DatabaseManager is already initialized via DI
@@ -1569,7 +1575,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
             return;
 
         _disposed = true;
-        _attachmentStore?.Dispose();
+        (_attachmentStore as IDisposable)?.Dispose();
         _attachmentStore = null;
         _tcpServer?.Dispose();
 
