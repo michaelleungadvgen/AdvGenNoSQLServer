@@ -222,20 +222,54 @@ DELETE https://localhost:9192/api/collections/{name}/documents/{id}
 
 ## End-to-end (E2E) tests
 
-Browser-level E2E suites use xUnit + Microsoft.Playwright (headless Chromium). Each fixture builds and launches the real Host plus the app on isolated ports with a fresh temp data directory, so no manual setup is needed.
+Self-hosting E2E suites (xUnit) build and launch the real Host plus the app under test on
+isolated ports with a fresh temp data directory, so no manual setup is needed. Browser UIs
+are driven with Microsoft.Playwright (headless Chromium); the WPF client is driven with
+Windows UI Automation. Together they cover the whole system end to end.
 
 | Project | Target | Covers |
 |---------|--------|--------|
+| `AdvGenNoSqlServer.Host.E2ETests` | **Host server (TCP + REST)** | TCP auth/CRUD/collections/users/attachments/stats, REST health/login/stats/CRUD/users/metrics, cache mode no-disk |
 | `AdvGenNoSqlServer.AdminClient.PlaywrightTests` | AdminClient (Blazor Server / TCP + SSL) | login/logout, dashboard, collections & documents CRUD, attachments, command console, users/RBAC, change password |
 | `AdvGenNoSqlServer.Admin.PlaywrightTests` | WASM Admin (REST) | login/logout, dashboard, databases, collections & documents CRUD, query, users, settings |
 | `AdvGenNoSqlServer.Examples.TodoApp.PlaywrightTests` | TodoApp demo | add/toggle/delete todos, persistence across reload |
+| `AdvGenNoSqlServer.Examples.Messages.Wpf.E2ETests` | WPF messaging client (UI Automation) | connect, send, multiple messages, clear, cache no-disk, cross-client shared cache |
+| `AdvGenNoSqlServer.Examples.Messages.Web.PlaywrightTests` | Blazor messaging web UI | connect, send, multiple messages, clear |
 
-Run them:
+Run them (the WPF suite needs an interactive Windows desktop; the rest are headless):
 
 ```powershell
+dotnet test AdvGenNoSqlServer.Host.E2ETests -c Release
 dotnet test AdvGenNoSqlServer.AdminClient.PlaywrightTests -c Release
 dotnet test AdvGenNoSqlServer.Admin.PlaywrightTests -c Release
 dotnet test AdvGenNoSqlServer.Examples.TodoApp.PlaywrightTests -c Release
+dotnet test AdvGenNoSqlServer.Examples.Messages.Wpf.E2ETests -c Release
+dotnet test AdvGenNoSqlServer.Examples.Messages.Web.PlaywrightTests -c Release
+```
+
+The in-process `AdvGenNoSqlServer.Embedded` engine is covered by `AdvGenNoSqlServer.Embedded.Tests`
+(full workflow, persistence, and crash-recovery tests); Core/Storage/Query/Network/Client are
+covered by the unit/integration suite `AdvGenNoSqlServer.Tests`.
+
+## Cache-mode performance
+
+Measured against the real Host running in `StorageMode=Cache` over the TCP binary protocol
+(`AdvGenNoSqlServer.Host.E2ETests` → `CacheModePerformanceTests`). Release build, localhost,
+single machine — absolute numbers vary with hardware.
+
+| Operation | ops/sec | avg (ms) | p50 (ms) | p95 (ms) | p99 (ms) |
+|-----------|---------|----------|----------|----------|----------|
+| SET (1000) | 4757.56 | 0.21 | 0.18 | 0.39 | 0.82 |
+| GET (1000) | 5110.31 | 0.20 | 0.15 | 0.27 | 0.60 |
+| DELETE (500) | 6215.19 | 0.16 | 0.13 | 0.22 | 0.49 |
+
+Concurrent writes: **25,921 ops/sec** (4 clients × 500 sets).
+
+Because cache mode keeps everything in memory with no disk writes, per-operation latency is
+sub-millisecond and throughput scales with concurrent clients. Reproduce with:
+
+```powershell
+dotnet test AdvGenNoSqlServer.Host.E2ETests -c Release --filter "FullyQualifiedName~CacheMode_ThroughputAndLatency"
 ```
 
 ## Where to look
