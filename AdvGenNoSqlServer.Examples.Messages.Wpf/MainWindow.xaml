@@ -1,0 +1,164 @@
+<Window x:Class="AdvGenNoSqlServer.Examples.Messages.Wpf.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:AdvGenNoSqlServer.Examples.Messages.Wpf"
+        Title="AdvGenNoSQL Cache-Mode Messages (WPF)"
+        Width="820" Height="640"
+        WindowStartupLocation="CenterScreen"
+        Background="#F1F5F9"
+        FontFamily="Segoe UI">
+
+    <Window.Resources>
+        <local:UserToBrushConverter x:Key="UserBrush"/>
+
+        <SolidColorBrush x:Key="Panel" Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="Ink" Color="#0F172A"/>
+        <SolidColorBrush x:Key="Muted" Color="#64748B"/>
+        <SolidColorBrush x:Key="Line" Color="#E2E8F0"/>
+        <SolidColorBrush x:Key="Primary" Color="#3B82F6"/>
+        <SolidColorBrush x:Key="Danger" Color="#EF4444"/>
+
+        <Style x:Key="RoundedButton" TargetType="Button">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Padding" Value="16,7"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.88"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource RoundedButton}">
+            <Setter Property="Background" Value="{StaticResource Primary}"/>
+        </Style>
+        <Style x:Key="SlateButton" TargetType="Button" BasedOn="{StaticResource RoundedButton}">
+            <Setter Property="Background" Value="#475569"/>
+        </Style>
+        <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource RoundedButton}">
+            <Setter Property="Background" Value="{StaticResource Danger}"/>
+        </Style>
+
+        <Style x:Key="Field" TargetType="TextBox">
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="Foreground" Value="{StaticResource Ink}"/>
+        </Style>
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,6,0"/>
+        </Style>
+    </Window.Resources>
+
+    <DockPanel Margin="14">
+
+        <!-- Header -->
+        <Border DockPanel.Dock="Top" CornerRadius="12" Padding="18,14" Margin="0,0,0,12">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#1E293B" Offset="0"/>
+                    <GradientStop Color="#334155" Offset="1"/>
+                </LinearGradientBrush>
+            </Border.Background>
+            <DockPanel>
+                <Border DockPanel.Dock="Right" Background="#3B82F6" CornerRadius="20" Padding="12,4" VerticalAlignment="Center">
+                    <TextBlock Text="CACHE MODE · memory-only" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
+                </Border>
+                <StackPanel>
+                    <TextBlock Text="AdvGenNoSQL Messages" Foreground="White" FontSize="20" FontWeight="Bold"/>
+                    <TextBlock Text="Chat backed by the in-memory cache — nothing is written to disk" Foreground="#94A3B8" FontSize="12"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Connection panel -->
+        <Border DockPanel.Dock="Top" Background="{StaticResource Panel}" CornerRadius="12" Padding="14,12" Margin="0,0,0,12">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Host" Style="{StaticResource FieldLabel}"/>
+                <TextBox Width="110" Style="{StaticResource Field}" Text="{Binding Host, UpdateSourceTrigger=PropertyChanged}"/>
+                <TextBlock Text="Port" Style="{StaticResource FieldLabel}" Margin="12,0,6,0"/>
+                <TextBox Width="64" Style="{StaticResource Field}" Text="{Binding Port, UpdateSourceTrigger=PropertyChanged}"/>
+                <TextBlock Text="User" Style="{StaticResource FieldLabel}" Margin="12,0,6,0"/>
+                <TextBox Width="90" Style="{StaticResource Field}" Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}"/>
+                <TextBlock Text="Password" Style="{StaticResource FieldLabel}" Margin="12,0,6,0"/>
+                <TextBox Width="90" Style="{StaticResource Field}" Text="{Binding Password, UpdateSourceTrigger=PropertyChanged}"/>
+                <Button Content="Connect" Style="{StaticResource PrimaryButton}" Margin="14,0,0,0" Command="{Binding ConnectCommand}"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Status bar -->
+        <Border DockPanel.Dock="Bottom" Background="#1E293B" CornerRadius="10" Padding="14,8" Margin="0,12,0,0">
+            <TextBlock Text="{Binding StatusText}" Foreground="#CBD5E1" FontSize="12" TextTrimming="CharacterEllipsis"/>
+        </Border>
+
+        <!-- Send row -->
+        <Border DockPanel.Dock="Bottom" Background="{StaticResource Panel}" CornerRadius="12" Padding="14,12" Margin="0,12,0,0">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Nick" Style="{StaticResource FieldLabel}"/>
+                <TextBox Width="110" Style="{StaticResource Field}" Text="{Binding Nick, UpdateSourceTrigger=PropertyChanged}"/>
+                <TextBox Margin="10,0,0,0" Width="360" Style="{StaticResource Field}"
+                         Text="{Binding NewMessage, UpdateSourceTrigger=PropertyChanged}"/>
+                <Button Content="Send" Style="{StaticResource PrimaryButton}" Margin="10,0,0,0" IsDefault="True" Command="{Binding SendCommand}"/>
+                <Button Content="Refresh" Style="{StaticResource SlateButton}" Margin="8,0,0,0" Command="{Binding RefreshCommand}"/>
+                <Button Content="Clear" Style="{StaticResource DangerButton}" Margin="8,0,0,0" Command="{Binding ClearCommand}"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Messages -->
+        <Border Background="{StaticResource Panel}" CornerRadius="12" Padding="8">
+            <ListBox x:Name="MessagesList" ItemsSource="{Binding Messages}" HorizontalContentAlignment="Stretch"
+                     Background="Transparent" BorderThickness="0"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     VirtualizingStackPanel.IsVirtualizing="False">
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Margin" Value="4,3"/>
+                        <Setter Property="Padding" Value="0"/>
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListBoxItem">
+                                    <ContentPresenter/>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </ListBox.ItemContainerStyle>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Border Background="#F8FAFC" BorderBrush="{StaticResource Line}" BorderThickness="1"
+                                CornerRadius="10" Padding="12,8">
+                            <StackPanel>
+                                <DockPanel Margin="0,0,0,3">
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding Timestamp, StringFormat=HH:mm:ss}"
+                                               Foreground="{StaticResource Muted}" FontSize="11" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding User}" FontWeight="Bold" FontSize="13"
+                                               Foreground="{Binding User, Converter={StaticResource UserBrush}}"/>
+                                </DockPanel>
+                                <TextBlock Text="{Binding Text}" TextWrapping="Wrap" Foreground="{StaticResource Ink}" FontSize="13"/>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Border>
+    </DockPanel>
+</Window>

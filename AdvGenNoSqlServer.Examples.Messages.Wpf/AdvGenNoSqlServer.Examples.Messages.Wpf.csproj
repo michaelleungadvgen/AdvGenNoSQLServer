@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>AdvGenNoSqlServer.Examples.Messages.Wpf</RootNamespace>
+    <AssemblyName>AdvGenNoSqlServer.Examples.Messages.Wpf</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AdvGenNoSqlServer.Examples.Messages\AdvGenNoSqlServer.Examples.Messages.csproj" />
+  </ItemGroup>
+
+</Project>

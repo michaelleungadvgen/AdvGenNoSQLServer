@@ -1,0 +1,138 @@
+@page "/"
+@inject MessageService Service
+@implements IAsyncDisposable
+
+<PageTitle>Cache Messages</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-2">Message Board</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+    Messages are stored only in server memory (StorageMode=Cache). They vanish when the server restarts.
+</MudText>
+
+<MudAlert Severity="@(_connected ? Severity.Success : Severity.Warning)" Class="mb-4">@_status</MudAlert>
+
+<MudPaper Elevation="2" Class="pa-4 mb-4" Style="max-height:400px;overflow-y:auto;">
+    @if (_messages.Count == 0)
+    {
+        <MudText Typo="Typo.body2" Color="Color.Secondary">No messages yet. Say hello!</MudText>
+    }
+    else
+    {
+        @foreach (var m in _messages)
+        {
+            <div class="mb-2">
+                <span style="color:#888">[@m.Timestamp.ToString("HH:mm:ss")]</span>
+                <b style="color:#1565C0">@m.User:</b>
+                <span>@m.Text</span>
+            </div>
+        }
+    }
+</MudPaper>
+
+<MudGrid>
+    <MudItem xs="12" sm="3">
+        <MudTextField @bind-Value="_nick" Label="Nick" Variant="Variant.Outlined" />
+    </MudItem>
+    <MudItem xs="12" sm="7">
+        <MudTextField @bind-Value="_newMessage" Label="Message" Variant="Variant.Outlined"
+                      OnKeyDown="OnKeyDown" Immediate="true" />
+    </MudItem>
+    <MudItem xs="12" sm="2" Class="d-flex align-center">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SendAsync"
+                   Disabled="@(!_connected || string.IsNullOrWhiteSpace(_newMessage))">Send</MudButton>
+    </MudItem>
+</MudGrid>
+<MudButton Class="mt-2" Variant="Variant.Text" Color="Color.Error" OnClick="ClearAsync"
+           Disabled="@(!_connected)">Clear all</MudButton>
+
+@code {
+    private List<Message> _messages = new();
+    private string _nick = "web-user";
+    private string _newMessage = string.Empty;
+    private bool _connected;
+    private string _status = "Connecting...";
+    private readonly CancellationTokenSource _cts = new();
+    private Task? _refreshTask;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await Service.ConnectAsync();
+            _connected = true;
+            _status = $"Connected to {Service.ConnectionDescription} - messages live in server memory.";
+            await LoadAsync();
+            _refreshTask = RefreshLoopAsync(_cts.Token);
+        }
+        catch (Exception ex)
+        {
+            _connected = false;
+            _status = $"Not connected: {ex.Message}. Start the server in cache mode (run-messages-web.bat).";
+        }
+    }
+
+    private async Task RefreshLoopAsync(CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
+        while (await timer.WaitForNextTickAsync(ct))
+        {
+            try
+            {
+                await LoadAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+            catch
+            {
+                // transient poll failure; keep trying
+            }
+        }
+    }
+
+    private async Task LoadAsync() => _messages = await Service.ListAsync();
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await SendAsync();
+    }
+
+    private async Task SendAsync()
+    {
+        var text = _newMessage.Trim();
+        if (text.Length == 0 || !_connected) return;
+        try
+        {
+            var nick = string.IsNullOrWhiteSpace(_nick) ? "web-user" : _nick.Trim();
+            await Service.SendAsync(nick, text);
+            _newMessage = string.Empty;
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _status = $"Send failed: {ex.Message}";
+        }
+    }
+
+    private async Task ClearAsync()
+    {
+        try
+        {
+            await Service.ClearAsync();
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _status = $"Clear failed: {ex.Message}";
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _cts.Cancel();
+        if (_refreshTask != null)
+        {
+            try { await _refreshTask; } catch { /* cancelled */ }
+        }
+        _cts.Dispose();
+        // The scoped MessageService is disposed by the DI container when the circuit ends.
+    }
+}

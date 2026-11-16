@@ -1,0 +1,14 @@
+<Router AppAssembly="@typeof(App).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <PageTitle>Not found</PageTitle>
+        <LayoutView Layout="@typeof(MainLayout)">
+            <MudContainer MaxWidth="MaxWidth.Small" Class="mt-16">
+                <MudText Typo="Typo.h5">Page not found</MudText>
+            </MudContainer>
+        </LayoutView>
+    </NotFound>
+</Router>

@@ -1,0 +1,20 @@
+@inherits LayoutComponentBase
+
+<MudThemeProvider />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudIcon Icon="@Icons.Material.Filled.Forum" Class="mr-2" />
+        <MudText Typo="Typo.h6">AdvGenNoSQL Cache-Mode Messages</MudText>
+        <MudSpacer />
+        <MudChip T="string" Color="Color.Info" Size="Size.Small">StorageMode=Cache · memory-only</MudChip>
+    </MudAppBar>
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.Medium" Class="pt-4 pb-4">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
