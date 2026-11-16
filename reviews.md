@@ -634,42 +634,109 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 
 ---
 
+## Security Re-verification — 2026-11-14
+
+All 42 `SEC-*` findings in the Findings Log were re-checked against the **current working-tree code**. The original findings were written against an older snapshot, so many were stale; the line numbers in the evidence table below are current. Findings Log statuses were updated to `Fixed / Partial / Open (verified 2026-11-14)`.
+
+**Result: 20 Fixed · 6 Partial · 16 Open.**
+
+### Important corrections to the original review
+- **SEC-038 was misread.** The Server HTTP API is **not** unauthenticated: an `X-Api-Key` middleware guards every `/api` route (`Server/Program.cs:106-119`), Production refuses to start without `AdminApiKey` (`:29-37`), and database create/delete/select are honest `501` stubs. Residual: it still binds `http://0.0.0.0` and is keyless-open **only** as an explicitly-warned non-Production convenience.
+- **Two parallel RBAC stacks exist.** The server uses `AuthenticationManager` + `UserRole` + `CommandAuthorizer` + `FileUserStore`. The older `RoleManager`/`AuthenticationService` (permission-string, in-memory) is referenced only by tests/examples. SEC-012/SEC-013 target that legacy stack; the running server's role path is Admin-gated and persisted.
+- **Auth/authz core is hardened:** PBKDF2 + constant-time verify + lockout (SEC-001/002/004), per-connection TCP auth gate (SEC-037), anonymous role enforced (SEC-040), HTTP/TCP role matrix aligned (SEC-039), session revocation on role/password/user changes (SEC-041), `Authorize` checks permissions (SEC-034).
+- **Storage durability fixed:** `HybridDocumentStore` acks only after an atomic on-disk write and surfaces write failures (SEC-033; see also STOR-001).
+- **SEC-036 is inert today:** the resume token is unsigned, but resume is unimplemented and the token payload is ignored — sign it before ever honoring its contents.
+
+### Evidence (current code)
+
+| ID | Verdict | Evidence (file:line) | Note |
+|----|---------|----------------------|------|
+| SEC-001 | Fixed | AuthenticationManager.cs:404 | PBKDF2 (`Rfc2898DeriveBytes`) replaces SHA256 |
+| SEC-002 | Fixed | AuthenticationManager.cs:431 | `CryptographicOperations.FixedTimeEquals` |
+| SEC-003 | Fixed | AuthenticationManager.cs:17-19 | `ConcurrentDictionary` + `_mutationLock` |
+| SEC-004 | Fixed | AuthenticationManager.cs:115,164-184 | Per-account lockout (5 attempts / 15 min default) |
+| SEC-005 | Partial | NoSqlServer.cs:416,452; Host/Program.cs:501 | 6-char min at entry points; core `RegisterUser` has no complexity rules |
+| SEC-006 | Open | JwtTokenProvider.cs:19,34 | Secret held as managed `string`, not protected/zeroizable |
+| SEC-007 | Partial | AuthenticationManager.cs:221-240 | Session/TCP revocation added; stateless JWT has no jti blacklist |
+| SEC-008 | Fixed | JwtTokenProvider.cs:216-220,247-251 | Signature verified (constant-time) before reading claims |
+| SEC-009 | Open | EncryptionService.cs:49-54 | Auto-generated key: TODO only, no warning/persistence |
+| SEC-010 | Partial | EncryptionService.cs:265-290 | Still combined `byte[]`; `ExtractSaltAndKey` helper added |
+| SEC-011 | Fixed | RoleManager.cs:14-15,331,382 | Concurrent collections throughout |
+| SEC-012 | Fixed | CommandAuthorizer.cs:44-47; NoSqlServer.cs:350 | `setrole`/`createuser` Admin-gated; legacy RoleManager unused by server |
+| SEC-013 | Partial | AuthenticationManager.cs:355-366; FileUserStore.cs:40-56 | Server roles persist; legacy RoleManager non-persistent (dead code) |
+| SEC-014 | Fixed | RoleManager.cs:423-426 | `ConcurrentDictionary.TryAdd` |
+| SEC-015 | Open | AuditLogger.cs:552-560 | No masking of `Details`/`Resource` |
+| SEC-016 | Open | WriteAheadLog.cs:327-348 | WAL plaintext (CRC32 integrity only) |
+| SEC-017 | Open | TlsStreamHelper.cs:459-465 | Accepts name-mismatched cert if Subject *contains* "localhost" (spoofable substring) |
+| SEC-018 | Open | TlsStreamHelper.cs:339-341 | `X509KeyStorageFlags.Exportable` on production PFX load |
+| SEC-019 | Open | TlsStreamHelper.cs:456,463,484 | `Console.WriteLine` for security events, no ILogger |
+| SEC-020 | Fixed | TlsStreamHelper.cs:172-187 | Cert pinning (`CertificatePinValidator`), server-side only |
+| SEC-021 | Fixed | ServerConfiguration.cs:223-273 | Configurable `SslProtocols` / TLS 1.3-only + `TlsVersionValidator` |
+| SEC-022 | Open | TcpServer.cs:354 | JSON error via interpolation (constant reasons today, low exploitability) |
+| SEC-023 | Open | TcpServer.cs:358,372 | Silent catch in reject / SSL-error send |
+| SEC-024 | Open | ConnectionHandler.cs:345 | `SendErrorAsync` interpolates message into JSON |
+| SEC-025 | Open | ConnectionHandler.cs:376,381 | Silent catch in `CloseAsync` (+ blocking `.Wait()`) |
+| SEC-026 | Partial | MessageProtocol.cs:165-183 | `CreateCommand` uses JsonSerializer; `CreateError` still interpolated |
+| SEC-027 | Fixed | Client.cs:331-336 | `JsonSerializer` for auth payload |
+| SEC-028 | Open | Client.cs:237,243 | Silent catch in `DisconnectAsync` |
+| SEC-029 | Fixed | NoSqlServer.cs:292-298 | `AuthenticationManager` (PBKDF2/lockout); no plaintext master compare |
+| SEC-030 | Open | NoSqlServer.cs:221 | Silent catch parsing cosmetic `version` (negligible impact) |
+| SEC-031 | Fixed | FilterEngine.cs:238-267 | 100 ms regex match timeout |
+| SEC-032 | Open | QueryExecutor.cs:375-378 | Silent index-query failure; can return 0 results with no fallback |
+| SEC-033 | Fixed | HybridDocumentStore.cs:489,504-511 | Durability gate + failures counted/logged/propagated + AtomicFileWriter |
+| SEC-034 | Fixed | AuthenticationService.cs:202-208 | `Authorize` checks `UserHasPermission` |
+| SEC-035 | Open | TransactionCoordinator.cs:314-317,361-364 | Silent cleanup/dispose catch |
+| SEC-036 | Partial | Cursor.cs:119-138; CursorImpl.cs:64-66 | Token unsigned but inert (resume unimplemented, payload ignored) |
+| SEC-037 | Fixed | Host/Program.cs:780,1151-1154 | Per-connection auth dict + AUTH_REQUIRED gate |
+| SEC-038 | Fixed | Server/Program.cs:106-119,29-37 | X-Api-Key gate + Production fail-fast + 501 DB stubs |
+| SEC-039 | Fixed | Host/Program.cs:401,418,434 | HTTP writes Admin/ReadWrite; matches CommandAuthorizer |
+| SEC-040 | Fixed | Host/Program.cs:1149-1163; NoSqlServer.cs:335-353 | Anonymous role enforced unconditionally |
+| SEC-041 | Fixed | Host/Program.cs:1577-1586 | `RevokeUserSessions` evicts identity + revokes tokens |
+| SEC-042 | Open | Host/Program.cs:301-308,158 | DB-select mutates singleton `DocumentStore` (any authenticated user) |
+
+### What remains (16 Open + 6 Partial)
+- **Transport/TLS:** SEC-017 localhost name-mismatch bypass (spoofable substring), SEC-018 exportable keys, SEC-019 Console logging.
+- **JSON injection / silent catches (mostly low):** SEC-022/024/026 error payloads; SEC-023/025/028/030/032/035 unlogged catches (SEC-032 can silently return 0 results).
+- **Secrets / data at rest:** SEC-006 JWT key in memory, SEC-009 auto-key not persisted/warned, SEC-015 audit not masked, SEC-016 WAL plaintext.
+- **Authorization:** SEC-042 database-select mutates a shared singleton.
+- **Partial:** SEC-005 password complexity, SEC-007 JWT jti blacklist, SEC-010 key-return clarity, SEC-013 legacy role persistence, SEC-026 `CreateError`, SEC-036 resume-token signing.
+
 ## Review Notes
 
 ### Findings Log
 
 | ID | File | Line | Severity | Description | Status |
 |----|------|------|----------|-------------|--------|
-| SEC-001 | AuthenticationManager.cs | 143-155 | Critical | Password hashing uses SHA256 instead of PBKDF2/bcrypt/Argon2. SHA256 is too fast and vulnerable to brute-force attacks. Must use key derivation function with minimum 100k iterations. | Open |
-| SEC-002 | AuthenticationManager.cs | 58 | High | Password hash comparison uses `!=` operator which is vulnerable to timing attacks. Must use constant-time comparison `CryptographicOperations.FixedTimeEquals()`. | Open |
-| SEC-003 | AuthenticationManager.cs | 13-14 | High | `_users` and `_activeSessions` Dictionary objects are not thread-safe. Concurrent access from multiple connections will cause race conditions. Use `ConcurrentDictionary<>`. | Open |
-| SEC-004 | AuthenticationManager.cs | 52-71 | Medium | No rate limiting for authentication attempts. Vulnerable to brute-force attacks. Implement failed attempt tracking and lockout. | Open |
-| SEC-005 | AuthenticationManager.cs | 30-50 | Medium | No password complexity validation. Should enforce minimum length (12+), complexity requirements, and check against common password lists. | Open |
-| SEC-006 | JwtTokenProvider.cs | 19 | Medium | Secret key stored as plain string in memory. Sensitive to memory dump attacks. Consider using SecureString or protected memory. | Open |
-| SEC-007 | JwtTokenProvider.cs | - | Low | No token revocation/blacklist mechanism. Tokens remain valid until expiration even after logout. Consider implementing JWT blacklist. | Open |
-| SEC-008 | JwtTokenProvider.cs | 208-228, 231-254 | Low | ExtractUsername and GetExpirationTime methods do not validate signature before returning data. Could expose claims from tampered tokens. | Open |
-| SEC-009 | EncryptionService.cs | 51-53 | Low | Auto-generated key has only TODO for logging. Could lead to data loss if key is not persisted. Should log warning or throw if no key store configured. | Open |
-| SEC-010 | EncryptionService.cs | 265-270 | Low | DeriveKeyFromPassword returns salt+key combined. Consider returning a struct with named properties for clarity. | Open |
-| SEC-011 | RoleManager.cs | 12-14 | High | `_roles`, `_userRoles`, and `PermissionRegistry._validPermissions` use non-thread-safe collections. Race conditions under concurrent access. Use `ConcurrentDictionary<>`. | Open |
-| SEC-012 | RoleManager.cs | - | Medium | No authorization check on role management methods. Any caller can elevate privileges. Should require `RoleManage` permission. | Open |
-| SEC-013 | RoleManager.cs | 263-321 | Medium | Default roles created in-memory only. Role/permission changes are lost on restart. Need persistence layer. | Open |
-| SEC-014 | RoleManager.cs | 425-428 | Low | `RegisterCustomPermission` not thread-safe. HashSet modification during concurrent reads causes exceptions. | Open |
-| SEC-015 | AuditLogger.cs | 512-517 | Low | JSON serialization could expose sensitive data. Consider filtering/masking sensitive fields before logging. | Open |
+| SEC-001 | AuthenticationManager.cs | 143-155 | Critical | Password hashing uses SHA256 instead of PBKDF2/bcrypt/Argon2. SHA256 is too fast and vulnerable to brute-force attacks. Must use key derivation function with minimum 100k iterations. | Fixed (verified 2026-11-14) |
+| SEC-002 | AuthenticationManager.cs | 58 | High | Password hash comparison uses `!=` operator which is vulnerable to timing attacks. Must use constant-time comparison `CryptographicOperations.FixedTimeEquals()`. | Fixed (verified 2026-11-14) |
+| SEC-003 | AuthenticationManager.cs | 13-14 | High | `_users` and `_activeSessions` Dictionary objects are not thread-safe. Concurrent access from multiple connections will cause race conditions. Use `ConcurrentDictionary<>`. | Fixed (verified 2026-11-14) |
+| SEC-004 | AuthenticationManager.cs | 52-71 | Medium | No rate limiting for authentication attempts. Vulnerable to brute-force attacks. Implement failed attempt tracking and lockout. | Fixed (verified 2026-11-14) |
+| SEC-005 | AuthenticationManager.cs | 30-50 | Medium | No password complexity validation. Should enforce minimum length (12+), complexity requirements, and check against common password lists. | Partial (verified 2026-11-14) |
+| SEC-006 | JwtTokenProvider.cs | 19 | Medium | Secret key stored as plain string in memory. Sensitive to memory dump attacks. Consider using SecureString or protected memory. | Open (verified 2026-11-14) |
+| SEC-007 | JwtTokenProvider.cs | - | Low | No token revocation/blacklist mechanism. Tokens remain valid until expiration even after logout. Consider implementing JWT blacklist. | Partial (verified 2026-11-14) |
+| SEC-008 | JwtTokenProvider.cs | 208-228, 231-254 | Low | ExtractUsername and GetExpirationTime methods do not validate signature before returning data. Could expose claims from tampered tokens. | Fixed (verified 2026-11-14) |
+| SEC-009 | EncryptionService.cs | 51-53 | Low | Auto-generated key has only TODO for logging. Could lead to data loss if key is not persisted. Should log warning or throw if no key store configured. | Open (verified 2026-11-14) |
+| SEC-010 | EncryptionService.cs | 265-270 | Low | DeriveKeyFromPassword returns salt+key combined. Consider returning a struct with named properties for clarity. | Partial (verified 2026-11-14) |
+| SEC-011 | RoleManager.cs | 12-14 | High | `_roles`, `_userRoles`, and `PermissionRegistry._validPermissions` use non-thread-safe collections. Race conditions under concurrent access. Use `ConcurrentDictionary<>`. | Fixed (verified 2026-11-14) |
+| SEC-012 | RoleManager.cs | - | Medium | No authorization check on role management methods. Any caller can elevate privileges. Should require `RoleManage` permission. | Fixed (verified 2026-11-14) |
+| SEC-013 | RoleManager.cs | 263-321 | Medium | Default roles created in-memory only. Role/permission changes are lost on restart. Need persistence layer. | Partial (verified 2026-11-14) |
+| SEC-014 | RoleManager.cs | 425-428 | Low | `RegisterCustomPermission` not thread-safe. HashSet modification during concurrent reads causes exceptions. | Fixed (verified 2026-11-14) |
+| SEC-015 | AuditLogger.cs | 512-517 | Low | JSON serialization could expose sensitive data. Consider filtering/masking sensitive fields before logging. | Open (verified 2026-11-14) |
 | PERF-001 | AuditLogger.cs | 545 | Low | `GetAwaiter().GetResult()` in Dispose blocks thread. Consider implementing `IAsyncDisposable`. | Open |
 | OPS-001 | AuditLogger.cs | - | Low | No log retention/archival policy. Old log files accumulate indefinitely. Add configurable cleanup. | Open |
 | PERF-002 | WriteAheadLog.cs | 60 | High | `GetAwaiter().GetResult()` in constructor blocks thread. Can cause deadlocks. Use factory pattern or async initialization. | Open |
-| SEC-016 | WriteAheadLog.cs | - | Medium | WAL data is unencrypted. Sensitive document data stored in plaintext. Add optional encryption layer. | Open |
+| SEC-016 | WriteAheadLog.cs | - | Medium | WAL data is unencrypted. Sensitive document data stored in plaintext. Add optional encryption layer. | Open (verified 2026-11-14) |
 | DATA-001 | WriteAheadLog.cs | 696-700 | Medium | CRC mismatch throws exception, stopping recovery. Consider option to skip corrupted entries for partial recovery. | Open |
 | DATA-002 | WriteAheadLog.cs | 99-101 | Low | Silent exception swallowing when loading checkpoint hides corruption. Should log warning. | Open |
 | PERF-003 | LockManager.cs | 112 | High | Sync `AcquireLock` uses `GetAwaiter().GetResult()` blocking thread. Remove sync method or use sync-specific implementation. | Open |
 | CONC-001 | LockManager.cs | 16,19,22 | Medium | `List<>` and `HashSet<>` inside `ConcurrentDictionary` are not thread-safe for mutations. Use `ConcurrentBag<>` or explicit locking. | Open |
 | CONC-002 | LockManager.cs | 451-456 | Medium | `WaitForUpgradeAsync` releases then reacquires lock, creating race condition window. Implement true atomic upgrade. | Open |
 | DATA-003 | LockManager.cs | 678 | Low | Silent exception swallowing in deadlock detection could hide bugs. Should log warning. | Open |
-| SEC-017 | TlsStreamHelper.cs | 254-262 | High | Allows localhost certificates with name mismatch - production security risk. Add configuration flag. | Open |
-| SEC-018 | TlsStreamHelper.cs | 135-137, 217 | High | Uses `X509KeyStorageFlags.Exportable` - private keys should not be exportable in production. | Open |
-| SEC-019 | TlsStreamHelper.cs | 252, 280 | Medium | Uses `Console.WriteLine` for security logging. Should use ILogger for proper audit trail. | Open |
-| SEC-020 | TlsStreamHelper.cs | - | Medium | No certificate pinning support. Documented in plan.md but not implemented. | Open |
-| SEC-021 | TlsStreamHelper.cs | 90 | Low | No TLS 1.3-only option for high-security environments. Consider adding SslProtocols.Tls13 only mode. | Open |
+| SEC-017 | TlsStreamHelper.cs | 254-262 | High | Allows localhost certificates with name mismatch - production security risk. Add configuration flag. | Open (verified 2026-11-14) |
+| SEC-018 | TlsStreamHelper.cs | 135-137, 217 | High | Uses `X509KeyStorageFlags.Exportable` - private keys should not be exportable in production. | Open (verified 2026-11-14) |
+| SEC-019 | TlsStreamHelper.cs | 252, 280 | Medium | Uses `Console.WriteLine` for security logging. Should use ILogger for proper audit trail. | Open (verified 2026-11-14) |
+| SEC-020 | TlsStreamHelper.cs | - | Medium | No certificate pinning support. Documented in plan.md but not implemented. | Fixed (verified 2026-11-14) |
+| SEC-021 | TlsStreamHelper.cs | 90 | Low | No TLS 1.3-only option for high-security environments. Consider adding SslProtocols.Tls13 only mode. | Fixed (verified 2026-11-14) |
 | PERF-004 | BTreeIndex.cs | 19 | Medium | Uses coarse-grained locking (single lock). Consider `ReaderWriterLockSlim` for read-heavy workloads. | Open |
 | DATA-004 | BTreeIndex.cs | 268-271 | Low | Count management in delete uses loop - could be simplified with values.Count decrement. | Open |
 | DATA-005 | BTreeIndex.cs | - | Low | No index persistence - in-memory only. Rebuilds on startup from documents. | Info |
@@ -678,41 +745,41 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | CODE-001 | PersistentDocumentStore.cs | 462-483 | Medium | Uses reflection to access private fields - fragile and breaks if InMemoryDocumentCollection changes. | Open |
 | CONC-003 | PersistentDocumentStore.cs | 478-480 | Low | Reflection-based count update with `Interlocked.Increment` then SetValue - potential race condition. | Open |
 | NET-001 | TcpServer.cs | 176, 216, 286 | Medium | Uses `Console.Error.WriteLine` for error logging. Should use ILogger for structured logging and proper audit trail. | Open |
-| SEC-022 | TcpServer.cs | 301 | Medium | JSON payload construction uses string interpolation `$"{{\"error\":\"{reason}\"}}"`. If reason contains quotes/special chars, JSON could be malformed or injected. Use JsonSerializer. | Open |
-| SEC-023 | TcpServer.cs | 304-305, 318-319 | Low | Silent exception swallowing in `SendConnectionRejectedAsync` and `SendSslErrorAsync`. Should log exceptions for debugging. | Open |
+| SEC-022 | TcpServer.cs | 301 | Medium | JSON payload construction uses string interpolation `$"{{\"error\":\"{reason}\"}}"`. If reason contains quotes/special chars, JSON could be malformed or injected. Use JsonSerializer. | Open (verified 2026-11-14) |
+| SEC-023 | TcpServer.cs | 304-305, 318-319 | Low | Silent exception swallowing in `SendConnectionRejectedAsync` and `SendSslErrorAsync`. Should log exceptions for debugging. | Open (verified 2026-11-14) |
 | RES-001 | TcpServer.cs | 163 | Low | Fire-and-forget task `_ = HandleConnectionAsync(...)` without exception observation. Exceptions silently lost. Add `.ContinueWith()` for logging. | Open |
 | PERF-005 | TcpServer.cs | 353 | Low | `Dispose()` calls `GetAwaiter().GetResult()` on async DisposeAsync. Common pattern but can deadlock if called from sync context. | Open |
 | BUG-001 | ConnectionHandler.cs | 115-134 | High | `EnableSslAsync` creates new SslStream but discards it - never assigns to `_stream`. Method is non-functional. The SslStream is lost and connection remains plaintext. | Open |
-| SEC-024 | ConnectionHandler.cs | 309-310 | Medium | JSON construction uses string interpolation for error messages. Same injection vulnerability as SEC-022. Use JsonSerializer. | Open |
+| SEC-024 | ConnectionHandler.cs | 309-310 | Medium | JSON construction uses string interpolation for error messages. Same injection vulnerability as SEC-022. Use JsonSerializer. | Open (verified 2026-11-14) |
 | NET-002 | ConnectionHandler.cs | 132 | Medium | Uses `Console.Error.WriteLine` for SSL error logging. Should use ILogger for structured logging. | Open |
 | PERF-006 | ConnectionHandler.cs | 338 | Medium | Uses blocking `.Wait()` on async `ShutdownAsync()`. Should use `await` with timeout or `CancellationTokenSource`. | Open |
-| SEC-025 | ConnectionHandler.cs | 340, 345 | Low | Silent exception swallowing in `CloseAsync`. Should log for debugging. | Open |
+| SEC-025 | ConnectionHandler.cs | 340, 345 | Low | Silent exception swallowing in `CloseAsync`. Should log for debugging. | Open (verified 2026-11-14) |
 | CODE-002 | ConnectionHandler.cs | 347 | Low | `await Task.CompletedTask` is unnecessary. Method should return `ValueTask.CompletedTask` or be non-async. | Open |
 | MEM-001 | ConnectionHandler.cs | 29-30 | Low | `PipeReader` and `PipeWriter` created but never used. Code uses `_stream.ReadAsync/WriteAsync` directly. Dead code. | Open |
 | RES-003 | ConnectionPool.cs | 16 | Medium | Class doesn't implement `IDisposable`. The `SemaphoreSlim` should be disposed when pool is no longer needed. | Open |
 | CONC-004 | ConnectionPool.cs | 110-112 | Low | Release() decrements counters before `_semaphore.Release()`. If Release throws (called too many times), counters become incorrect. | Open |
 | CODE-003 | ConnectionPool.cs | - | Low | No async versions of `Acquire`. Add `AcquireAsync()` using `_semaphore.WaitAsync()` for non-blocking async usage. | Open |
-| SEC-026 | MessageProtocol.cs | 167-168, 186 | Medium | JSON construction uses string interpolation in `CreateCommand` and `CreateError`. Injection risk if command/collection contains special chars. Use JsonSerializer. | Open |
+| SEC-026 | MessageProtocol.cs | 167-168, 186 | Medium | JSON construction uses string interpolation in `CreateCommand` and `CreateError`. Injection risk if command/collection contains special chars. Use JsonSerializer. | Partial (verified 2026-11-14) |
 | DOS-001 | MessageProtocol.cs | 340 | Medium | Max payload size of 100MB is too large. Could enable memory exhaustion DoS. Reduce to 10MB or make configurable. | Open |
 | MEM-002 | MessageProtocol.cs | 296 | Low | `Serialize` returns rented buffer that caller must return. Error-prone API. Consider IDisposable wrapper struct. | Open |
 | CODE-004 | MessageProtocol.cs | 406 | Low | `buffer.AsSpan(offset).ToArray()` creates unnecessary copy. ParseHeader could accept ReadOnlySpan<byte>. | Open |
 | DATA-009 | MessageProtocol.cs | 374-376 | Low | Returns checksum 0 for empty data. Valid but means empty payload with checksum=0 always validates. Document this behavior. | Open |
-| SEC-027 | Client.cs | 325 | Critical | Auth payload uses string interpolation `$"{{\"username\":\"{username}\",\"password\":\"{password}\"}}"`. Injection risk if credentials contain special chars. Use JsonSerializer. | Open |
+| SEC-027 | Client.cs | 325 | Critical | Auth payload uses string interpolation `$"{{\"username\":\"{username}\",\"password\":\"{password}\"}}"`. Injection risk if credentials contain special chars. Use JsonSerializer. | Fixed (verified 2026-11-14) |
 | PERF-007 | Client.cs | 843 | Medium | `Dispose()` uses `GetAwaiter().GetResult()` - sync-over-async pattern. Can cause deadlocks. | Open |
-| SEC-028 | Client.cs | 237 | Low | Silent exception swallowing in `DisconnectAsync`. Should log for debugging. | Open |
+| SEC-028 | Client.cs | 237 | Low | Silent exception swallowing in `DisconnectAsync`. Should log for debugging. | Open (verified 2026-11-14) |
 | CODE-005 | Client.cs | 267 | Low | `PingAsync` catch block swallows all exceptions silently. Should distinguish between connection errors and others. | Open |
 | MEM-003 | Client.cs | 409, 426-427 | Low | `ReceiveMessageAsync` creates new byte arrays instead of using ArrayPool for header and payload buffers. | Open |
 | NET-003 | Client.cs | 717-718 | Info | Redundant encoding: `GetBytes(json)` then `GetByteCount(json)`. Just use `bytes.Length`. | Open |
 | CODE-006 | ClientOptions.cs | - | Low | No validation of option values. Negative timeouts, retry delays, or max retry attempts would cause issues at runtime. | Open |
 | BUG-002 | ClientFactory.cs | 14-15 | Medium | `CreateClient(AdvGenNoSqlClientOptions)` ignores all options except ServerAddress. All SSL, keepalive, retry settings are lost. | Open |
 | NET-004 | NoSqlServer.cs | 71 | Medium | `_tcpServer.StartAsync(cancellationToken)` is NOT AWAITED! Should be `await _tcpServer.StartAsync(...)` to propagate exceptions. | Open |
-| SEC-029 | NoSqlServer.cs | 227-230 | Medium | Simple auth compares plaintext master password without rate limiting. Token is just random GUID with no user association. | Open |
+| SEC-029 | NoSqlServer.cs | 227-230 | Medium | Simple auth compares plaintext master password without rate limiting. Token is just random GUID with no user association. | Fixed (verified 2026-11-14) |
 | ASYNC-001 | NoSqlServer.cs | 115 | Low | `async void` event handler. Unavoidable for events but could swallow exceptions. Try-catch mitigates this. | Open |
-| SEC-030 | NoSqlServer.cs | 165 | Low | Silent exception swallowing when parsing handshake. Should at least log a warning. | Open |
+| SEC-030 | NoSqlServer.cs | 165 | Low | Silent exception swallowing when parsing handshake. Should at least log a warning. | Open (verified 2026-11-14) |
 | CONC-005 | NoSqlServer.cs | 352-363 | Low | Check-then-act pattern (ExistsAsync then InsertAsync/UpdateAsync) is not atomic. Race condition possible. | Open |
 | DOS-002 | QueryParser.cs | - | Low | No limit on JSON depth. Deeply nested JSON could cause stack overflow. Set JsonSerializerOptions.MaxDepth. | Open |
 | CODE-008 | QueryParser.cs | 86 | Info | Unknown properties silently treated as filter conditions. Could be confusing. Consider whitelist or documentation. | Open |
-| SEC-031 | FilterEngine.cs | 252-256 | Medium | Regex.IsMatch without timeout. Complex patterns could cause ReDoS. Add RegexOptions with MatchTimeout. | Open |
+| SEC-031 | FilterEngine.cs | 252-256 | Medium | Regex.IsMatch without timeout. Complex patterns could cause ReDoS. Add RegexOptions with MatchTimeout. | Fixed (verified 2026-11-14) |
 | PERF-008 | FilterEngine.cs | 252-256 | Low | Regex compiled on every call. Cache compiled regex patterns for performance. | Open |
 | CODE-009 | FilterEngine.cs | 250-259 | Info | Wildcard syntax (* and ?) mixed with regex. Potentially confusing. Document the behavior clearly. | Open |
 | DATA-010 | TransactionManager.cs | 50-51, 72-73 | High | **STUB IMPLEMENTATION**: Commit/Rollback don't actually apply operations! Comments say "In a real implementation...". No ACID guarantees. | Open |
@@ -723,14 +790,14 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | MEM-005 | AdvancedTransactionManager.cs | 150-167 | Low | Cleanup only marks expired active txns as Failed. Completed txns never removed from dictionary. | Open |
 | CODE-010 | QueryExecutor.cs | 312-346 | Medium | Uses reflection to invoke index methods. Fragile and slow. Should use common IIndex interface. | Open |
 | PERF-009 | QueryExecutor.cs | 412-440 | Medium | ApplyProjection modifies original documents in-place. Mutates cached/stored docs causing side effects. Clone docs first. | Open |
-| SEC-032 | QueryExecutor.cs | 343-345 | Low | Silent exception swallowing in QueryIndexAsync. Should log warning. | Open |
+| SEC-032 | QueryExecutor.cs | 343-345 | Low | Silent exception swallowing in QueryIndexAsync. Should log warning. | Open (verified 2026-11-14) |
 | PERF-010 | QueryExecutor.cs | 49-55 | Low | Sequential document fetching by ID in loop. Could be parallelized or batch-fetched. | Open |
 | DATA-013 | HybridDocumentStore.cs | 98-101, 382-385 | High | Silent exception swallowing when loading documents from disk. Corrupted or invalid JSON data is silently skipped without logging - could hide data loss. | Open |
 | DATA-014 | HybridDocumentStore.cs | 442-443 | Medium | `File.WriteAllTextAsync` is not atomic. Crash during write corrupts file. Write to temp file then atomic rename. | Open |
 | DATA-015 | HybridDocumentStore.cs | 122-136 | Medium | Race condition in `InsertAsync` between `ContainsKey` check and `TryAdd`. Concurrent inserts could bypass duplicate detection. | Open |
-| SEC-033 | HybridDocumentStore.cs | 411-414 | Low | Silent exception swallowing in write queue processing. Write failures are never reported, potentially losing data. | Open |
+| SEC-033 | HybridDocumentStore.cs | 411-414 | Low | Silent exception swallowing in write queue processing. Write failures are never reported, potentially losing data. | Fixed (verified 2026-11-14) |
 | BUG-003 | AuthenticationService.cs | 71-76 | High | `GetUsernameFromToken` always returns `null`. Method is non-functional - comments indicate it was never implemented. | Open |
-| SEC-034 | AuthenticationService.cs | 182-200 | High | `Authorize` method bypasses permission check entirely. After token validation, it always returns `Success()` without checking user permissions against required permission. Major security flaw. | Open |
+| SEC-034 | AuthenticationService.cs | 182-200 | High | `Authorize` method bypasses permission check entirely. After token validation, it always returns `Success()` without checking user permissions against required permission. Major security flaw. | Fixed (verified 2026-11-14) |
 | AUDIT-001 | AuthenticationService.cs | 226 | Medium | Uses `Console.WriteLine` for audit logging instead of existing `IAuditLogger` interface. Audit logs are lost/inconsistent. | Open |
 | CONC-007 | AuthenticationService.cs | 32-42 | Medium | Non-atomic `RegisterUser` - if auth registration succeeds but role assignment fails, user exists without a role. Should cleanup on failure. | Open |
 | CODE-011 | AuthenticationService.cs | 36-42 | Low | Silent failure when initial role doesn't exist. Role assignment silently skipped. Should log warning or throw. | Open |
@@ -744,7 +811,7 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | API-005 | ITransactionManager.cs | 1 | Low | Missing file header/license comment. Also `TransactionOperation.OperationType` uses string instead of enum for type safety. | Open |
 | ASYNC-002 | TransactionCoordinator.cs | 289, 301 | Medium | `async void` in event handlers and timer callbacks. Exceptions would crash process if not caught. Methods have try-catch but risky pattern. | Open |
 | PERF-012 | TransactionCoordinator.cs | 359 | Medium | `AbortAsync(...).Wait()` sync-over-async in Dispose. Can cause deadlocks. | Open |
-| SEC-035 | TransactionCoordinator.cs | 313-316 | Low | Silent exception swallowing in cleanup. Should log error for debugging. | Open |
+| SEC-035 | TransactionCoordinator.cs | 313-316 | Low | Silent exception swallowing in cleanup. Should log error for debugging. | Open (verified 2026-11-14) |
 | BUG-005 | TransactionContext.cs | 239-240 | Medium | `RollbackToSavepointAsync` resets operation count but doesn't undo operations. WriteSet is not restored - savepoint rollback is incomplete. | Open |
 | ASYNC-003 | TransactionContext.cs | 378 | Low | Fire-and-forget `_ = RollbackAsync()` in Dispose. Exceptions lost, rollback may not complete. | Open |
 | CONC-009 | TransactionContext.cs | 279 | Low | Lock type uses `Shared` for non-Serializable writes. Writes should always use `Exclusive` to prevent write-write conflicts. | Open |
@@ -767,7 +834,7 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | DATA-022 | AdvancedFileStorageManager.cs | 62 | Medium | `File.WriteAllTextAsync` is non-atomic. Process crash mid-write corrupts file. Use write-to-temp + rename pattern. | Open |
 | CODE-015 | AggregationPipeline.cs | 58-62 | Low | `AddStages` does not null-check individual stages unlike `AddStage`. Null stage silently enters list and causes NullReferenceException at execution instead of ArgumentNullException at add time. | Open |
 | CODE-016 | AggregationResult.cs | 17,27,37,42 | Low | Result type has public setters on all properties. Callers can mutate results post-construction. Replace `set` with `init` accessors to enforce immutability and signal intent. `FailureResult` redundantly sets `Documents = new List<Document>()` (property initializer already does this). | Open |
-| SEC-036 | Cursor.cs | 119-138 | Medium | `ResumeToken` is Base64-encoded JSON with no HMAC/signature. Clients can tamper with `FilterJson`, `SortJson`, or `LastDocumentId` to manipulate pagination. Sign tokens with HMAC-SHA256 before returning to clients. | Open |
+| SEC-036 | Cursor.cs | 119-138 | Medium | `ResumeToken` is Base64-encoded JSON with no HMAC/signature. Clients can tamper with `FilterJson`, `SortJson`, or `LastDocumentId` to manipulate pagination. Sign tokens with HMAC-SHA256 before returning to clients. | Partial (verified 2026-11-14) |
 | CODE-017 | Cursor.cs | 33 | Low | `ICursor.Sort` is typed as `List<SortField>?` instead of `IReadOnlyList<SortField>?`. Callers can mutate the active cursor's sort specification mid-flight. | Open |
 | PERF-013 | CursorImpl.cs | 189 | High | `FetchDocumentsAsync` calls `GetAllAsync` on the full collection on every invocation. Both `GetNextBatchAsync` and `HasMoreAsync` call it independently. Iterating N batches = O(C×N) full collection scans. Cache the full filtered+sorted result on first fetch. | Open |
 | DATA-023 | CursorImpl.cs | 209 | Medium | Position-based pagination re-fetches live data each batch. Documents inserted/deleted between calls cause result skips or duplicates. Cursors should snapshot the result set at creation time. | Open |
@@ -781,7 +848,7 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | CODE-019 | CursorEnabledQueryExecutor.cs | 55-64 | Medium | `ExecuteAsync` silently switches to cursor mode for limit-only queries. The created cursor is never killed in `ExecuteWithCursorInternalAsync` — leaks in `_cursorManager._cursors` for up to 10 minutes per call. Call `KillCursorAsync` after returning the first batch. | Open |
 | BUG-010 | CursorEnabledQueryExecutor.cs | 139 | Medium | `TotalCount = cursorResult.TotalCount ?? cursorResult.Documents.Count` — when `IncludeTotalCount` is false (default), falls back to first-batch size, not the real total. Callers receive incorrect TotalCount values. | Open |
 | CODE-020 | CursorEnabledQueryExecutor.cs | 26-33 | Low | Primary constructor hard-codes `new CursorManager(...)` — bypasses DI and couples to concrete implementation. Use the overloaded constructor accepting `ICursorManager` from DI instead. | Open |
-| SEC-037 | Program.cs (Host) | 419-458 | High | No per-connection authentication state tracked. `HandleCommandAsync` executes document operations without verifying the connection authenticated first. Any client can skip `Authentication` message and send commands directly. Track auth state per `connectionId` and gate `HandleCommandAsync` on it. | Open |
+| SEC-037 | Program.cs (Host) | 419-458 | High | No per-connection authentication state tracked. `HandleCommandAsync` executes document operations without verifying the connection authenticated first. Any client can skip `Authentication` message and send commands directly. Track auth state per `connectionId` and gate `HandleCommandAsync` on it. | Fixed (verified 2026-11-14) |
 | ASYNC-005 | Program.cs (Host) | 277 | Medium | `async void OnMessageReceivedAsync` — if `e.SendResponseAsync(errorResponse)` inside the `catch` block throws, the exception propagates unhandled on the thread pool and crashes the process. Wrap the entire handler body in try/catch or swallow/log the secondary failure. | Open |
 | BUG-011 | Program.cs (Host) | 599-607 | Medium | `HandleBulkOperationAsync` is a stub — always returns `{ success:true, totalProcessed:0 }` regardless of payload. Bulk operations are silently no-oped. | Open |
 | CONC-019 | Program.cs (Host) | 514-522 | Low | `HandleSetCommandAsync`: `ExistsAsync` → `InsertAsync`/`UpdateAsync` is a TOCTOU race. Two concurrent requests for the same ID can both pass `ExistsAsync=false` and both invoke `InsertAsync`. | Open |
@@ -800,11 +867,11 @@ Review benchmark results in `AdvGenNoSqlServer.Benchmarks/`:
 | NET-007 | MessageProtocol.cs | 72-98, 326-341 | Medium | `MessageFlags` (`Compressed`, `Encrypted`, `RequireAck`, `EndOfBatch`) are parsed and copied onto the message but no production code reads them, and `ValidateHeader` accepts any flag byte. A frame flagged `Compressed` or `Encrypted` is processed as plain JSON, and `RequireAck` is silently ignored. | Open |
 | NET-008 | MessageProtocol.cs | 289-291, 398-422 | Low | CRC32 covers the payload only, so a corrupted type or flags byte that is still a valid value passes validation, and zero-length frames have no integrity check at all. `Deserialize` additionally skips the checksum when the payload is empty and allocates `new byte[payloadLength]` (up to 100MB) before checking that the buffer actually holds that many bytes. | Open |
 | NET-009 | TcpServer.cs | 341-344 | Low | On a `ProtocolException` (bad magic, version mismatch, oversized frame, checksum failure) the loop logs and drops the connection without sending an Error frame; `ConnectionHandler.SendErrorAsync` exists but is unused. Version is checked with strict equality and there is no negotiation, so any future protocol version bump is a silent disconnect for old clients. | Open |
-| SEC-038 | Program.cs (Server) | 84, 123-196 | Critical | The `AdvGenNoSqlServer.Server` HTTP API binds `http://0.0.0.0:{httpPort}` and maps every endpoint, including `POST`/`DELETE /api/databases/{name}` and `DELETE /api/collections/{name}`, with no `[Authorize]`, no `UseAuthentication` and no `RequireAuthorization`. Anyone who can reach the port can read and destroy data regardless of `RequireAuthentication`. | Open |
-| SEC-039 | Program.cs (Host) | 401, 418, 301, 346 | High | HTTP document `POST` and `PUT` carry a bare `[Authorize]`, so a `ReadOnly` user can insert and overwrite documents over HTTP while the same user is refused `set` over TCP. The HTTP matrix also disagrees with `CommandAuthorizer` elsewhere: document delete and collection create are Admin-only over HTTP but `ReadWrite` over TCP. | Open |
-| SEC-040 | Program.cs (Host) | 940-949, 1062-1070 | High | With `RequireAuthentication=false` the anonymous identity is stored with `AnonymousRole` (default ReadOnly), but the role check is inside `if (RequireAuthentication && ...)` and never runs. Anonymous TCP clients can run every command including `createuser`, `setrole` and `dropcollection`. The startup warning "anonymous connections get role X" describes behaviour the code does not implement. Same pattern in `NoSqlServer.cs` 278, 332. | Open |
-| SEC-041 | Program.cs (Host) | 694, 996 | Medium | `_authConnections` caches `(Username, Role)` for the life of the connection and is only cleared on disconnect. `setrole`, `deleteuser` and `setpassword` do not update or evict it, so a demoted or deleted user keeps the old privileges on open connections indefinitely (and on HTTP until the JWT expires, see SEC-007). | Open |
-| SEC-042 | Program.cs (Host) | 301-308 | Medium | `POST /api/databases/{name}/select` assigns `data.DocumentStore` on the singleton `ApiDataService`. Any authenticated user switches the active database for every other HTTP caller, and concurrent requests can read or write the wrong database. | Open |
+| SEC-038 | Program.cs (Server) | 84, 123-196 | Critical | The `AdvGenNoSqlServer.Server` HTTP API binds `http://0.0.0.0:{httpPort}` and maps every endpoint, including `POST`/`DELETE /api/databases/{name}` and `DELETE /api/collections/{name}`, with no `[Authorize]`, no `UseAuthentication` and no `RequireAuthorization`. Anyone who can reach the port can read and destroy data regardless of `RequireAuthentication`. | Fixed (verified 2026-11-14) |
+| SEC-039 | Program.cs (Host) | 401, 418, 301, 346 | High | HTTP document `POST` and `PUT` carry a bare `[Authorize]`, so a `ReadOnly` user can insert and overwrite documents over HTTP while the same user is refused `set` over TCP. The HTTP matrix also disagrees with `CommandAuthorizer` elsewhere: document delete and collection create are Admin-only over HTTP but `ReadWrite` over TCP. | Fixed (verified 2026-11-14) |
+| SEC-040 | Program.cs (Host) | 940-949, 1062-1070 | High | With `RequireAuthentication=false` the anonymous identity is stored with `AnonymousRole` (default ReadOnly), but the role check is inside `if (RequireAuthentication && ...)` and never runs. Anonymous TCP clients can run every command including `createuser`, `setrole` and `dropcollection`. The startup warning "anonymous connections get role X" describes behaviour the code does not implement. Same pattern in `NoSqlServer.cs` 278, 332. | Fixed (verified 2026-11-14) |
+| SEC-041 | Program.cs (Host) | 694, 996 | Medium | `_authConnections` caches `(Username, Role)` for the life of the connection and is only cleared on disconnect. `setrole`, `deleteuser` and `setpassword` do not update or evict it, so a demoted or deleted user keeps the old privileges on open connections indefinitely (and on HTTP until the JWT expires, see SEC-007). | Fixed (verified 2026-11-14) |
+| SEC-042 | Program.cs (Host) | 301-308 | Medium | `POST /api/databases/{name}/select` assigns `data.DocumentStore` on the singleton `ApiDataService`. Any authenticated user switches the active database for every other HTTP caller, and concurrent requests can read or write the wrong database. | Open (verified 2026-11-14) |
 | ARCH-004 | AuthenticationService.cs, RoleManager.cs | - | Medium | Two authorization stacks exist. Host and Server use `AuthenticationManager` + `UserRole` + `CommandAuthorizer`; `AuthenticationService` and the permission-based `RoleManager` are referenced only by tests and `Example.ConsoleApp`. Policy is therefore defined in three places (CommandAuthorizer map, HTTP attributes, RoleManager defaults) that already disagree, and the gate code is duplicated between `Host/Program.cs` and `Server/NoSqlServer.cs`. | Open |
 | AUDIT-002 | Program.cs (Host) | 1064-1069 | Low | `AUTH_REQUIRED` and `FORBIDDEN` results are returned without an audit event, although `IAuditLogger` has an authorization-failure method. Privilege probing leaves no trail. | Open |
 | QRY-001 | Program.cs (Host) | 346-363, 675 | High | The query engine is not reachable from either server. Host and Server reference `AdvGenNoSqlServer.Query` but contain no `using` of it; only `AdvGenNoSqlServer.Embedded` uses it. `POST /api/query` ignores `QueryRequest.Query`, returns the first 100 documents of the collection and reports `totalCount` as the page size. Host's TCP dispatch has no query, find or aggregate command; Server's `find_one` re-implements filtering in a private `MatchesFilter` (NoSqlServer.cs 1019) with a full scan instead of using `FilterEngine`/`QueryExecutor`. Indexes, cursors and aggregation are therefore unused over the network. | Open |
