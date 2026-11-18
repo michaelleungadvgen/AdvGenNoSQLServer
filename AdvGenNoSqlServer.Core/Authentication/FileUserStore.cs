@@ -18,8 +18,16 @@ public sealed class FileUserStore : IUserStore
     private readonly string _path;
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FileUserStore"/> class backed by the given JSON file path
+    /// </summary>
+    /// <param name="path">Path of the users JSON file</param>
     public FileUserStore(string path) => _path = path;
 
+    /// <summary>
+    /// Loads persisted users from the JSON file; returns an empty list when the file is missing, backing up a corrupt file
+    /// </summary>
+    /// <returns>The persisted user records</returns>
     public IReadOnlyList<PersistedUser> Load()
     {
         if (!File.Exists(_path)) return Array.Empty<PersistedUser>();
@@ -37,6 +45,10 @@ public sealed class FileUserStore : IUserStore
         }
     }
 
+    /// <summary>
+    /// Atomically saves the users to the JSON file (temp file + move) and restricts file permissions on Unix
+    /// </summary>
+    /// <param name="users">The user records to persist</param>
     public void Save(IEnumerable<PersistedUser> users)
     {
         var dir = Path.GetDirectoryName(_path);

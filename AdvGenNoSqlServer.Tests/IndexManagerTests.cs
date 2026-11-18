@@ -546,12 +546,11 @@ public class IndexManagerTests
         Assert.Equal(28, results[3].Key);
     }
 
-    [Fact(Skip = "Unique constraint enforcement requires tree-wide duplicate check - see BTreeIndex.Insert with IsUnique=true")]
+    [Fact]
     public void FullWorkflow_UniqueIndex_EnforcesUniqueness()
     {
-        // This test documents the expected behavior for unique indexes
-        // The current implementation checks for duplicates at the leaf level during insertion
-        // For full tree-wide duplicate checking, use IBTreeIndex<TKey, TValue> directly with IsUnique=true
+        // Unique indexes enforce tree-wide duplicate checking on insert,
+        // surfacing DuplicateKeyException through IndexManager.IndexDocument
         var manager = new IndexManager();
 
         var emailIndex = manager.CreateIndex(

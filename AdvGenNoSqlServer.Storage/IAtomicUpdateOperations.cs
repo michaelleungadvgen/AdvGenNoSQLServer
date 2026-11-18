@@ -237,11 +237,33 @@ public enum AtomicOperationType
 /// </summary>
 public class AtomicUpdateException : DocumentStoreException
 {
+    /// <summary>
+    /// The collection containing the document that failed to update.
+    /// </summary>
     public string CollectionName { get; }
+
+    /// <summary>
+    /// The ID of the document that failed to update.
+    /// </summary>
     public string DocumentId { get; }
+
+    /// <summary>
+    /// The field path targeted by the failed update.
+    /// </summary>
     public string FieldPath { get; }
+
+    /// <summary>
+    /// The atomic operation type that failed, if known.
+    /// </summary>
     public AtomicOperationType? OperationType { get; }
 
+    /// <summary>
+    /// Creates a new exception describing a failed atomic update on a field.
+    /// </summary>
+    /// <param name="collectionName">The collection containing the document.</param>
+    /// <param name="documentId">The ID of the document being updated.</param>
+    /// <param name="fieldPath">The field path targeted by the update.</param>
+    /// <param name="message">The message describing the failure.</param>
     public AtomicUpdateException(string collectionName, string documentId, string fieldPath, string message)
         : base($"Atomic update failed for '{fieldPath}' in document '{documentId}': {message}")
     {
@@ -250,6 +272,14 @@ public class AtomicUpdateException : DocumentStoreException
         FieldPath = fieldPath;
     }
 
+    /// <summary>
+    /// Creates a new exception describing a failed atomic update, including the operation type.
+    /// </summary>
+    /// <param name="collectionName">The collection containing the document.</param>
+    /// <param name="documentId">The ID of the document being updated.</param>
+    /// <param name="fieldPath">The field path targeted by the update.</param>
+    /// <param name="operationType">The atomic operation that failed.</param>
+    /// <param name="message">The message describing the failure.</param>
     public AtomicUpdateException(string collectionName, string documentId, string fieldPath, AtomicOperationType operationType, string message)
         : base($"Atomic update failed for '{fieldPath}' in document '{documentId}' ({operationType}): {message}")
     {

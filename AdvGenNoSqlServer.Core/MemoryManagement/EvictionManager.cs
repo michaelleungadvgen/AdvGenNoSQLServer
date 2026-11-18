@@ -17,16 +17,32 @@ public sealed class EvictionManager
     private long _usedBytes;
     private long _evictionCount;
 
+    /// <summary>Gets the total size in bytes of all tracked entries.</summary>
     public long UsedBytes => Volatile.Read(ref _usedBytes);
+
+    /// <summary>Gets the number of entries physically evicted so far.</summary>
     public long EvictionCount => Volatile.Read(ref _evictionCount);
+
+    /// <summary>Gets the number of entries currently tracked.</summary>
     public int EntryCount => _metadata.Count;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="EvictionManager"/> class
+    /// </summary>
+    /// <param name="policy">The eviction policy used for victim selection</param>
+    /// <param name="limitBytes">The memory limit in bytes the engine enforces</param>
     public EvictionManager(EvictionPolicy policy, long limitBytes)
     {
         _policy = policy;
         _limitBytes = limitBytes;
     }
 
+    /// <summary>
+    /// Records an insert or update of an entry, adjusting used bytes and its expiration
+    /// </summary>
+    /// <param name="key">The entry key</param>
+    /// <param name="sizeBytes">The entry size in bytes</param>
+    /// <param name="ttl">Optional time-to-live; null or non-positive means no expiration</param>
     public void RecordSet(string key, int sizeBytes, TimeSpan? ttl)
     {
         long expireAtMs = ttl.HasValue && ttl.Value > TimeSpan.Zero
@@ -55,6 +71,10 @@ public sealed class EvictionManager
             });
     }
 
+    /// <summary>
+    /// Records a read access, refreshing the last-access time and incrementing the hit count
+    /// </summary>
+    /// <param name="key">The accessed entry key</param>
     public void RecordAccess(string key)
     {
         if (_metadata.TryGetValue(key, out var meta))
@@ -66,6 +86,10 @@ public sealed class EvictionManager
         }
     }
 
+    /// <summary>
+    /// Removes an entry's metadata and subtracts its size from the used-byte total
+    /// </summary>
+    /// <param name="key">The entry key to remove</param>
     public void Remove(string key)
     {
         if (_metadata.TryRemove(key, out var meta))

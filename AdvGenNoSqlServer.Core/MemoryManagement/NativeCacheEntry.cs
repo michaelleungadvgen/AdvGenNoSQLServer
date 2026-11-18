@@ -13,8 +13,13 @@ public unsafe struct NativeCacheEntry : IDisposable
 {
     private byte* _dataPtr;
     private readonly int _size;
+    /// <summary>Gets the creation timestamp in Unix milliseconds.</summary>
     public long Timestamp { get; }
 
+    /// <summary>
+    /// Allocates unmanaged memory and copies the given bytes into it
+    /// </summary>
+    /// <param name="data">The bytes to store</param>
     public NativeCacheEntry(ReadOnlySpan<byte> data)
     {
         _size = data.Length;
@@ -24,10 +29,18 @@ public unsafe struct NativeCacheEntry : IDisposable
         Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     }
 
+    /// <summary>Gets the size of the stored data in bytes.</summary>
     public int Size => _size;
 
+    /// <summary>
+    /// Gets a span over the unmanaged data; valid only until the entry is disposed
+    /// </summary>
+    /// <returns>A read-only span of the stored bytes</returns>
     public ReadOnlySpan<byte> AsSpan() => new(_dataPtr, _size);
 
+    /// <summary>
+    /// Frees the unmanaged memory; safe to call multiple times
+    /// </summary>
     public void Dispose()
     {
         if (_dataPtr != null)

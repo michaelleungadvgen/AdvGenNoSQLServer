@@ -67,4 +67,22 @@ public class CompactorTests : IDisposable
         using var reopened = new AdvGenDatabase(path);
         Assert.Equal(50, await reopened.GetCollection("items").CountAsync());
     }
+
+    [Fact]
+    public async Task Compact_PreservesTimestampsAndVersion()
+    {
+        var path = DbPath();
+        using var db = new AdvGenDatabase(path);
+        var col = db.GetCollection("items");
+        await col.InsertAsync(new Document { Id = "keep", Data = new() { ["n"] = 1L } });
+        var updated = await col.UpdateAsync(new Document { Id = "keep", Data = new() { ["n"] = 2L } });
+
+        await db.CompactAsync();
+
+        var after = await db.GetCollection("items").FindByIdAsync("keep");
+        Assert.NotNull(after);
+        Assert.Equal(updated.CreatedAt, after!.CreatedAt);
+        Assert.Equal(updated.UpdatedAt, after.UpdatedAt);
+        Assert.Equal(updated.Version, after.Version);
+    }
 }

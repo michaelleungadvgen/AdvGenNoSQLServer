@@ -32,7 +32,13 @@ public sealed class WriteAheadLog : IDisposable
         _walPath = walPath;
         _stream = new FileStream(walPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
         // Scan existing committed frames to resume the LSN counter.
-        ScanExisting();
+        long validEnd = ScanExisting();
+        if (validEnd < _stream.Length)
+        {
+            // Repair a torn/corrupt tail so new commits never append after garbage.
+            _stream.SetLength(validEnd);
+            _stream.Flush(true);
+        }
         _stream.Seek(0, SeekOrigin.End);
     }
 
@@ -151,11 +157,12 @@ public sealed class WriteAheadLog : IDisposable
         _pending.Clear();
     }
 
-    private void ScanExisting()
+    private long ScanExisting()
     {
         // Recompute _nextLsn and _lastCommittedLsn from the highest valid frame lsn.
+        // Returns the end position of the last valid frame (torn-tail repair point).
         long length = _stream.Length;
-        if (length == 0) { _nextLsn = 1; return; }
+        if (length == 0) { _nextLsn = 1; return 0; }
 
         var all = new byte[length];
         _stream.Seek(0, SeekOrigin.Begin);
@@ -197,6 +204,7 @@ public sealed class WriteAheadLog : IDisposable
             else break;
         }
         _nextLsn = maxLsn + 1;
+        return pos;
     }
 
     /// <inheritdoc />

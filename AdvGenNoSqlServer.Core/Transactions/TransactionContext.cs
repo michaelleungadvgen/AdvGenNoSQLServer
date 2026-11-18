@@ -275,9 +275,8 @@ public class TransactionContext : ITransactionContext
 
         var key = $"{collectionName}:{documentId}";
 
-        // Acquire appropriate lock based on isolation level
-        var lockType = IsolationLevel == IsolationLevel.Serializable ? LockType.Exclusive : LockType.Shared;
-        var lockResult = await _lockManager.AcquireLockAsync(TransactionId, key, lockType);
+        // Writes always require an exclusive lock; shared locks are only valid for reads.
+        var lockResult = await _lockManager.AcquireLockAsync(TransactionId, key, LockType.Exclusive);
 
         if (lockResult == LockResult.DeadlockDetected)
         {
@@ -395,6 +394,16 @@ public class TransactionContext : ITransactionContext
 /// </summary>
 public class TransactionTimeoutException : Exception
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TransactionTimeoutException"/> class with a specified error message
+    /// </summary>
+    /// <param name="message">The error message</param>
     public TransactionTimeoutException(string message) : base(message) { }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TransactionTimeoutException"/> class with a specified error message and inner exception
+    /// </summary>
+    /// <param name="message">The error message</param>
+    /// <param name="innerException">The exception that caused this exception</param>
     public TransactionTimeoutException(string message, Exception innerException) : base(message, innerException) { }
 }

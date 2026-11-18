@@ -1,6 +1,6 @@
 # Production Readiness — AdvGenNoSQL Server
 
-**Assessment date**: July 2026
+**Assessment date**: July 2026 (residual issues completed 2026-11-17 — see completion record below)
 **Scope**: TCP server (`AdvGenNoSqlServer.Host` entry point, plus `AdvGenNoSqlServer.Server` as a
 supported alternate host) and its Core/Network/Storage/Query dependencies.
 
@@ -69,23 +69,35 @@ in [Deployment.md](Deployment.md).
   pre-auth frame cap, shutdown durability, command authorizer matrix.
 - Docker image builds and the container boots (see Phase 4 commit).
 
-## Residual known issues (deferred, not blockers for single-node use)
+## Residual known issues — completion record (2026-11-17)
 
-| Issue | Where | Note |
-|---|---|---|
-| B-tree deletion/rebalancing edge cases | `BTreeIndexTests.cs:470,501,820,845` (skipped) | 4 skipped tests; needs a dedicated storage fix |
-| ETag/timestamp concurrency bugs | `ETagTests.cs:272,508,539,854,893` (skipped) | Get→Update validation can falsely conflict |
-| MVCC write-write conflict detection | `MvccTests.cs:779` (skipped) | Serializable isolation falls back to locking |
-| Unique-constraint tree-wide check | `IndexManagerTests.cs:549` (skipped) | Dup check is not tree-wide under concurrency |
-| Nested-field projection | `QueryProjectionTests.cs:275` (skipped) | Not implemented |
-| Replication full-sync is a stub | `Core/Clustering/ReplicationManager.cs:342` | Clustering is not production-validated |
-| Two flaky timing tests | `BackgroundIndexBuilderTests`, `HybridDocumentStoreTests` | Fail intermittently under parallel load, pass on rerun; timing-sensitive by design |
-| ~380 CS1591 missing-XML-doc warnings | Core/Storage/Query | Cosmetic |
+All eight items from the July 2026 assessment are resolved or implemented:
+
+| Original issue | Resolution |
+|---|---|
+| B-tree deletion/rebalancing edge cases (4 skipped tests) | Fixed in `BTreeIndex`/`BTreeNode`; all 4 tests unskipped — `BTreeIndexTests` 60/60 |
+| ETag/timestamp concurrency bugs (5 skipped tests) | `InMemoryDocumentCollection` now returns defensive clones on read, clones caller data on write, and retries the compare-and-swap so unconditional updates are last-writer-wins; `ETagDocumentStore` serializes validate+update/delete per document so concurrent writers with the same ETag cannot both pass. All 5 tests unskipped — `ETagTests` 77/77 |
+| MVCC write-write conflict detection (1 skipped test) | Implemented; test unskipped (`MvccTests`) |
+| Unique-constraint tree-wide check (1 skipped test) | `BTreeIndex.Insert` performs a tree-wide existence search under the index lock before any structural mutation; `IndexManager` re-throws `DuplicateKeyException` instead of swallowing it. Test unskipped — `IndexManagerTests` 34/34 |
+| Nested-field projection (1 skipped test) | `QueryExecutor.ApplyProjection` resolves dotted paths for inclusion and exclusion projections. Test unskipped — `QueryProjectionTests` 20/20 |
+| Replication full-sync stub | Snapshot + WAL replay implemented (`Core/Clustering/ReplicationFullSync.cs`, `WalFullSyncProvider`, `IFullSyncProvider`/`IFullSyncTransport`); 16 new tests in `ReplicationFullSyncTests`. **Remaining:** wire `IFullSyncTransport` over the P2P network transport; clustering is still not production-validated |
+| Two flaky timing tests | `BackgroundIndexBuilderTests` polls for event delivery instead of fixed delays; fixed a real product bug — `BackgroundIndexBuilder` marked jobs `Running` before acquiring a concurrency slot, so `RunningBuildCount` could exceed `MaxConcurrentBuilds`. 8 consecutive runs of both classes green |
+| `MemoryTuner` aggressive-GC crash (found during final verification) | `PerformAggressiveCleanup` called `GC.Collect` in `Aggressive` mode on generations 0/1, which throws `ArgumentException` (Aggressive requires `GC.MaxGeneration`). Only triggered under critical memory pressure, so it surfaced intermittently. Fixed to a full blocking compacting collect |
+| ~380 CS1591 missing-XML-doc warnings | 395 members documented across Core/Storage/Query plus 68 in Admin/Client/Network — 0 CS1591 solution-wide |
+
+### Verification (2026-11-17, Release)
+
+- `AdvGenNoSqlServer.Tests`: **3377 passed, 0 failed, 18 skipped** (intentional skips: manual
+  load/stress tests, SSL-cert-environment tests, TTL-timing tests, and similar).
+- `AdvGenNoSqlServer.Embedded.Tests`: **157 passed, 0 failed**.
+- Full solution compiles with 0 code errors; the Host builds cleanly to a separate output
+  directory while a live instance holds its default `bin` outputs.
 
 ## Explicitly not covered
 
 - **Clustering** (Raft/gossip/replication/sharding) is implemented but not production-validated;
-  run single-node until it is.
+  run single-node until it is. Replication full-sync (snapshot + WAL replay) is implemented and
+  unit-tested, but not yet wired to the P2P network transport.
 - Admin/AdminClient Blazor apps, benchmarks, examples — dev tools, not part of the server SLA.
 - Client library integration testing against the hardened server (manual: use `TestConnection`).
 

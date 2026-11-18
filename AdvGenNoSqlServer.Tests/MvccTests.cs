@@ -776,7 +776,7 @@ public class MvccTests : IDisposable
         await coordinator.RollbackAsync(txn2.TransactionId);
     }
 
-    [Fact(Skip = "Write-write conflict detection requires implementing visibility check in UpdateAsync")]
+    [Fact]
     public async Task Mvcc_Serializable_WriteWriteConflict_Detected()
     {
         var store = new MvccDocumentStore();
@@ -805,6 +805,108 @@ public class MvccTests : IDisposable
         await Assert.ThrowsAsync<TransactionConflictException>(
             () => txn2.UpdateAsync("test", new Document { Id = "doc1", Data = new() { ["v"] = 3 } }));
 
+        await coordinator.RollbackAsync(txn2.TransactionId);
+    }
+
+    [Fact]
+    public async Task Mvcc_UncommittedWrite_NotVisibleToOtherSnapshot()
+    {
+        var store = new MvccDocumentStore();
+        await store.CreateCollectionAsync("test");
+        using var wal = new WriteAheadLog(CreateWalOptions());
+        using var coordinator = new MvccTransactionCoordinator(store, wal);
+
+        var txn1 = (MvccTransactionContext)await coordinator.BeginTransactionAsync();
+        await txn1.InsertAsync("test", new Document { Id = "doc1", Data = new() { ["v"] = 1 } });
+
+        // txn2 starts while txn1 is uncommitted: must not see doc1 (no dirty reads).
+        var txn2 = (MvccTransactionContext)await coordinator.BeginTransactionAsync();
+        Assert.Null(await txn2.GetAsync("test", "doc1"));
+
+        await coordinator.CommitAsync(txn1.TransactionId);
+
+        // A snapshot taken after the commit sees it.
+        var txn3 = (MvccTransactionContext)await coordinator.BeginTransactionAsync();
+        Assert.NotNull(await txn3.GetAsync("test", "doc1"));
+
+        await coordinator.RollbackAsync(txn2.TransactionId);
+        await coordinator.RollbackAsync(txn3.TransactionId);
+    }
+
+    [Fact]
+    public async Task Mvcc_Rollback_UndoesInsertUpdateDelete()
+    {
+        var store = new MvccDocumentStore();
+        await store.CreateCollectionAsync("test");
+        using var wal = new WriteAheadLog(CreateWalOptions());
+        using var coordinator = new MvccTransactionCoordinator(store, wal);
+
+        var setup = (MvccTransactionContext)await coordinator.BeginTransactionAsync();
+        await setup.InsertAsync("test", new Document { Id = "keep", Data = new() { ["v"] = 1 } });
+        await setup.InsertAsync("test", new Document { Id = "gone", Data = new() { ["v"] = 1 } });
+        await coordinator.CommitAsync(setup.TransactionId);
+
+        var txn = (MvccTransactionContext)await coordinator.BeginTransactionAsync();
+        await txn.InsertAsync("test", new Document { Id = "new", Data = new() { ["v"] = 1 } });
+        await txn.UpdateAsync("test", new Document { Id = "keep", Data = new() { ["v"] = 2 } });
+        await txn.DeleteAsync("test", "gone");
+        await coordinator.RollbackAsync(txn.TransactionId);
+
+        var verify = (MvccTransactionContext)await coordinator.BeginTransactionAsync();
+        Assert.Null(await verify.GetAsync("test", "new"));
+        var keep = await verify.GetAsync("test", "keep");
+        Assert.NotNull(keep);
+        Assert.Equal(1, keep!.Data!["v"]);
+        Assert.NotNull(await verify.GetAsync("test", "gone"));
+        await coordinator.RollbackAsync(verify.TransactionId);
+    }
+
+    [Fact]
+    public async Task Mvcc_DeletedDocument_DoesNotResurrectOlderVersion()
+    {
+        var store = new MvccDocumentStore();
+        await store.CreateCollectionAsync("test");
+        using var wal = new WriteAheadLog(CreateWalOptions());
+        using var coordinator = new MvccTransactionCoordinator(store, wal);
+
+        var t1 = (MvccTransactionContext)await coordinator.BeginTransactionAsync();
+        await t1.InsertAsync("test", new Document { Id = "doc1", Data = new() { ["v"] = 1 } });
+        await coordinator.CommitAsync(t1.TransactionId);
+
+        var t2 = (MvccTransactionContext)await coordinator.BeginTransactionAsync();
+        await t2.UpdateAsync("test", new Document { Id = "doc1", Data = new() { ["v"] = 2 } });
+        await coordinator.CommitAsync(t2.TransactionId);
+
+        var t3 = (MvccTransactionContext)await coordinator.BeginTransactionAsync();
+        await t3.DeleteAsync("test", "doc1");
+        await coordinator.CommitAsync(t3.TransactionId);
+
+        var verify = (MvccTransactionContext)await coordinator.BeginTransactionAsync();
+        Assert.Null(await verify.GetAsync("test", "doc1"));
+        Assert.Empty(await verify.GetAllAsync("test"));
+        await coordinator.RollbackAsync(verify.TransactionId);
+    }
+
+    [Fact]
+    public async Task Mvcc_UncommittedDelete_NotVisibleToOtherSnapshot()
+    {
+        var store = new MvccDocumentStore();
+        await store.CreateCollectionAsync("test");
+        using var wal = new WriteAheadLog(CreateWalOptions());
+        using var coordinator = new MvccTransactionCoordinator(store, wal);
+
+        var setup = (MvccTransactionContext)await coordinator.BeginTransactionAsync();
+        await setup.InsertAsync("test", new Document { Id = "doc1", Data = new() { ["v"] = 1 } });
+        await coordinator.CommitAsync(setup.TransactionId);
+
+        var txn1 = (MvccTransactionContext)await coordinator.BeginTransactionAsync();
+        await txn1.DeleteAsync("test", "doc1");
+
+        // txn1's delete is uncommitted: txn2 must still see the document.
+        var txn2 = (MvccTransactionContext)await coordinator.BeginTransactionAsync();
+        Assert.NotNull(await txn2.GetAsync("test", "doc1"));
+
+        await coordinator.RollbackAsync(txn1.TransactionId);
         await coordinator.RollbackAsync(txn2.TransactionId);
     }
 

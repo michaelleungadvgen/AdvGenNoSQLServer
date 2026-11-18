@@ -6,12 +6,13 @@ namespace AdvGenNoSqlServer.Embedded.Storage;
 
 /// <summary>
 /// Durable page store that layers a write-ahead log over a <see cref="FilePageStore"/>.
-/// Page writes are buffered in a transaction, appended to the WAL on
-/// <see cref="CommitTransaction"/> (fsync), and only flushed to the main file at a
-/// checkpoint (WAL over threshold, explicit <see cref="Checkpoint"/>, or dispose). Page
-/// allocation and free eagerly extend/trim the underlying file; a crash before commit
-/// leaves at most unreferenced pages. On open, committed WAL frames are replayed into the
-/// file. Not thread-safe; the engine serializes access.
+/// Page writes AND metadata changes (page allocation, free list, catalog root) are
+/// buffered in a transaction and appended to the WAL on <see cref="CommitTransaction"/>
+/// (fsync); the header page is WAL-logged whenever metadata changed, so recovery
+/// restores metadata atomically with the data. Nothing touches the main file before
+/// commit except checkpoint flushes, so rollback discards everything and a crash can
+/// never leave the free list or catalog root pointing at uncommitted content.
+/// Not thread-safe; the engine serializes access.
 /// </summary>
 public sealed class WalPageStore : IPageStore, ITransactionalPageStore, ICatalogRootStore
 {
@@ -24,6 +25,18 @@ public sealed class WalPageStore : IPageStore, ITransactionalPageStore, ICatalog
     // Dirty pages in the current (uncommitted) transaction.
     private readonly Dictionary<uint, byte[]> _pending = new();
 
+    // Transactional metadata overlays (null = fall through to committed/file value).
+    private uint? _txFreeListHead;
+    private uint? _txCatalogRoot;
+    // Committed-but-not-yet-checkpointed metadata. The main file is only updated at
+    // checkpoint, so it always stays consistent with the pages it actually holds.
+    private uint? _committedFreeListHead;
+    private uint? _committedCatalogRoot;
+    private uint _logicalPageCount;
+
+    private uint EffectiveFreeListHead => _txFreeListHead ?? _committedFreeListHead ?? _file.FreeListHeadPageId;
+    private uint EffectiveCatalogRoot => _txCatalogRoot ?? _committedCatalogRoot ?? _file.CatalogRootPageId;
+
     /// <summary>Opens a WAL-backed store, replaying any committed WAL frames into the file.</summary>
     public WalPageStore(FilePageStore file, string walPath, long checkpointThresholdBytes)
     {
@@ -31,20 +44,41 @@ public sealed class WalPageStore : IPageStore, ITransactionalPageStore, ICatalog
         _wal = new WriteAheadLog(walPath);
         _checkpointThresholdBytes = checkpointThresholdBytes;
         RecoverFromWal();
+        _logicalPageCount = _file.PageCount;
     }
 
     /// <inheritdoc />
-    public uint PageCount => _file.PageCount;
+    public uint PageCount => _logicalPageCount;
 
     /// <inheritdoc />
     public uint CatalogRootPageId
     {
-        get => _file.CatalogRootPageId;
-        set => _file.CatalogRootPageId = value;
+        get => EffectiveCatalogRoot;
+        set => _txCatalogRoot = value;
     }
 
     /// <inheritdoc />
-    public uint AllocatePage(PageType type) => _file.AllocatePage(type);
+    public uint AllocatePage(PageType type)
+    {
+        uint id;
+        uint head = EffectiveFreeListHead;
+        if (head != 0)
+        {
+            var freed = ReadPage(head);
+            id = head;
+            _txFreeListHead = freed.NextPageId;
+        }
+        else
+        {
+            id = _logicalPageCount;
+            _logicalPageCount++;
+        }
+
+        var page = Page.CreateNew(id, type);
+        page.Seal();
+        _pending[id] = (byte[])page.Buffer.Clone();
+        return id;
+    }
 
     /// <inheritdoc />
     public Page ReadPage(uint pageId)
@@ -66,9 +100,17 @@ public sealed class WalPageStore : IPageStore, ITransactionalPageStore, ICatalog
     /// <inheritdoc />
     public void FreePage(uint pageId)
     {
-        _file.FreePage(pageId);
+        if (pageId == 0) throw new ArgumentException("Cannot free the header page", nameof(pageId));
+        // Keep the committed image in _cache: with deferred checkpointing it may be
+        // the only copy, and a rollback of this free must restore it. The pending
+        // free marker shadows reads until commit replaces the cache entry.
         _pending.Remove(pageId);
-        _cache.Remove(pageId);
+
+        var page = Page.CreateNew(pageId, PageType.Free);
+        page.NextPageId = EffectiveFreeListHead;
+        page.Seal();
+        _pending[pageId] = (byte[])page.Buffer.Clone();
+        _txFreeListHead = pageId;
     }
 
     /// <inheritdoc />
@@ -77,7 +119,8 @@ public sealed class WalPageStore : IPageStore, ITransactionalPageStore, ICatalog
     /// <inheritdoc />
     public void CommitTransaction()
     {
-        if (_pending.Count == 0)
+        bool metadataChanged = _txFreeListHead.HasValue || _txCatalogRoot.HasValue;
+        if (_pending.Count == 0 && !metadataChanged)
             return;
 
         foreach (var (pageId, image) in _pending)
@@ -85,8 +128,27 @@ public sealed class WalPageStore : IPageStore, ITransactionalPageStore, ICatalog
             _wal.Append(Page.FromBuffer((byte[])image.Clone()));
             _cache[pageId] = image;
         }
+
+        if (metadataChanged)
+        {
+            // WAL-log the header so recovery restores metadata atomically with the data.
+            var header = _file.BuildHeaderPage(EffectiveFreeListHead, EffectiveCatalogRoot);
+            _wal.Append(header);
+            _cache[0] = (byte[])header.Buffer.Clone();
+        }
+
         _wal.Commit();
+
+        // Durable in the WAL. The main file is deliberately NOT touched here: it must
+        // only ever reference pages it physically holds (checkpoint writes them together).
+        if (_txFreeListHead.HasValue)
+            _committedFreeListHead = _txFreeListHead;
+        if (_txCatalogRoot.HasValue)
+            _committedCatalogRoot = _txCatalogRoot;
+
         _pending.Clear();
+        _txFreeListHead = null;
+        _txCatalogRoot = null;
 
         if (_wal.SizeBytes >= _checkpointThresholdBytes)
             Checkpoint();
@@ -97,6 +159,16 @@ public sealed class WalPageStore : IPageStore, ITransactionalPageStore, ICatalog
     {
         _wal.DiscardUncommitted();
         _pending.Clear();
+        _txFreeListHead = null;
+        _txCatalogRoot = null;
+
+        // Discard id space reserved by uncommitted file extensions.
+        _logicalPageCount = _file.PageCount;
+        foreach (var id in _cache.Keys)
+        {
+            if (id >= _logicalPageCount)
+                _logicalPageCount = id + 1;
+        }
     }
 
     /// <inheritdoc />
@@ -110,19 +182,29 @@ public sealed class WalPageStore : IPageStore, ITransactionalPageStore, ICatalog
         foreach (var (_, image) in _cache)
             _file.WritePage(Page.FromBuffer((byte[])image.Clone()));
         _file.Flush(true);
+        _file.ReloadHeader();
+        _committedFreeListHead = null;
+        _committedCatalogRoot = null;
         _file.LastCheckpointLsn = _wal.LastCommittedLsn;
         _wal.Truncate();
         _cache.Clear();
+        if (_file.PageCount > _logicalPageCount)
+            _logicalPageCount = _file.PageCount;
     }
 
     private void RecoverFromWal()
     {
         var pages = _wal.ReadCommittedPages();
-        if (pages.Count == 0)
-            return;
         foreach (var (_, image) in pages)
             _file.WritePage(Page.FromBuffer((byte[])image.Clone()));
-        _file.Flush(true);
+        if (pages.Count > 0)
+        {
+            _file.Flush(true);
+            _file.ReloadHeader();
+        }
+        // Always truncate, even with zero committed pages: otherwise a torn or
+        // uncommitted tail stays on disk and new commits append after it, only to
+        // be silently dropped by the next recovery scan.
         _wal.Truncate();
     }
 

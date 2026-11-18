@@ -169,7 +169,17 @@ public enum RoutingChangeType
 /// </summary>
 public class ShardingException : Exception
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ShardingException"/> class with a specified error message
+    /// </summary>
+    /// <param name="message">The error message</param>
     public ShardingException(string message) : base(message) { }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ShardingException"/> class with a specified error message and inner exception
+    /// </summary>
+    /// <param name="message">The error message</param>
+    /// <param name="inner">The exception that caused this exception</param>
     public ShardingException(string message, Exception inner) : base(message, inner) { }
 }
 
@@ -178,6 +188,16 @@ public class ShardingException : Exception
 /// </summary>
 public class ShardNotFoundException : ShardingException
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ShardNotFoundException"/> class with a specified error message
+    /// </summary>
+    /// <param name="message">The error message</param>
     public ShardNotFoundException(string message) : base(message) { }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ShardNotFoundException"/> class with a specified error message and inner exception
+    /// </summary>
+    /// <param name="message">The error message</param>
+    /// <param name="inner">The exception that caused this exception</param>
     public ShardNotFoundException(string message, Exception inner) : base(message, inner) { }
 }

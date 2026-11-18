@@ -144,9 +144,11 @@ public class JwtTokenProvider : IJwtTokenProvider
             if (payload == null)
                 return TokenValidationResult.Failed("Failed to parse token payload");
 
-            // Validate expiration
+            // Validate expiration — a token without 'exp' would never expire, so reject it.
             var now = DateTime.UtcNow;
-            if (payload.Exp.HasValue && FromUnixTimeSeconds(payload.Exp.Value) < now)
+            if (!payload.Exp.HasValue)
+                return TokenValidationResult.Failed("Token is missing the required 'exp' claim");
+            if (FromUnixTimeSeconds(payload.Exp.Value) < now)
                 return TokenValidationResult.Failed("Token has expired");
 
             // Validate not-before time
@@ -161,16 +163,11 @@ public class JwtTokenProvider : IJwtTokenProvider
             if (!string.IsNullOrEmpty(_audience) && payload.Aud != _audience)
                 return TokenValidationResult.Failed("Invalid token audience");
 
-            // Extract expiration time
-            DateTime? expirationTime = payload.Exp.HasValue
-                ? FromUnixTimeSeconds(payload.Exp.Value)
-                : null;
-
             return TokenValidationResult.Success(
                 payload.Sub ?? string.Empty,
                 payload.Roles ?? new List<string>(),
                 payload.Permissions ?? new List<string>(),
-                expirationTime ?? DateTime.MaxValue
+                FromUnixTimeSeconds(payload.Exp!.Value)
             );
         }
         catch (FormatException ex)
@@ -225,7 +222,9 @@ public class JwtTokenProvider : IJwtTokenProvider
             var payloadJson = Encoding.UTF8.GetString(Base64UrlDecode(parts[1]));
             var payload = JsonSerializer.Deserialize<JwtPayload>(payloadJson, _jsonOptions);
 
-            return payload?.Sub;
+            if (payload?.Exp == null || FromUnixTimeSeconds(payload.Exp.Value) < DateTime.UtcNow)
+                return null;
+            return payload.Sub;
         }
         catch
         {

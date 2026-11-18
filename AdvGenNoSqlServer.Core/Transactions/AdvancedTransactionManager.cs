@@ -18,6 +18,10 @@ public class AdvancedTransactionManager : ITransactionManager, IDisposable
     private readonly object _lock = new object();
     private bool _disposed = false;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AdvancedTransactionManager"/> class and starts the periodic expired-transaction cleanup timer
+    /// </summary>
+    /// <param name="transactionTimeout">Maximum transaction lifetime; defaults to 30 minutes</param>
     public AdvancedTransactionManager(TimeSpan? transactionTimeout = null)
     {
         _transactions = new ConcurrentDictionary<string, TransactionInfo>();
@@ -25,6 +29,10 @@ public class AdvancedTransactionManager : ITransactionManager, IDisposable
         _cleanupTimer = new Timer(CleanupExpiredTransactions, null, TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(5));
     }
 
+    /// <summary>
+    /// Begins a new active transaction
+    /// </summary>
+    /// <returns>The identifier of the new transaction</returns>
     public string BeginTransaction()
     {
         var transactionId = Guid.NewGuid().ToString();
@@ -40,6 +48,11 @@ public class AdvancedTransactionManager : ITransactionManager, IDisposable
         return transactionId;
     }
 
+    /// <summary>
+    /// Commits an active transaction; expired transactions are marked failed instead
+    /// </summary>
+    /// <param name="transactionId">The transaction identifier</param>
+    /// <returns>True if committed; false if the transaction is unknown, not active or expired</returns>
     public bool CommitTransaction(string transactionId)
     {
         if (!_transactions.TryGetValue(transactionId, out var transactionInfo))
@@ -68,6 +81,11 @@ public class AdvancedTransactionManager : ITransactionManager, IDisposable
         }
     }
 
+    /// <summary>
+    /// Rolls back an active transaction
+    /// </summary>
+    /// <param name="transactionId">The transaction identifier</param>
+    /// <returns>True if rolled back; false if the transaction is unknown or not active</returns>
     public bool RollbackTransaction(string transactionId)
     {
         if (!_transactions.TryGetValue(transactionId, out var transactionInfo))
@@ -90,6 +108,11 @@ public class AdvancedTransactionManager : ITransactionManager, IDisposable
         }
     }
 
+    /// <summary>
+    /// Gets the transaction status, marking expired active transactions as failed
+    /// </summary>
+    /// <param name="transactionId">The transaction identifier</param>
+    /// <returns>The transaction status, or <see cref="TransactionStatus.Failed"/> for unknown transactions</returns>
     public TransactionStatus GetTransactionStatus(string transactionId)
     {
         if (!_transactions.TryGetValue(transactionId, out var transactionInfo))
@@ -113,6 +136,12 @@ public class AdvancedTransactionManager : ITransactionManager, IDisposable
         return transactionInfo.Status;
     }
 
+    /// <summary>
+    /// Adds an operation to an active, non-expired transaction
+    /// </summary>
+    /// <param name="transactionId">The transaction identifier</param>
+    /// <param name="operation">The operation to add</param>
+    /// <exception cref="InvalidOperationException">Thrown when the transaction is unknown, not active or expired</exception>
     public void AddOperation(string transactionId, TransactionOperation operation)
     {
         if (!_transactions.TryGetValue(transactionId, out var transactionInfo))
@@ -137,6 +166,11 @@ public class AdvancedTransactionManager : ITransactionManager, IDisposable
         }
     }
 
+    /// <summary>
+    /// Gets the operations recorded for a transaction
+    /// </summary>
+    /// <param name="transactionId">The transaction identifier</param>
+    /// <returns>A read-only view of the operations, or an empty sequence for unknown transactions</returns>
     public IEnumerable<TransactionOperation> GetOperations(string transactionId)
     {
         if (!_transactions.TryGetValue(transactionId, out var transactionInfo))
@@ -167,12 +201,19 @@ public class AdvancedTransactionManager : ITransactionManager, IDisposable
         }
     }
 
+    /// <summary>
+    /// Disposes the cleanup timer and suppresses finalization
+    /// </summary>
     public void Dispose()
     {
         Dispose(true);
         GC.SuppressFinalize(this);
     }
 
+    /// <summary>
+    /// Releases managed resources when disposing
+    /// </summary>
+    /// <param name="disposing">True when called from <see cref="Dispose()"/>; false when called from a finalizer</param>
     protected virtual void Dispose(bool disposing)
     {
         if (!_disposed)

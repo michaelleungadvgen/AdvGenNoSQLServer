@@ -26,7 +26,7 @@ public class AttachmentCommandsTests : IAsyncLifetime
         {
             Host = "127.0.0.1", Port = 19320,
             StoragePath = _dir,
-            RequireAuthentication = false,
+            RequireAuthentication = false, AnonymousRole = "admin",
             MaxAttachmentSizeMB = 1
         };
         var cm = new Mock<IConfigurationManager>();

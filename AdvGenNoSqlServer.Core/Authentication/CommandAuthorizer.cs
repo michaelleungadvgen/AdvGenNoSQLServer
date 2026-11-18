@@ -5,7 +5,17 @@
 namespace AdvGenNoSqlServer.Core.Authentication;
 
 /// <summary>Access level a command requires.</summary>
-public enum CommandAccess { Read, Write, Admin }
+public enum CommandAccess
+{
+    /// <summary>Command only reads data.</summary>
+    Read,
+
+    /// <summary>Command creates or modifies data.</summary>
+    Write,
+
+    /// <summary>Command performs an administrative operation.</summary>
+    Admin
+}
 
 /// <summary>
 /// Maps TCP commands to the minimum access they need and decides whether a role
@@ -56,6 +66,12 @@ public static class CommandAuthorizer
         ["deleteattachment"] = CommandAccess.Write,
     };
 
+    /// <summary>
+    /// Determines whether the given role may execute the specified command; unknown commands are allowed for Admin only
+    /// </summary>
+    /// <param name="command">The command name (case-insensitive)</param>
+    /// <param name="role">The role of the requesting user</param>
+    /// <returns>True if the role is permitted to run the command; otherwise false</returns>
     public static bool IsAllowed(string command, string role)
     {
         var key = command.ToLowerInvariant();

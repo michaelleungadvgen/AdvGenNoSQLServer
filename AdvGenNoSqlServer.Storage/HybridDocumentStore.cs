@@ -3,6 +3,7 @@
 // See LICENSE.txt for license information.
 
 using AdvGenNoSqlServer.Core.Abstractions;
+using AdvGenNoSqlServer.Core.IO;
 using AdvGenNoSqlServer.Core.Models;
 using System.Collections.Concurrent;
 using System.Text.Json;
@@ -13,9 +14,10 @@ namespace AdvGenNoSqlServer.Storage;
 
 /// <summary>
 /// Hybrid document store that combines in-memory cache with disk persistence.
-/// - Writes go to cache immediately, then async to disk via background thread
+/// - Writes go to cache immediately and are acknowledged only after the background
+///   writer has durably persisted them (atomic temp+fsync+rename); failures surface
+///   to the caller instead of returning a false success
 /// - Reads check cache first, then disk (read-through caching)
-/// - Provides fast access with durability guarantees
 /// </summary>
 public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
 {
@@ -97,9 +99,19 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
                             collection[document.Id] = document;
                         }
                     }
-                    catch (Exception)
+                    catch (JsonException)
                     {
-                        // Skip corrupted files
+                        // Quarantine corrupt files instead of silently dropping them.
+                        try
+                        {
+                            var quarantineDir = Path.Combine(collectionDir, "_corrupt");
+                            Directory.CreateDirectory(quarantineDir);
+                            File.Move(file, Path.Combine(quarantineDir,
+                                $"{Path.GetFileName(file)}.{DateTime.UtcNow.Ticks}.corrupt"));
+                        }
+                        catch (IOException)
+                        {
+                        }
                     }
                 }
             }
@@ -138,7 +150,7 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
         }
 
         // Queue for disk write
-        await QueueWriteAsync(WriteOperationType.Insert, collectionName, document);
+        await QueueWriteAsync(WriteOperationType.Insert, collectionName, document, cancellationToken);
 
         return document;
     }
@@ -259,7 +271,7 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
         collection[document.Id] = document;
 
         // Queue for disk write
-        await QueueWriteAsync(WriteOperationType.Update, collectionName, document);
+        await QueueWriteAsync(WriteOperationType.Update, collectionName, document, cancellationToken);
 
         return document;
     }
@@ -281,7 +293,7 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
         }
 
         // Queue for disk delete
-        await QueueWriteAsync(WriteOperationType.Delete, collectionName, removed);
+        await QueueWriteAsync(WriteOperationType.Delete, collectionName, removed, cancellationToken);
 
         return true;
     }
@@ -419,7 +431,7 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
             {
                 var filePath = PathValidator.GetSafePath(collectionPath, Path.Combine(collectionPath, $"{document.Id}.json"));
                 var json = JsonSerializer.Serialize(document, _jsonOptions);
-                await File.WriteAllTextAsync(filePath, json);
+                await AtomicFileWriter.WriteAllTextAsync(filePath, json);
             }
         }
     }
@@ -448,13 +460,13 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
 
             return document;
         }
-        catch (Exception)
+        catch (JsonException)
         {
             return null;
         }
     }
 
-    private async Task QueueWriteAsync(WriteOperationType type, string collectionName, Document document)
+    private async Task QueueWriteAsync(WriteOperationType type, string collectionName, Document document, CancellationToken ct)
     {
         var operation = new WriteOperation
         {
@@ -464,7 +476,18 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
         };
 
         Interlocked.Increment(ref _pendingWrites);
-        await _writeQueue.Writer.WriteAsync(operation);
+        try
+        {
+            await _writeQueue.Writer.WriteAsync(operation, ct);
+        }
+        catch
+        {
+            Interlocked.Decrement(ref _pendingWrites);
+            throw;
+        }
+
+        // Durability gate: success is acknowledged only once the write is on disk.
+        await operation.Completion.Task.WaitAsync(ct);
     }
 
     private async Task ProcessWriteQueueAsync()
@@ -476,14 +499,16 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
                 try
                 {
                     await ProcessWriteOperationAsync(operation);
+                    operation.Completion.TrySetResult(true);
                 }
                 catch (Exception ex)
                 {
-                    // A failed background write means the document only lives in cache —
-                    // make disk-full/IO failures visible instead of losing data silently.
+                    // Surface disk-full/IO failures to the caller instead of
+                    // acknowledging a write that only lives in cache.
                     Interlocked.Increment(ref _writeFailures);
                     Console.Error.WriteLine(
                         $"[Storage] Background write failed ({operation.Type} {operation.CollectionName}/{operation.Document?.Id}): {ex.Message}");
+                    operation.Completion.TrySetException(ex);
                 }
                 finally
                 {
@@ -493,7 +518,20 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
         }
         catch (OperationCanceledException)
         {
-            // Normal shutdown
+            // Shutdown: fail any callers still waiting on queued writes.
+            while (_writeQueue.Reader.TryRead(out var remaining))
+            {
+                remaining.Completion.TrySetCanceled();
+                Interlocked.Decrement(ref _pendingWrites);
+            }
+        }
+        catch (Exception ex)
+        {
+            while (_writeQueue.Reader.TryRead(out var remaining))
+            {
+                remaining.Completion.TrySetException(ex);
+                Interlocked.Decrement(ref _pendingWrites);
+            }
         }
     }
 
@@ -521,7 +559,7 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
             case WriteOperationType.Insert:
             case WriteOperationType.Update:
                 var json = JsonSerializer.Serialize(operation.Document, _jsonOptions);
-                await File.WriteAllTextAsync(filePath, json);
+                await AtomicFileWriter.WriteAllTextAsync(filePath, json);
                 break;
 
             case WriteOperationType.Delete:
@@ -555,6 +593,11 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Stops accepting writes, waits up to 30 seconds for queued writes to flush,
+    /// then releases the background writer and underlying resources.
+    /// </summary>
+    /// <returns>A task that completes when disposal finishes.</returns>
     public async ValueTask DisposeAsync()
     {
         if (_disposed) return;
@@ -591,5 +634,6 @@ public class HybridDocumentStore : IDocumentStore, IAsyncDisposable
         public WriteOperationType Type { get; init; }
         public string CollectionName { get; init; } = string.Empty;
         public Document Document { get; init; } = null!;
+        public TaskCompletionSource<bool> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 }

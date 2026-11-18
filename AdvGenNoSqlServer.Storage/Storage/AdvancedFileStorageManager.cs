@@ -10,6 +10,10 @@ using System.Threading.Tasks;
 
 namespace AdvGenNoSqlServer.Storage.Storage;
 
+/// <summary>
+/// File-based storage manager with an expiring in-memory document cache,
+/// per-collection async semaphores, and periodic cache cleanup.
+/// </summary>
 public class AdvancedFileStorageManager : IStorageManager, IDisposable
 {
     private readonly string _basePath;
@@ -20,6 +24,11 @@ public class AdvancedFileStorageManager : IStorageManager, IDisposable
     private readonly Timer _cacheCleanupTimer;
     private bool _disposed = false;
 
+    /// <summary>
+    /// Creates a storage manager rooted at the specified directory and starts the cache cleanup timer.
+    /// </summary>
+    /// <param name="basePath">The root directory for collection data (defaults to "data").</param>
+    /// <param name="cacheExpiration">How long cached documents stay valid (defaults to 5 minutes).</param>
     public AdvancedFileStorageManager(string basePath = "data", TimeSpan? cacheExpiration = null)
     {
         _basePath = basePath;
@@ -43,6 +52,12 @@ public class AdvancedFileStorageManager : IStorageManager, IDisposable
         _cacheCleanupTimer = new Timer(CleanupCache, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
     }
 
+    /// <summary>
+    /// Writes a document as JSON to disk and refreshes its cached copy with an updated timestamp.
+    /// </summary>
+    /// <param name="collectionName">The name of the collection.</param>
+    /// <param name="document">The document to save.</param>
+    /// <returns>Task representing the asynchronous operation.</returns>
     public async Task SaveDocumentAsync(string collectionName, Document document)
     {
         await EnsureCollectionAsync(collectionName);
@@ -78,6 +93,12 @@ public class AdvancedFileStorageManager : IStorageManager, IDisposable
         }
     }
 
+    /// <summary>
+    /// Loads a document from the cache when still valid, otherwise reads it from disk and caches it.
+    /// </summary>
+    /// <param name="collectionName">The name of the collection.</param>
+    /// <param name="documentId">The ID of the document to load.</param>
+    /// <returns>The loaded document, or null if not found.</returns>
     public async Task<Document?> LoadDocumentAsync(string collectionName, string documentId)
     {
         await EnsureCollectionAsync(collectionName);
@@ -129,6 +150,12 @@ public class AdvancedFileStorageManager : IStorageManager, IDisposable
         }
     }
 
+    /// <summary>
+    /// Deletes a document's JSON file if it exists and evicts it from the cache.
+    /// </summary>
+    /// <param name="collectionName">The name of the collection.</param>
+    /// <param name="documentId">The ID of the document to delete.</param>
+    /// <returns>Task representing the asynchronous operation.</returns>
     public async Task DeleteDocumentAsync(string collectionName, string documentId)
     {
         await EnsureCollectionAsync(collectionName);
@@ -158,6 +185,12 @@ public class AdvancedFileStorageManager : IStorageManager, IDisposable
         }
     }
 
+    /// <summary>
+    /// Checks whether a document exists, consulting the cache before the file system.
+    /// </summary>
+    /// <param name="collectionName">The name of the collection.</param>
+    /// <param name="documentId">The ID of the document to check.</param>
+    /// <returns>True if the document is cached or its file exists; otherwise false.</returns>
     public async Task<bool> DocumentExistsAsync(string collectionName, string documentId)
     {
         await EnsureCollectionAsync(collectionName);
@@ -184,6 +217,11 @@ public class AdvancedFileStorageManager : IStorageManager, IDisposable
         }
     }
 
+    /// <summary>
+    /// Lists the IDs of all documents in a collection by enumerating its JSON files.
+    /// </summary>
+    /// <param name="collectionName">The name of the collection.</param>
+    /// <returns>The document IDs derived from file names.</returns>
     public async Task<IEnumerable<string>> ListDocumentsAsync(string collectionName)
     {
         await EnsureCollectionAsync(collectionName);
@@ -211,6 +249,11 @@ public class AdvancedFileStorageManager : IStorageManager, IDisposable
         }
     }
 
+    /// <summary>
+    /// Creates the collection's directory if it does not already exist.
+    /// </summary>
+    /// <param name="collectionName">The name of the collection.</param>
+    /// <returns>Task representing the asynchronous operation.</returns>
     public async Task EnsureCollectionAsync(string collectionName)
     {
         var semaphore = _collectionSemaphores.GetOrAdd(collectionName, _ => new SemaphoreSlim(1, 1));
@@ -251,12 +294,19 @@ public class AdvancedFileStorageManager : IStorageManager, IDisposable
         }
     }
 
+    /// <summary>
+    /// Disposes the cache cleanup timer and collection semaphores.
+    /// </summary>
     public void Dispose()
     {
         Dispose(true);
         GC.SuppressFinalize(this);
     }
 
+    /// <summary>
+    /// Releases managed resources when disposing; safe to call multiple times.
+    /// </summary>
+    /// <param name="disposing">True when called from <see cref="Dispose()"/>; false when called from a finalizer.</param>
     protected virtual void Dispose(bool disposing)
     {
         if (!_disposed)

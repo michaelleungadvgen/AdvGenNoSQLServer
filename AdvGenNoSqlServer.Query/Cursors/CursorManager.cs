@@ -74,8 +74,19 @@ public interface ICursorManager
 /// </summary>
 public class CursorEventArgs : EventArgs
 {
+    /// <summary>
+    /// The identifier of the cursor that raised the event
+    /// </summary>
     public required string CursorId { get; set; }
+
+    /// <summary>
+    /// The collection the cursor is iterating over
+    /// </summary>
     public required string CollectionName { get; set; }
+
+    /// <summary>
+    /// UTC time when the event occurred
+    /// </summary>
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
 }
 

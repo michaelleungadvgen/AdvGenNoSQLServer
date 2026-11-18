@@ -16,6 +16,11 @@ public sealed class GeospatialDocumentStore : IDocumentStore
     private readonly IDocumentStore _innerStore;
     private readonly GeospatialIndexManager _indexManager;
 
+    /// <summary>
+    /// Wraps an existing document store with geospatial indexing support.
+    /// </summary>
+    /// <param name="innerStore">The underlying document store to delegate to.</param>
+    /// <param name="indexManager">The index manager to use; a new one is created when null.</param>
     public GeospatialDocumentStore(IDocumentStore innerStore, GeospatialIndexManager? indexManager = null)
     {
         _innerStore = innerStore ?? throw new ArgumentNullException(nameof(innerStore));
@@ -109,6 +114,13 @@ public sealed class GeospatialDocumentStore : IDocumentStore
 
     #region IDocumentStore Implementation
 
+    /// <summary>
+    /// Inserts a document into the underlying store and adds it to all geospatial indexes for the collection.
+    /// </summary>
+    /// <param name="collectionName">The target collection.</param>
+    /// <param name="document">The document to insert.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>The inserted document.</returns>
     public Task<Document> InsertAsync(string collectionName, Document document, CancellationToken cancellationToken = default)
     {
         var result = _innerStore.InsertAsync(collectionName, document, cancellationToken);
@@ -122,21 +134,48 @@ public sealed class GeospatialDocumentStore : IDocumentStore
         return result;
     }
 
+    /// <summary>
+    /// Retrieves a document by ID from the underlying store.
+    /// </summary>
+    /// <param name="collectionName">The collection to read from.</param>
+    /// <param name="documentId">The document identifier.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>The document, or null if not found.</returns>
     public Task<Document?> GetAsync(string collectionName, string documentId, CancellationToken cancellationToken = default)
     {
         return _innerStore.GetAsync(collectionName, documentId, cancellationToken);
     }
 
+    /// <summary>
+    /// Retrieves multiple documents by ID from the underlying store.
+    /// </summary>
+    /// <param name="collectionName">The collection to read from.</param>
+    /// <param name="documentIds">The document identifiers to fetch.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>The documents that were found.</returns>
     public Task<IEnumerable<Document>> GetManyAsync(string collectionName, IEnumerable<string> documentIds, CancellationToken cancellationToken = default)
     {
         return _innerStore.GetManyAsync(collectionName, documentIds, cancellationToken);
     }
 
+    /// <summary>
+    /// Retrieves all documents in a collection from the underlying store.
+    /// </summary>
+    /// <param name="collectionName">The collection to read from.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>All documents in the collection.</returns>
     public Task<IEnumerable<Document>> GetAllAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         return _innerStore.GetAllAsync(collectionName, cancellationToken);
     }
 
+    /// <summary>
+    /// Updates a document in the underlying store and re-indexes it in all geospatial indexes for the collection.
+    /// </summary>
+    /// <param name="collectionName">The collection containing the document.</param>
+    /// <param name="document">The document with updated data.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>The updated document.</returns>
     public Task<Document> UpdateAsync(string collectionName, Document document, CancellationToken cancellationToken = default)
     {
         var result = _innerStore.UpdateAsync(collectionName, document, cancellationToken);
@@ -150,6 +189,13 @@ public sealed class GeospatialDocumentStore : IDocumentStore
         return result;
     }
 
+    /// <summary>
+    /// Deletes a document from the underlying store and removes it from all geospatial indexes for the collection.
+    /// </summary>
+    /// <param name="collectionName">The collection containing the document.</param>
+    /// <param name="documentId">The document identifier.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>True if the document was deleted; false if it did not exist.</returns>
     public Task<bool> DeleteAsync(string collectionName, string documentId, CancellationToken cancellationToken = default)
     {
         var result = _innerStore.DeleteAsync(collectionName, documentId, cancellationToken);
@@ -163,21 +209,46 @@ public sealed class GeospatialDocumentStore : IDocumentStore
         return result;
     }
 
+    /// <summary>
+    /// Checks whether a document exists in the underlying store.
+    /// </summary>
+    /// <param name="collectionName">The collection to check.</param>
+    /// <param name="documentId">The document identifier.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>True if the document exists; otherwise false.</returns>
     public Task<bool> ExistsAsync(string collectionName, string documentId, CancellationToken cancellationToken = default)
     {
         return _innerStore.ExistsAsync(collectionName, documentId, cancellationToken);
     }
 
+    /// <summary>
+    /// Gets the number of documents in a collection from the underlying store.
+    /// </summary>
+    /// <param name="collectionName">The collection to count.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>The document count.</returns>
     public Task<long> CountAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         return _innerStore.CountAsync(collectionName, cancellationToken);
     }
 
+    /// <summary>
+    /// Creates a collection in the underlying store.
+    /// </summary>
+    /// <param name="collectionName">The collection to create.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>A task that completes when the collection is created.</returns>
     public Task CreateCollectionAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         return _innerStore.CreateCollectionAsync(collectionName, cancellationToken);
     }
 
+    /// <summary>
+    /// Drops all geospatial indexes for the collection, then drops the collection from the underlying store.
+    /// </summary>
+    /// <param name="collectionName">The collection to drop.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>True if the collection was dropped; false if it did not exist.</returns>
     public Task<bool> DropCollectionAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         // Remove all indexes for this collection
@@ -189,11 +260,22 @@ public sealed class GeospatialDocumentStore : IDocumentStore
         return _innerStore.DropCollectionAsync(collectionName, cancellationToken);
     }
 
+    /// <summary>
+    /// Gets the names of all collections in the underlying store.
+    /// </summary>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>The collection names.</returns>
     public Task<IEnumerable<string>> GetCollectionsAsync(CancellationToken cancellationToken = default)
     {
         return _innerStore.GetCollectionsAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Clears all geospatial indexes for the collection, then removes all documents from the underlying store.
+    /// </summary>
+    /// <param name="collectionName">The collection to clear.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>A task that completes when the collection is cleared.</returns>
     public Task ClearCollectionAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         // Clear all indexes for this collection

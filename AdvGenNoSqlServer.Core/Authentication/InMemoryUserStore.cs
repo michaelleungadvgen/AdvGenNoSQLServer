@@ -13,6 +13,10 @@ public sealed class InMemoryUserStore : IUserStore
     private readonly object _gate = new();
     private List<PersistedUser> _users = new();
 
+    /// <summary>
+    /// Returns a snapshot of the users currently held in memory
+    /// </summary>
+    /// <returns>The in-memory user records</returns>
     public IReadOnlyList<PersistedUser> Load()
     {
         lock (_gate)
@@ -21,6 +25,10 @@ public sealed class InMemoryUserStore : IUserStore
         }
     }
 
+    /// <summary>
+    /// Replaces the in-memory user set with the given records
+    /// </summary>
+    /// <param name="users">The user records to keep in memory</param>
     public void Save(IEnumerable<PersistedUser> users)
     {
         lock (_gate)

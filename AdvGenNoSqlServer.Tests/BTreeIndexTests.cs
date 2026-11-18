@@ -467,7 +467,7 @@ public class BTreeIndexTests
         Assert.False(index.ContainsKey(25));
     }
 
-    [Fact(Skip = "Deletion with tree rebalancing - requires separate fix")]
+    [Fact]
     public void Delete_MultipleItems_MaintainsTreeStructure()
     {
         var index = new BTreeIndex<int, string>("test_idx", "users", "age", minDegree: 4);
@@ -498,7 +498,7 @@ public class BTreeIndexTests
         }
     }
 
-    [Fact(Skip = "Deletion with tree rebalancing - requires separate fix")]
+    [Fact]
     public void Delete_SimpleItems_WorksCorrectly()
     {
         var index = new BTreeIndex<int, string>("test_idx", "users", "age", minDegree: 4);
@@ -817,7 +817,7 @@ public class BTreeIndexTests
 
     #region Thread Safety Tests
 
-    [Fact(Skip = "Concurrent insertion with tree splits - investigating")]
+    [Fact]
     public void Insert_Concurrent_ThreadSafe()
     {
         var index = new BTreeIndex<int, string>("test_idx", "users", "age");
@@ -842,7 +842,7 @@ public class BTreeIndexTests
         Assert.Equal(50, allItems.Count);
     }
 
-    [Fact(Skip = "Concurrent insertion edge case - investigating")]
+    [Fact]
     public void Insert_Concurrent_SmallSet_ThreadSafe()
     {
         var index = new BTreeIndex<int, string>("test_idx", "users", "age");

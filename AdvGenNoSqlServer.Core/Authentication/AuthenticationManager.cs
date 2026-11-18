@@ -30,11 +30,20 @@ public class AuthenticationManager
     private const int SaltSizeBytes = 32;
     private const int HashSizeBytes = 32;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AuthenticationManager"/> class without user persistence
+    /// </summary>
+    /// <param name="configuration">Server configuration supplying token expiration, PBKDF2 and lockout settings</param>
     public AuthenticationManager(ServerConfiguration configuration)
         : this(configuration, null)
     {
     }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AuthenticationManager"/> class, loading persisted users and seeding an admin account if none exists
+    /// </summary>
+    /// <param name="configuration">Server configuration supplying token expiration, PBKDF2 and lockout settings</param>
+    /// <param name="userStore">Optional user store used to load and persist users</param>
     public AuthenticationManager(ServerConfiguration configuration, IUserStore? userStore)
     {
         _configuration = configuration;
@@ -342,6 +351,7 @@ public class AuthenticationManager
             if (c.Role == UserRole.Admin && role != UserRole.Admin && IsLastAdmin(username))
                 return UserOperationResult.LastAdmin;
             c.Role = role;
+            RevokeAllUserTokens(username);
             Persist();
             return UserOperationResult.Ok;
         }
@@ -442,10 +452,29 @@ public class AuthenticationManager
 /// </summary>
 public class UserCredentials
 {
+    /// <summary>
+    /// Gets or sets the unique username
+    /// </summary>
     public required string Username { get; set; }
+
+    /// <summary>
+    /// Gets or sets the base64-encoded PBKDF2 password hash
+    /// </summary>
     public required string PasswordHash { get; set; }
+
+    /// <summary>
+    /// Gets or sets the base64-encoded salt used to derive the password hash
+    /// </summary>
     public required string Salt { get; set; }
+
+    /// <summary>
+    /// Gets or sets the user's role name; defaults to <see cref="UserRole.ReadWrite"/>
+    /// </summary>
     public string Role { get; set; } = UserRole.ReadWrite;
+
+    /// <summary>
+    /// Gets or sets the UTC time the user was created
+    /// </summary>
     public DateTime CreatedAt { get; set; }
 
     /// <summary>PBKDF2 iteration count used for this hash; 0 = legacy 100k.</summary>
@@ -455,16 +484,48 @@ public class UserCredentials
 /// <summary>
 /// Result of a guarded user-management operation.
 /// </summary>
-public enum UserOperationResult { Ok, NotFound, LastAdmin, InvalidRole }
+public enum UserOperationResult
+{
+    /// <summary>The operation completed successfully.</summary>
+    Ok,
+
+    /// <summary>The target user was not found.</summary>
+    NotFound,
+
+    /// <summary>The operation was rejected because it would remove the last admin user.</summary>
+    LastAdmin,
+
+    /// <summary>The specified role is not valid.</summary>
+    InvalidRole
+}
 
 /// <summary>
 /// Represents an authentication token.
 /// </summary>
 public class AuthToken
 {
+    /// <summary>
+    /// Gets or sets the unique token identifier
+    /// </summary>
     public required string TokenId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the username the token was issued to
+    /// </summary>
     public required string Username { get; set; }
+
+    /// <summary>
+    /// Gets or sets the role granted to the token; defaults to <see cref="UserRole.ReadWrite"/>
+    /// </summary>
     public string Role { get; set; } = UserRole.ReadWrite;
+
+    /// <summary>
+    /// Gets or sets the time the token was issued
+    /// </summary>
     public DateTime IssuedAt { get; set; }
+
+    /// <summary>
+    /// Gets or sets the time the token expires
+    /// </summary>
     public DateTime ExpiresAt { get; set; }
 }

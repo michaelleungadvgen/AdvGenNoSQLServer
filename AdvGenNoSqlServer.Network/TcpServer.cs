@@ -459,6 +459,12 @@ namespace AdvGenNoSqlServer.Network
         /// </summary>
         public bool IsSecure { get; }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ConnectionEventArgs"/> class.
+        /// </summary>
+        /// <param name="connectionId">The unique connection identifier.</param>
+        /// <param name="client">The TCP client for the connection.</param>
+        /// <param name="isSecure">Whether the connection uses SSL/TLS encryption.</param>
         public ConnectionEventArgs(string connectionId, TcpClient client, bool isSecure = false)
         {
             ConnectionId = connectionId;
@@ -521,6 +527,13 @@ namespace AdvGenNoSqlServer.Network
             _responseSent.TrySetResult();
         }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="MessageReceivedEventArgs"/> class.
+        /// </summary>
+        /// <param name="connectionId">The identifier of the connection that sent the message.</param>
+        /// <param name="client">The TCP client that sent the message.</param>
+        /// <param name="message">The received message.</param>
+        /// <param name="sendResponse">Callback used by <see cref="SendResponseAsync"/> to write a response to the connection.</param>
         public MessageReceivedEventArgs(
             string connectionId,
             TcpClient client,

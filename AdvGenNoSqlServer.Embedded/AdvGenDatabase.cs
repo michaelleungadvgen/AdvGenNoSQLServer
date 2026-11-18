@@ -105,23 +105,31 @@ public sealed class AdvGenDatabase : IDisposable, IAsyncDisposable
         if (_path == null) return; // nothing to compact for :memory:
 
         var compactPath = _path + ".compact";
-        await Compactor.WriteCompactedCopyAsync(_store, compactPath, _options.WalCheckpointBytes, ct);
+        var oldStore = _store;
 
-        BeforeCompactSwapHook?.Invoke();
+        // Hold the store-wide write lock across copy AND swap so no concurrent
+        // write can land in the old file after the copy was taken.
+        using (oldStore.EnterExclusive())
+        {
+            await Compactor.WriteCompactedCopyAsync(oldStore, compactPath, _options.WalCheckpointBytes, ct);
 
-        // Release the original file, then atomically replace it with the compacted copy.
-        _store.Dispose();
-        if (File.Exists(_path + ".wal")) File.Delete(_path + ".wal");
-        File.Replace(compactPath, _path, null);
-        if (File.Exists(compactPath + ".wal")) File.Delete(compactPath + ".wal");
+            BeforeCompactSwapHook?.Invoke();
 
-        // Reopen on the compacted file; drop cached collection wrappers bound to the old store.
-        var wal = new WalPageStore(new FilePageStore(_path), _path + ".wal", _options.WalCheckpointBytes);
-        _store = new EmbeddedDocumentStore(wal);
-        await _store.InitializeAsync();
-        _executor = new QueryExecutor(_store, new FilterEngine(), _store.Indexes.Manager);
-        _untyped.Clear();
-        _typed.Clear();
+            // Release the original file, then atomically replace it with the compacted copy.
+            oldStore.DisposeStorage();
+            if (File.Exists(_path + ".wal")) File.Delete(_path + ".wal");
+            File.Replace(compactPath, _path, null);
+            if (File.Exists(compactPath + ".wal")) File.Delete(compactPath + ".wal");
+
+            // Reopen on the compacted file; drop cached collection wrappers bound to the old store.
+            var wal = new WalPageStore(new FilePageStore(_path), _path + ".wal", _options.WalCheckpointBytes);
+            _store = new EmbeddedDocumentStore(wal);
+            await _store.InitializeAsync();
+            _executor = new QueryExecutor(_store, new FilterEngine(), _store.Indexes.Manager);
+            _untyped.Clear();
+            _typed.Clear();
+        }
+        oldStore.DisposeLock();
     }
 
     private void EnsureNotDisposed()

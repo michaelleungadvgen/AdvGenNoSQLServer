@@ -8,7 +8,12 @@ namespace AdvGenNoSqlServer.Core.MemoryManagement;
 /// </summary>
 public enum EvictionPolicy
 {
+    /// <summary>Evict the least recently used entries first.</summary>
     LRU,
+
+    /// <summary>Evict the least frequently used entries first.</summary>
     LFU,
-    TTL   // TTL+LRU: expired first, then least-recently-used
+
+    /// <summary>TTL+LRU: expired entries first, then least-recently-used.</summary>
+    TTL
 }

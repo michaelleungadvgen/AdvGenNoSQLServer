@@ -15,6 +15,11 @@ public class AuthenticationService
     private readonly RoleManager _roleManager;
     private readonly ServerConfiguration _configuration;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AuthenticationService"/> class with an authentication manager and role manager
+    /// </summary>
+    /// <param name="configuration">Server configuration used for authentication settings</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="configuration"/> is null</exception>
     public AuthenticationService(ServerConfiguration configuration)
     {
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
@@ -243,7 +248,14 @@ public class AuthenticationService
 /// </summary>
 public class AuthorizationResult
 {
+    /// <summary>
+    /// Gets a value indicating whether the authorization check succeeded
+    /// </summary>
     public bool IsAuthorized { get; }
+
+    /// <summary>
+    /// Gets the reason the authorization check failed, or null when authorized
+    /// </summary>
     public string? FailureReason { get; }
 
     private AuthorizationResult(bool isAuthorized, string? failureReason = null)
@@ -252,11 +264,20 @@ public class AuthorizationResult
         FailureReason = failureReason;
     }
 
+    /// <summary>
+    /// Creates a successful authorization result
+    /// </summary>
+    /// <returns>An authorized <see cref="AuthorizationResult"/></returns>
     public static AuthorizationResult Success()
     {
         return new AuthorizationResult(true);
     }
 
+    /// <summary>
+    /// Creates a failed authorization result with the given reason
+    /// </summary>
+    /// <param name="reason">The reason authorization was denied</param>
+    /// <returns>A denied <see cref="AuthorizationResult"/></returns>
     public static AuthorizationResult Failed(string reason)
     {
         return new AuthorizationResult(false, reason);

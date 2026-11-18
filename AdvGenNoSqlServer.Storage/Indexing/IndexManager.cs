@@ -647,6 +647,10 @@ public class IndexManager
                     Index.Insert(key, document.Id);
                 }
             }
+            catch (DuplicateKeyException)
+            {
+                throw; // Re-throw duplicate key exceptions for unique indexes
+            }
             catch (Exception ex)
             {
                 // Missing-field documents are skipped by design, but index insert

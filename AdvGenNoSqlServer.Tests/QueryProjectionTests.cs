@@ -272,7 +272,7 @@ public class QueryProjectionTests
 
     #region Nested Field Projection Tests
 
-    [Fact(Skip = "Nested field projection is an advanced feature not yet fully implemented")]
+    [Fact]
     public async Task ExecuteAsync_NestedInclusionProjection_ReturnsNestedFields()
     {
         // Arrange

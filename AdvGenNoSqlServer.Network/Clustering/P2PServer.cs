@@ -8,6 +8,7 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json;
@@ -55,6 +56,11 @@ namespace AdvGenNoSqlServer.Network.Clustering
         /// Event raised when a message is received from a peer.
         /// </summary>
         public event EventHandler<MessageReceivedEventArgs>? MessageReceived;
+
+        /// <summary>
+        /// Security audit event raised when a peer is rejected (failed handshake / identity mismatch).
+        /// </summary>
+        public event EventHandler<PeerRejectedEventArgs>? PeerRejected;
 
         /// <summary>
         /// Creates a new P2P server.
@@ -185,11 +191,19 @@ namespace AdvGenNoSqlServer.Network.Clustering
             try
             {
                 connection = new PeerConnection(connectionId, client, _config.Security);
-                
+
+                // Establish mutual TLS before any application data (when configured).
+                await connection.AuthenticateAsServerAsync(ct);
+
                 // Perform handshake
                 var handshakeResult = await connection.PerformHandshakeAsync(ct);
                 if (!handshakeResult.Success)
                 {
+                    OnPeerRejected(new PeerRejectedEventArgs
+                    {
+                        Endpoint = connection.RemoteEndpoint,
+                        Reason = handshakeResult.ErrorMessage ?? "Handshake failed"
+                    });
                     await connection.DisposeAsync();
                     return;
                 }
@@ -249,6 +263,9 @@ namespace AdvGenNoSqlServer.Network.Clustering
 
                 var connectionId = Guid.NewGuid().ToString("N")[..8];
                 var connection = new PeerConnection(connectionId, client, _config.Security);
+
+                // Establish mutual TLS before any application data (when configured).
+                await connection.AuthenticateAsClientAsync(host, ct);
 
                 // Send join handshake
                 var result = await connection.InitiateHandshakeAsync(
@@ -319,6 +336,11 @@ namespace AdvGenNoSqlServer.Network.Clustering
             MessageReceived?.Invoke(this, e);
         }
 
+        private void OnPeerRejected(PeerRejectedEventArgs e)
+        {
+            PeerRejected?.Invoke(this, e);
+        }
+
         /// <inheritdoc/>
         public async ValueTask DisposeAsync()
         {
@@ -333,9 +355,12 @@ namespace AdvGenNoSqlServer.Network.Clustering
     public class PeerConnection : IAsyncDisposable
     {
         private readonly TcpClient _client;
-        private readonly NetworkStream _stream;
+        private Stream _stream;
         private readonly P2PSecurityConfiguration _security;
         private readonly JsonSerializerOptions _jsonOptions;
+        private readonly byte[]? _signingKey;
+        private readonly P2PReplayGuard _replayGuard;
+        private X509Certificate2? _peerCertificate;
 
         /// <summary>
         /// Unique connection identifier.
@@ -367,12 +392,51 @@ namespace AdvGenNoSqlServer.Network.Clustering
             _stream = client.GetStream();
             _security = security;
             RemoteEndpoint = client.Client?.RemoteEndPoint?.ToString() ?? "unknown";
-            _jsonOptions = new JsonSerializerOptions 
-            { 
+            _jsonOptions = new JsonSerializerOptions
+            {
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                WriteIndented = false
+                WriteIndented = false,
+                Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
             };
+            _signingKey = security.SignMessages && !string.IsNullOrEmpty(security.ClusterSecret)
+                ? P2PMessageSecurity.DeriveKey(security.ClusterSecret!)
+                : null;
+            _replayGuard = new P2PReplayGuard(security.MessageMaxAge);
         }
+
+        /// <summary>Whether message signing/verification is active (a cluster secret is configured).</summary>
+        private bool SigningEnabled => _signingKey != null;
+
+        /// <summary>Whether a node certificate is configured for TLS.</summary>
+        public bool IsTlsEnabled => P2PTlsHelper.IsTlsConfigured(_security);
+
+        /// <summary>The authenticated peer certificate (available after a TLS handshake).</summary>
+        public X509Certificate2? PeerCertificate => _peerCertificate;
+
+        /// <summary>Server-side TLS handshake (mutual TLS when configured). Call before the join handshake.</summary>
+        public async Task AuthenticateAsServerAsync(CancellationToken ct)
+        {
+            if (IsTlsEnabled)
+            {
+                var ssl = await P2PTlsHelper.AuthenticateAsServerAsync(_stream, _security, ct);
+                _stream = ssl;
+                _peerCertificate = ToCertificate2(ssl.RemoteCertificate);
+            }
+        }
+
+        /// <summary>Client-side TLS handshake (mutual TLS when configured). Call before the join handshake.</summary>
+        public async Task AuthenticateAsClientAsync(string targetHost, CancellationToken ct)
+        {
+            if (IsTlsEnabled)
+            {
+                var ssl = await P2PTlsHelper.AuthenticateAsClientAsync(_stream, targetHost, _security, ct);
+                _stream = ssl;
+                _peerCertificate = ToCertificate2(ssl.RemoteCertificate);
+            }
+        }
+
+        private static X509Certificate2? ToCertificate2(System.Security.Cryptography.X509Certificates.X509Certificate? certificate)
+            => certificate == null ? null : certificate as X509Certificate2 ?? new X509Certificate2(certificate);
 
         /// <summary>
         /// Performs server-side handshake.
@@ -386,11 +450,11 @@ namespace AdvGenNoSqlServer.Network.Clustering
                 if (request == null)
                     return HandshakeResult.FailedResult("Invalid join request");
 
-                // Validate cluster secret
+                // Validate cluster secret (constant-time comparison).
                 if (!string.IsNullOrEmpty(_security.ClusterSecret))
                 {
                     var expectedHash = ComputeClusterSecretHash(_security.ClusterSecret);
-                    if (request.ClusterSecretHash != expectedHash)
+                    if (!SecretHashEquals(request.ClusterSecretHash, expectedHash))
                     {
                         await SendAsync(new JoinResponseMessage 
                         { 
@@ -399,6 +463,24 @@ namespace AdvGenNoSqlServer.Network.Clustering
                             ErrorMessage = "Invalid cluster secret" 
                         }, ct);
                         return HandshakeResult.FailedResult("Invalid cluster secret");
+                    }
+                }
+
+                // Bind the claimed node identity to the authenticated transport certificate:
+                // when the peer presents a public key, it must match the mTLS peer certificate,
+                // so a node cannot impersonate another identity with a different certificate.
+                if (_peerCertificate != null && request.NodeIdentity.PublicKey.Length > 0)
+                {
+                    var certPublicKey = _peerCertificate.GetPublicKey();
+                    if (!certPublicKey.AsSpan().SequenceEqual(request.NodeIdentity.PublicKey))
+                    {
+                        await SendAsync(new JoinResponseMessage
+                        {
+                            SenderId = "",
+                            Accepted = false,
+                            ErrorMessage = "Node identity does not match the peer certificate"
+                        }, ct);
+                        return HandshakeResult.FailedResult("Node identity does not match the peer certificate");
                     }
                 }
 
@@ -493,6 +575,9 @@ namespace AdvGenNoSqlServer.Network.Clustering
         {
             try
             {
+                if (SigningEnabled)
+                    P2PMessageSecurity.Sign(message, _signingKey!, _jsonOptions);
+
                 var json = JsonSerializer.Serialize(message, message.GetType(), _jsonOptions);
                 var bytes = Encoding.UTF8.GetBytes(json);
                 var lengthBytes = BitConverter.GetBytes(bytes.Length);
@@ -550,8 +635,33 @@ namespace AdvGenNoSqlServer.Network.Clustering
             if (type == null)
                 return null;
 
-            return JsonSerializer.Deserialize(json, type, _jsonOptions) as P2PMessage;
+            var message = JsonSerializer.Deserialize(json, type, _jsonOptions) as P2PMessage;
+            if (message == null)
+                return null;
+
+            // Enforce message authentication, freshness and anti-replay when a signing
+            // key is configured. Invalid messages are dropped (fail closed).
+            if (SigningEnabled && !ValidateIncoming(message))
+                return null;
+
+            return message;
         }
+
+        private bool ValidateIncoming(P2PMessage message)
+        {
+            if (!P2PMessageSecurity.VerifySignature(message, _signingKey!, _jsonOptions))
+                return false;
+            if (!P2PMessageSecurity.IsFresh(message, _security.MessageMaxAge))
+                return false;
+            if (!_replayGuard.TryRegister(message.Nonce))
+                return false;
+            return true;
+        }
+
+        private static bool SecretHashEquals(string? a, string? b)
+            => CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(a ?? string.Empty),
+                Encoding.UTF8.GetBytes(b ?? string.Empty));
 
         private async Task<T?> ReadMessageAsync<T>(CancellationToken ct) where T : P2PMessage
         {
@@ -657,5 +767,21 @@ namespace AdvGenNoSqlServer.Network.Clustering
         /// The received message.
         /// </summary>
         public required P2PMessage Message { get; set; }
+    }
+
+    /// <summary>
+    /// Security audit event args for a rejected peer.
+    /// </summary>
+    public class PeerRejectedEventArgs : EventArgs
+    {
+        /// <summary>
+        /// The remote endpoint that was rejected.
+        /// </summary>
+        public required string Endpoint { get; set; }
+
+        /// <summary>
+        /// Why the peer was rejected.
+        /// </summary>
+        public required string Reason { get; set; }
     }
 }

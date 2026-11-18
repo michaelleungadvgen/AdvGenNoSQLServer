@@ -418,13 +418,28 @@ public class LruCache<TValue> : IDisposable
 /// </summary>
 public class CacheStatistics
 {
+    /// <summary>Gets or sets the number of items currently in the cache.</summary>
     public int ItemCount { get; set; }
+
+    /// <summary>Gets or sets the current cache size in bytes.</summary>
     public long CurrentSizeInBytes { get; set; }
+
+    /// <summary>Gets or sets the maximum number of items allowed.</summary>
     public int MaxItemCount { get; set; }
+
+    /// <summary>Gets or sets the maximum cache size in bytes.</summary>
     public long MaxSizeInBytes { get; set; }
+
+    /// <summary>Gets or sets the cumulative number of cache hits.</summary>
     public long TotalHits { get; set; }
+
+    /// <summary>Gets or sets the cumulative number of cache misses.</summary>
     public long TotalMisses { get; set; }
+
+    /// <summary>Gets or sets the cumulative number of evicted entries.</summary>
     public long TotalEvictions { get; set; }
+
+    /// <summary>Gets or sets the hit ratio (hits divided by total lookups).</summary>
     public double HitRatio { get; set; }
 }
 

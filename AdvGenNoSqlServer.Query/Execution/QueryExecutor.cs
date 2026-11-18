@@ -439,7 +439,7 @@ public class QueryExecutor : IQueryExecutor
 
         if (!isInclusion)
         {
-            // Exclusion projection - exclude specified fields
+            // Exclusion projection - exclude specified fields (dotted paths remove nested fields)
             var fieldsToExclude = projection.Where(p => !p.Value).Select(p => p.Key).ToList();
             foreach (var doc in documents)
             {
@@ -447,7 +447,7 @@ public class QueryExecutor : IQueryExecutor
                 {
                     foreach (var field in fieldsToExclude)
                     {
-                        doc.Data.Remove(field);
+                        RemoveFieldPath(doc.Data, field);
                     }
                 }
             }
@@ -466,6 +466,8 @@ public class QueryExecutor : IQueryExecutor
                 fieldsToInclude.Add("_id");
             }
 
+            var hasNestedPaths = fieldsToInclude.Any(f => f.Contains('.'));
+
             foreach (var doc in documents)
             {
                 if (doc.Data != null)
@@ -476,16 +478,90 @@ public class QueryExecutor : IQueryExecutor
                         doc.Data["_id"] = doc.Id;
                     }
 
-                    var keysToRemove = doc.Data.Keys.Where(k => !fieldsToInclude.Contains(k)).ToList();
-                    foreach (var key in keysToRemove)
+                    if (hasNestedPaths)
                     {
-                        doc.Data.Remove(key);
+                        var projected = ProjectFields(doc.Data, fieldsToInclude);
+                        doc.Data.Clear();
+                        foreach (var kvp in projected)
+                        {
+                            doc.Data[kvp.Key] = kvp.Value;
+                        }
+                    }
+                    else
+                    {
+                        var keysToRemove = doc.Data.Keys.Where(k => !fieldsToInclude.Contains(k)).ToList();
+                        foreach (var key in keysToRemove)
+                        {
+                            doc.Data.Remove(key);
+                        }
                     }
                 }
             }
         }
 
         return documents;
+    }
+
+    private static void RemoveFieldPath(Dictionary<string, object?> data, string fieldPath)
+    {
+        var dotIndex = fieldPath.IndexOf('.');
+        if (dotIndex < 0)
+        {
+            data.Remove(fieldPath);
+            return;
+        }
+
+        var root = fieldPath[..dotIndex];
+        if (data.TryGetValue(root, out var value) && value is Dictionary<string, object?> nested)
+        {
+            RemoveFieldPath(nested, fieldPath[(dotIndex + 1)..]);
+        }
+    }
+
+    private static Dictionary<string, object?> ProjectFields(Dictionary<string, object?> source, HashSet<string> fields)
+    {
+        var result = new Dictionary<string, object?>();
+        var nestedByRoot = new Dictionary<string, HashSet<string>>();
+
+        foreach (var field in fields)
+        {
+            var dotIndex = field.IndexOf('.');
+            if (dotIndex < 0)
+            {
+                if (source.TryGetValue(field, out var value))
+                {
+                    result[field] = value;
+                }
+            }
+            else
+            {
+                var root = field[..dotIndex];
+                if (!nestedByRoot.TryGetValue(root, out var subFields))
+                {
+                    subFields = new HashSet<string>();
+                    nestedByRoot[root] = subFields;
+                }
+                subFields.Add(field[(dotIndex + 1)..]);
+            }
+        }
+
+        foreach (var (root, subFields) in nestedByRoot)
+        {
+            // A whole-field inclusion takes precedence over nested paths
+            if (result.ContainsKey(root))
+                continue;
+
+            if (source.TryGetValue(root, out var value) && value is Dictionary<string, object?> nested)
+            {
+                var projected = ProjectFields(nested, subFields);
+                if (projected.Count > 0)
+                {
+                    result[root] = projected;
+                }
+            }
+        }
+
+        return result;
     }
 
     private void RecordQueryProfile(Query.Models.Query query, long durationMs, long documentsExamined, 

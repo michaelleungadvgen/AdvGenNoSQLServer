@@ -264,7 +264,7 @@ public class Program
             return Results.Ok(dbs);
         });
 
-        app.MapPost("/api/databases/{name}", [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")] async (string name, ApiDataService data) =>
+        app.MapPost("/api/databases/{name}", [Microsoft.AspNetCore.Authorization.Authorize(Roles = UserRole.Admin)] async (string name, ApiDataService data) =>
         {
             if (data.DatabaseManager == null) return Results.StatusCode(503);
             try
@@ -281,7 +281,7 @@ public class Program
             }
         });
 
-        app.MapDelete("/api/databases/{name}", [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")] async (string name, ApiDataService data) =>
+        app.MapDelete("/api/databases/{name}", [Microsoft.AspNetCore.Authorization.Authorize(Roles = UserRole.Admin)] async (string name, ApiDataService data) =>
         {
             if (data.DatabaseManager == null) return Results.StatusCode(503);
             try
@@ -364,7 +364,7 @@ public class Program
 
         // --- Collection Management ---
 
-        app.MapPost("/api/collections/{name}", [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")] async (string name, ApiDataService data) =>
+        app.MapPost("/api/collections/{name}", [Microsoft.AspNetCore.Authorization.Authorize(Roles = UserRole.Admin + "," + UserRole.ReadWrite)] async (string name, ApiDataService data) =>
         {
             if (data.DocumentStore == null) return Results.StatusCode(503);
             try
@@ -379,7 +379,7 @@ public class Program
             }
         });
 
-        app.MapDelete("/api/collections/{name}", [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")] async (string name, ApiDataService data) =>
+        app.MapDelete("/api/collections/{name}", [Microsoft.AspNetCore.Authorization.Authorize(Roles = UserRole.Admin)] async (string name, ApiDataService data) =>
         {
             if (data.DocumentStore == null) return Results.StatusCode(503);
             try
@@ -398,7 +398,7 @@ public class Program
 
         // --- Document CRUD ---
 
-        app.MapPost("/api/collections/{name}/documents", [Microsoft.AspNetCore.Authorization.Authorize] async (string name, Document doc, ApiDataService data) =>
+        app.MapPost("/api/collections/{name}/documents", [Microsoft.AspNetCore.Authorization.Authorize(Roles = UserRole.Admin + "," + UserRole.ReadWrite)] async (string name, Document doc, ApiDataService data) =>
         {
             if (data.DocumentStore == null) return Results.StatusCode(503);
             try
@@ -415,7 +415,7 @@ public class Program
             }
         });
 
-        app.MapPut("/api/collections/{name}/documents/{id}", [Microsoft.AspNetCore.Authorization.Authorize] async (string name, string id, Document doc, ApiDataService data) =>
+        app.MapPut("/api/collections/{name}/documents/{id}", [Microsoft.AspNetCore.Authorization.Authorize(Roles = UserRole.Admin + "," + UserRole.ReadWrite)] async (string name, string id, Document doc, ApiDataService data) =>
         {
             if (data.DocumentStore == null) return Results.StatusCode(503);
             try
@@ -431,7 +431,7 @@ public class Program
             }
         });
 
-        app.MapDelete("/api/collections/{name}/documents/{id}", [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")] async (string name, string id, ApiDataService data) =>
+        app.MapDelete("/api/collections/{name}/documents/{id}", [Microsoft.AspNetCore.Authorization.Authorize(Roles = UserRole.Admin + "," + UserRole.ReadWrite)] async (string name, string id, ApiDataService data) =>
         {
             if (data.DocumentStore == null) return Results.StatusCode(503);
             try
@@ -470,6 +470,7 @@ public class Program
                         success = true,
                         token = jwtToken,
                         username = req.Username,
+                        role = result.Role,
                         expiresAt = result.ExpiresAt
                     });
                 }
@@ -481,6 +482,74 @@ public class Program
                 return Results.BadRequest(new { success = false, error = "An internal error occurred" });
             }
         }).AllowAnonymous();
+
+        // --- User management (admin only) ---
+
+        app.MapGet("/api/users", [Microsoft.AspNetCore.Authorization.Authorize(Roles = UserRole.Admin)] (AuthenticationManager auth) =>
+        {
+            var users = auth.GetUsers().Values
+                .Select(u => new { username = u.Username, role = u.Role, createdAt = u.CreatedAt })
+                .OrderBy(u => u.username, StringComparer.Ordinal)
+                .ToList();
+            return Results.Ok(new { success = true, users });
+        });
+
+        app.MapPost("/api/users", [Microsoft.AspNetCore.Authorization.Authorize(Roles = UserRole.Admin)] (CreateUserRequest req, AuthenticationManager auth) =>
+        {
+            if (string.IsNullOrWhiteSpace(req.Username) || req.Username.Length > 64)
+                return Results.BadRequest(new { success = false, error = "Username required (<= 64 chars)" });
+            if (string.IsNullOrEmpty(req.Password) || req.Password.Length < 6)
+                return Results.BadRequest(new { success = false, error = "Password must be at least 6 characters" });
+            var role = string.IsNullOrEmpty(req.Role) ? UserRole.ReadWrite : req.Role;
+            if (!UserRole.IsValid(role))
+                return Results.BadRequest(new { success = false, error = $"Invalid role '{role}'" });
+            if (!auth.RegisterUser(req.Username, req.Password, role))
+                return Results.Conflict(new { success = false, error = $"User '{req.Username}' already exists" });
+            return Results.Ok(new { success = true, username = req.Username });
+        });
+
+        app.MapPut("/api/users/{username}/role", [Microsoft.AspNetCore.Authorization.Authorize(Roles = UserRole.Admin)] (string username, SetRoleRequest req, AuthenticationManager auth, NoSqlServerHost host) =>
+        {
+            var result = auth.SetRoleGuarded(username, req.Role ?? "");
+            if (result == UserOperationResult.Ok)
+            {
+                host.RevokeUserSessions(username, null, includeIssuer: true);
+                return Results.Ok(new { success = true });
+            }
+            return result switch
+            {
+                UserOperationResult.NotFound => Results.NotFound(new { success = false, error = $"User '{username}' not found" }),
+                UserOperationResult.InvalidRole => Results.BadRequest(new { success = false, error = $"Invalid role '{req.Role}'" }),
+                UserOperationResult.LastAdmin => Results.Conflict(new { success = false, error = "Cannot demote the last admin" }),
+                _ => Results.BadRequest(new { success = false, error = "Set role failed" })
+            };
+        });
+
+        app.MapPut("/api/users/{username}/password", [Microsoft.AspNetCore.Authorization.Authorize(Roles = UserRole.Admin)] (string username, SetPasswordRequest req, AuthenticationManager auth, NoSqlServerHost host) =>
+        {
+            if (string.IsNullOrEmpty(req.Password) || req.Password.Length < 6)
+                return Results.BadRequest(new { success = false, error = "Password must be at least 6 characters" });
+            if (!auth.SetPassword(username, req.Password))
+                return Results.NotFound(new { success = false, error = $"User '{username}' not found" });
+            host.RevokeUserSessions(username, null, includeIssuer: true);
+            return Results.Ok(new { success = true });
+        });
+
+        app.MapDelete("/api/users/{username}", [Microsoft.AspNetCore.Authorization.Authorize(Roles = UserRole.Admin)] (string username, AuthenticationManager auth, NoSqlServerHost host) =>
+        {
+            var result = auth.RemoveUserGuarded(username);
+            if (result == UserOperationResult.Ok)
+            {
+                host.RevokeUserSessions(username, null, includeIssuer: true);
+                return Results.Ok(new { success = true });
+            }
+            return result switch
+            {
+                UserOperationResult.NotFound => Results.NotFound(new { success = false, error = $"User '{username}' not found" }),
+                UserOperationResult.LastAdmin => Results.Conflict(new { success = false, error = "Cannot delete the last admin" }),
+                _ => Results.BadRequest(new { success = false, error = "Delete failed" })
+            };
+        });
 
         // Start the application (also starts IHostedServices)
         await app.RunAsync();
@@ -554,6 +623,11 @@ public class Program
                 var config = services.BuildServiceProvider()
                     .GetRequiredService<Core.Configuration.IConfigurationManager>().Configuration;
                 
+                // Keep the original JWT claim names ("roles"/"sub") so RoleClaimType and
+                // NameClaimType match. The legacy WS-* inbound claim mapping would rename
+                // them and silently break role-based authorization (403 for valid admins).
+                options.MapInboundClaims = false;
+
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuer = true,
@@ -655,8 +729,11 @@ public class Program
             return new HealthCheckService(registry);
         });
 
-        // Add the hosted NoSQL server service
-        services.AddHostedService<NoSqlServerHost>();
+        // Add the hosted NoSQL server service. Registered as a singleton so HTTP admin
+        // endpoints can share the instance (e.g. to revoke live TCP sessions when a user
+        // is changed through the REST API).
+        services.AddSingleton<NoSqlServerHost>();
+        services.AddHostedService(sp => sp.GetRequiredService<NoSqlServerHost>());
     }
 
     /// <summary>
@@ -680,6 +757,15 @@ public record QueryRequest(string Query, string? Collection);
 /// Request body for POST /api/auth/login.
 /// </summary>
 public record LoginRequest(string Username, string Password);
+
+/// <summary>Request body for POST /api/users.</summary>
+public record CreateUserRequest(string? Username, string? Password, string? Role);
+
+/// <summary>Request body for PUT /api/users/{username}/role.</summary>
+public record SetRoleRequest(string? Role);
+
+/// <summary>Request body for PUT /api/users/{username}/password.</summary>
+public record SetPasswordRequest(string? Password);
 
 /// <summary>
 /// Hosted service wrapper for the NoSQL server.
@@ -1064,11 +1150,19 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
 
             var command = commandProp.GetString()?.ToLowerInvariant();
 
-            // Role-based authorization (only enforced when authentication is required)
-            if (_configManager.Configuration.RequireAuthentication && command != null)
+            // Role-based authorization. When authentication is disabled, unauthenticated
+            // connections are treated as anonymous with the configured least-privilege role.
+            if (command != null)
             {
                 if (!_authConnections.TryGetValue(connectionId, out var identity))
-                    return NoSqlMessage.CreateError("AUTH_REQUIRED", "Authenticate before sending commands");
+                {
+                    if (_configManager.Configuration.RequireAuthentication)
+                        return NoSqlMessage.CreateError("AUTH_REQUIRED", "Authenticate before sending commands");
+                    var anonRole = UserRole.IsValid(_configManager.Configuration.AnonymousRole)
+                        ? _configManager.Configuration.AnonymousRole
+                        : UserRole.ReadOnly;
+                    identity = ("anonymous", anonRole);
+                }
                 if (command == "changepassword" && identity.Username == "anonymous")
                     return NoSqlMessage.CreateError("AUTH_REQUIRED", "changepassword requires an authenticated user");
                 if (!CommandAuthorizer.IsAllowed(command, identity.Role))
@@ -1103,9 +1197,9 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
                 "stats" => await HandleStatsCommandAsync(),
                 "listusers" => HandleListUsersCommand(),
                 "createuser" => HandleCreateUserCommand(doc.RootElement),
-                "deleteuser" => HandleDeleteUserCommand(doc.RootElement),
-                "setpassword" => HandleSetPasswordCommand(doc.RootElement),
-                "setrole" => HandleSetRoleCommand(doc.RootElement),
+                "deleteuser" => HandleDeleteUserCommand(doc.RootElement, connectionId),
+                "setpassword" => HandleSetPasswordCommand(doc.RootElement, connectionId),
+                "setrole" => HandleSetRoleCommand(doc.RootElement, connectionId),
                 "changepassword" => HandleChangePasswordCommand(doc.RootElement, connectionId),
                 "listattachments" => await HandleListAttachmentsCommand(doc.RootElement),
                 "attachmentinfo" => await HandleAttachmentInfoCommand(doc.RootElement),
@@ -1417,12 +1511,15 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
         return NoSqlMessage.CreateSuccess(new { created = true, username });
     }
 
-    private NoSqlMessage HandleDeleteUserCommand(System.Text.Json.JsonElement e)
+    private NoSqlMessage HandleDeleteUserCommand(System.Text.Json.JsonElement e, string connectionId)
     {
         var username = e.TryGetProperty("username", out var u) ? u.GetString() : null;
         if (string.IsNullOrWhiteSpace(username))
             return NoSqlMessage.CreateError("INVALID_COMMAND", "Username required");
-        return _authManager.RemoveUserGuarded(username) switch
+        var result = _authManager.RemoveUserGuarded(username);
+        if (result == UserOperationResult.Ok)
+            RevokeUserSessions(username!, connectionId, includeIssuer: true);
+        return result switch
         {
             UserOperationResult.Ok => NoSqlMessage.CreateSuccess(new { deleted = true }),
             UserOperationResult.NotFound => NoSqlMessage.CreateError("USER_NOT_FOUND", $"User '{username}' not found"),
@@ -1431,7 +1528,7 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
         };
     }
 
-    private NoSqlMessage HandleSetPasswordCommand(System.Text.Json.JsonElement e)
+    private NoSqlMessage HandleSetPasswordCommand(System.Text.Json.JsonElement e, string connectionId)
     {
         var username = e.TryGetProperty("username", out var u) ? u.GetString() : null;
         var password = e.TryGetProperty("password", out var p) ? p.GetString() : null;
@@ -1439,18 +1536,22 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
             return NoSqlMessage.CreateError("INVALID_COMMAND", "Username required");
         if (string.IsNullOrEmpty(password) || password.Length < 6)
             return NoSqlMessage.CreateError("WEAK_PASSWORD", "Password must be at least 6 characters");
-        return _authManager.SetPassword(username, password)
-            ? NoSqlMessage.CreateSuccess(new { changed = true })
-            : NoSqlMessage.CreateError("USER_NOT_FOUND", $"User '{username}' not found");
+        if (!_authManager.SetPassword(username, password))
+            return NoSqlMessage.CreateError("USER_NOT_FOUND", $"User '{username}' not found");
+        RevokeUserSessions(username!, connectionId, includeIssuer: false);
+        return NoSqlMessage.CreateSuccess(new { changed = true });
     }
 
-    private NoSqlMessage HandleSetRoleCommand(System.Text.Json.JsonElement e)
+    private NoSqlMessage HandleSetRoleCommand(System.Text.Json.JsonElement e, string connectionId)
     {
         var username = e.TryGetProperty("username", out var u) ? u.GetString() : null;
         var role = e.TryGetProperty("role", out var r) ? r.GetString() : null;
         if (string.IsNullOrWhiteSpace(username))
             return NoSqlMessage.CreateError("INVALID_COMMAND", "Username required");
-        return _authManager.SetRoleGuarded(username, role ?? "") switch
+        var result = _authManager.SetRoleGuarded(username, role ?? "");
+        if (result == UserOperationResult.Ok)
+            RevokeUserSessions(username!, connectionId, includeIssuer: true);
+        return result switch
         {
             UserOperationResult.Ok => NoSqlMessage.CreateSuccess(new { changed = true }),
             UserOperationResult.NotFound => NoSqlMessage.CreateError("USER_NOT_FOUND", $"User '{username}' not found"),
@@ -1468,9 +1569,26 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
         var newPw = e.TryGetProperty("newPassword", out var n) ? n.GetString() : null;
         if (string.IsNullOrEmpty(newPw) || newPw.Length < 6)
             return NoSqlMessage.CreateError("WEAK_PASSWORD", "Password must be at least 6 characters");
-        return _authManager.ChangePassword(identity.Username, oldPw ?? "", newPw)
-            ? NoSqlMessage.CreateSuccess(new { changed = true })
-            : NoSqlMessage.CreateError("AUTH_FAILED", "Old password is incorrect");
+        if (!_authManager.ChangePassword(identity.Username, oldPw ?? "", newPw))
+            return NoSqlMessage.CreateError("AUTH_FAILED", "Old password is incorrect");
+        RevokeUserSessions(identity.Username, connectionId, includeIssuer: false);
+        return NoSqlMessage.CreateSuccess(new { changed = true });
+    }
+
+    /// <summary>
+    /// Evicts cached TCP identities and revokes tokens for a user after an account
+    /// change, so demoted/deleted/re-passworded users cannot keep old privileges on
+    /// open connections. The issuing connection is kept for password changes only.
+    /// </summary>
+    public void RevokeUserSessions(string username, string? issuingConnectionId, bool includeIssuer)
+    {
+        foreach (var kvp in _authConnections)
+        {
+            if (kvp.Value.Username != username) continue;
+            if (!includeIssuer && kvp.Key == issuingConnectionId) continue;
+            _authConnections.TryRemove(kvp.Key, out _);
+        }
+        _authManager.RevokeAllUserTokens(username);
     }
 
     private async Task<NoSqlMessage> HandleListAttachmentsCommand(System.Text.Json.JsonElement e)
@@ -1561,11 +1679,18 @@ internal class NoSqlServerHost : IHostedService, IAsyncDisposable
     private Task<NoSqlMessage> HandleBulkOperationAsync(NoSqlMessage message, string connectionId)
     {
         // Bulk operations are not implemented in this host — fail honestly instead of
-        // pretending the batch was applied. Same auth gate as regular commands.
-        if (_configManager.Configuration.RequireAuthentication && !_authConnections.ContainsKey(connectionId))
+        // pretending the batch was applied. Same auth/role gate as regular commands.
+        if (!_authConnections.TryGetValue(connectionId, out var identity))
         {
-            return Task.FromResult(NoSqlMessage.CreateError("AUTH_REQUIRED", "Authenticate before sending bulk operations"));
+            if (_configManager.Configuration.RequireAuthentication)
+                return Task.FromResult(NoSqlMessage.CreateError("AUTH_REQUIRED", "Authenticate before sending bulk operations"));
+            var anonRole = UserRole.IsValid(_configManager.Configuration.AnonymousRole)
+                ? _configManager.Configuration.AnonymousRole
+                : UserRole.ReadOnly;
+            identity = ("anonymous", anonRole);
         }
+        if (!CommandAuthorizer.IsAllowed("bulk", identity.Role))
+            return Task.FromResult(NoSqlMessage.CreateError("FORBIDDEN", $"Role '{identity.Role}' may not run 'bulk'"));
         return Task.FromResult(NoSqlMessage.CreateError("UNSUPPORTED", "Bulk operations are not supported by this server"));
     }
 

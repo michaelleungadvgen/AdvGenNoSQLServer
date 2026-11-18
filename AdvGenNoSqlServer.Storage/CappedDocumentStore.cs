@@ -323,6 +323,16 @@ public class CappedDocumentStore : IDocumentStore
 /// </summary>
 public class CappedCollectionException : DocumentStoreException
 {
+    /// <summary>
+    /// Creates a new exception with the specified error message.
+    /// </summary>
+    /// <param name="message">The message describing the failure.</param>
     public CappedCollectionException(string message) : base(message) { }
+
+    /// <summary>
+    /// Creates a new exception with the specified error message and inner cause.
+    /// </summary>
+    /// <param name="message">The message describing the failure.</param>
+    /// <param name="innerException">The exception that caused this failure.</param>
     public CappedCollectionException(string message, Exception innerException) : base(message, innerException) { }
 }

@@ -5,8 +5,20 @@ using Microsoft.Extensions.Logging;
 
 namespace AdvGenNoSqlServer.Core.MemoryManagement;
 
+/// <summary>
+/// Dependency-injection helpers for registering a memory storage engine based on configuration
+/// </summary>
 public static class MemoryEngineFactory
 {
+    /// <summary>
+    /// Registers a singleton <see cref="IMemoryStorageEngine"/> chosen by the configured plan (Native, Mixed or Managed),
+    /// applying the effective memory limit and falling back to Managed for unknown plans
+    /// </summary>
+    /// <param name="services">The service collection to add the engine to</param>
+    /// <param name="config">Memory management configuration selecting the plan and limits</param>
+    /// <returns>The same service collection for chaining</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="config"/> is null</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the configuration values are invalid</exception>
     public static IServiceCollection AddMemoryEngine(
         this IServiceCollection services,
         MemoryManagementConfiguration config)

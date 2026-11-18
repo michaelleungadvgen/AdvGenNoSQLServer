@@ -229,17 +229,30 @@ internal class BTreeNode<TKey, TValue> where TKey : IComparable<TKey>
     /// <param name="separatorIndex">Index of the separator key in parent</param>
     public void MergeWithRightSibling(BTreeNode<TKey, TValue> parent, BTreeNode<TKey, TValue> rightSibling, int separatorIndex)
     {
-        // Add separator key from parent
-        Keys.Add(parent.Keys[separatorIndex]);
-        Values.Add(parent.Values[separatorIndex]);
+        TKey separatorKey = parent.Keys[separatorIndex];
+        List<TValue> separatorValues = parent.Values[separatorIndex];
 
-        // Add all keys and values from right sibling
+        if (IsLeaf && rightSibling.Keys.Count > 0 && separatorKey.CompareTo(rightSibling.Keys[0]) == 0)
+        {
+            // The separator mirrors the right leaf's first key (B+ style promotion);
+            // combine the value lists instead of creating a duplicate key entry.
+            // Promotion shares one list instance, so skip when already identical.
+            if (!ReferenceEquals(separatorValues, rightSibling.Values[0]))
+            {
+                rightSibling.Values[0].InsertRange(0, separatorValues);
+            }
+        }
+        else
+        {
+            Keys.Add(separatorKey);
+            Values.Add(separatorValues);
+        }
+
         Keys.AddRange(rightSibling.Keys);
         Values.AddRange(rightSibling.Values);
 
         if (!IsLeaf)
         {
-            // Add all children from right sibling
             Children.AddRange(rightSibling.Children);
             foreach (var child in rightSibling.Children)
             {
@@ -248,7 +261,6 @@ internal class BTreeNode<TKey, TValue> where TKey : IComparable<TKey>
         }
         else
         {
-            // Update leaf link
             NextLeaf = rightSibling.NextLeaf;
         }
 
@@ -267,8 +279,18 @@ internal class BTreeNode<TKey, TValue> where TKey : IComparable<TKey>
     public void BorrowFromLeft(BTreeNode<TKey, TValue> parent, BTreeNode<TKey, TValue> leftSibling, int separatorIndex)
     {
         // Move separator from parent to this node's beginning
-        Keys.Insert(0, parent.Keys[separatorIndex]);
-        Values.Insert(0, parent.Values[separatorIndex]);
+        if (IsLeaf && Keys.Count > 0 && parent.Keys[separatorIndex].CompareTo(Keys[0]) == 0)
+        {
+            if (!ReferenceEquals(parent.Values[separatorIndex], Values[0]))
+            {
+                Values[0].InsertRange(0, parent.Values[separatorIndex]);
+            }
+        }
+        else
+        {
+            Keys.Insert(0, parent.Keys[separatorIndex]);
+            Values.Insert(0, parent.Values[separatorIndex]);
+        }
 
         // Move last key from left sibling to parent
         int lastIndex = leftSibling.Keys.Count - 1;
@@ -297,8 +319,18 @@ internal class BTreeNode<TKey, TValue> where TKey : IComparable<TKey>
     public void BorrowFromRight(BTreeNode<TKey, TValue> parent, BTreeNode<TKey, TValue> rightSibling, int separatorIndex)
     {
         // Move separator from parent to this node's end
-        Keys.Add(parent.Keys[separatorIndex]);
-        Values.Add(parent.Values[separatorIndex]);
+        if (IsLeaf && Keys.Count > 0 && parent.Keys[separatorIndex].CompareTo(Keys[Keys.Count - 1]) == 0)
+        {
+            if (!ReferenceEquals(parent.Values[separatorIndex], Values[Keys.Count - 1]))
+            {
+                Values[Keys.Count - 1].AddRange(parent.Values[separatorIndex]);
+            }
+        }
+        else
+        {
+            Keys.Add(parent.Keys[separatorIndex]);
+            Values.Add(parent.Values[separatorIndex]);
+        }
 
         // Move first key from right sibling to parent
         parent.Keys[separatorIndex] = rightSibling.Keys[0];

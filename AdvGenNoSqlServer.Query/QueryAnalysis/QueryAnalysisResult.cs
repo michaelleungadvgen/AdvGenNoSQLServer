@@ -99,7 +99,14 @@ public class QueryInfo
 /// </summary>
 public class SortFieldInfo
 {
+    /// <summary>
+    /// The field to sort by
+    /// </summary>
     public required string Field { get; set; }
+
+    /// <summary>
+    /// Sort direction ("ascending" or "descending")
+    /// </summary>
     public string Direction { get; set; } = "ascending";
 }
 
@@ -108,7 +115,14 @@ public class SortFieldInfo
 /// </summary>
 public class PaginationInfo
 {
+    /// <summary>
+    /// Number of documents to skip
+    /// </summary>
     public int Skip { get; set; }
+
+    /// <summary>
+    /// Maximum number of documents to return, or null for no limit
+    /// </summary>
     public int? Limit { get; set; }
 }
 

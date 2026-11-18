@@ -405,7 +405,18 @@ namespace AdvGenNoSqlServer.Network
     /// </summary>
     public class ProtocolException : Exception
     {
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ProtocolException"/> class with a specified error message.
+        /// </summary>
+        /// <param name="message">The message that describes the protocol error.</param>
         public ProtocolException(string message) : base(message) { }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ProtocolException"/> class with a specified error message
+        /// and a reference to the inner exception that caused it.
+        /// </summary>
+        /// <param name="message">The message that describes the protocol error.</param>
+        /// <param name="innerException">The exception that is the cause of this exception.</param>
         public ProtocolException(string message, Exception innerException) : base(message, innerException) { }
     }
 }

@@ -26,7 +26,7 @@ public class AttachmentClientTests : IAsyncLifetime
         var config = new ServerConfiguration
         {
             Host = "127.0.0.1", Port = Port, StoragePath = _dir,
-            RequireAuthentication = false, EnableSsl = false, MaxAttachmentSizeMB = 5
+            RequireAuthentication = false, AnonymousRole = "admin", EnableSsl = false, MaxAttachmentSizeMB = 5
         };
         var cm = new Mock<IConfigurationManager>();
         cm.Setup(c => c.Configuration).Returns(config);

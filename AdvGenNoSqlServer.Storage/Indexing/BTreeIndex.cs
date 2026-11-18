@@ -108,6 +108,15 @@ public class BTreeIndex<TKey, TValue> : IBTreeIndex<TKey, TValue> where TKey : I
 
         lock (_lock)
         {
+            // Tree-wide duplicate check under the same lock as the insert, so
+            // check+insert is atomic against concurrent writers. Search covers
+            // separator keys on the descent path and the target leaf, which
+            // together account for every key stored anywhere in the tree.
+            if (IsUnique && _root != null && _root.Search(key, out _))
+            {
+                throw new DuplicateKeyException($"Duplicate key '{key}' in unique index '{Name}'");
+            }
+
             if (_root == null)
             {
                 _root = new BTreeNode<TKey, TValue>(_minDegree, true);
@@ -203,21 +212,8 @@ public class BTreeIndex<TKey, TValue> : IBTreeIndex<TKey, TValue> where TKey : I
         {
             if (_root == null) return false;
 
-            bool deleted = DeleteInternal(_root, key, default!, false, out _);
-            if (deleted)
-            {
-                Count--;
-                // If root is empty and has children, promote first child
-                if (_root.KeyCount == 0 && !_root.IsLeaf)
-                {
-                    _root = _root.Children[0];
-                    _root.Parent = null;
-                }
-                else if (_root.KeyCount == 0)
-                {
-                    _root = null;
-                }
-            }
+            bool deleted = DeleteInternal(_root, key, default!, false);
+            ShrinkRoot();
             return deleted;
         }
     }
@@ -234,215 +230,275 @@ public class BTreeIndex<TKey, TValue> : IBTreeIndex<TKey, TValue> where TKey : I
         {
             if (_root == null) return false;
 
-            bool deleted = DeleteInternal(_root, key, value, true, out _);
-            if (deleted)
-            {
-                Count--;
-                // Same root cleanup as above
-                if (_root?.KeyCount == 0 && !_root.IsLeaf)
-                {
-                    _root = _root.Children[0];
-                    _root.Parent = null;
-                }
-                else if (_root?.KeyCount == 0)
-                {
-                    _root = null;
-                }
-            }
+            bool deleted = DeleteInternal(_root, key, value, true);
+            ShrinkRoot();
             return deleted;
         }
     }
 
-    /// <summary>
-    /// Internal delete operation
-    /// </summary>
-    private bool DeleteInternal(BTreeNode<TKey, TValue> node, TKey key, TValue? specificValue, bool hasSpecificValue, out bool isEmpty)
+    private void ShrinkRoot()
     {
-        isEmpty = false;
+        while (_root != null && _root.KeyCount == 0)
+        {
+            if (_root.IsLeaf || _root.Children.Count == 0)
+            {
+                _root = null;
+            }
+            else
+            {
+                _root = _root.Children[0];
+                _root.Parent = null;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Internal delete operation. All Count adjustments happen inside this call tree
+    /// so a promoted key (separator copy + leaf copy) is accounted exactly once.
+    /// </summary>
+    private bool DeleteInternal(BTreeNode<TKey, TValue> node, TKey key, TValue? specificValue, bool hasSpecificValue)
+    {
         int index = node.FindKeyIndex(key);
 
         if (index >= 0)
         {
-            // Key found in this node
             if (node.IsLeaf)
             {
                 var values = node.Values[index];
 
                 if (hasSpecificValue)
                 {
-                    // Remove only the specific value
-                    bool removed = values.Remove(specificValue!);
-                    if (!removed) return false;
-
+                    if (!values.Remove(specificValue!)) return false;
+                    Count--;
                     if (values.Count == 0)
                     {
-                        // Remove the entire key entry
                         node.Keys.RemoveAt(index);
                         node.Values.RemoveAt(index);
-                        isEmpty = node.KeyCount == 0;
                     }
                     return true;
                 }
-                else
-                {
-                    // Remove entire key
-                    int valueCount = values.Count;
-                    node.Keys.RemoveAt(index);
-                    node.Values.RemoveAt(index);
-                    isEmpty = node.KeyCount == 0;
 
-                    // Adjust Count for all values that were under this key
-                    for (int i = 0; i < valueCount - 1; i++)
-                    {
-                        Count--; // Extra decrements for additional values
-                    }
-                    return true;
-                }
+                Count -= values.Count;
+                node.Keys.RemoveAt(index);
+                node.Values.RemoveAt(index);
+                return true;
             }
-            else
-            {
-                // Internal node - handle deletion
-                return DeleteFromInternalNode(node, index, key, specificValue, hasSpecificValue, out isEmpty);
-            }
+
+            return DeleteFromInternalNode(node, index, key, specificValue, hasSpecificValue);
         }
 
-        if (node.IsLeaf)
-        {
-            return false;
-        }
+        if (node.IsLeaf) return false;
 
-        // Key not in this node, recurse to appropriate child
         int childIndex = ~index;
-        if (childIndex >= node.Children.Count)
-        {
-            return false;
-        }
+        if (childIndex >= node.Children.Count) return false;
 
-        var child = node.Children[childIndex];
-        bool deleted = DeleteInternal(child, key, specificValue, hasSpecificValue, out bool childIsEmpty);
-
-        if (deleted && child.KeyCount < _minDegree - 1 && !childIsEmpty)
-        {
-            Rebalance(node, childIndex);
-        }
-
+        bool deleted = DeleteInternal(node.Children[childIndex], key, specificValue, hasSpecificValue);
+        if (deleted) Rebalance(node, childIndex);
         return deleted;
     }
 
     /// <summary>
-    /// Deletes from an internal node using predecessor/successor
+    /// Deletes a key found in an internal node. A promoted key lives both in this
+    /// separator and as a leaf entry in the right subtree; both copies must go.
     /// </summary>
-    private bool DeleteFromInternalNode(BTreeNode<TKey, TValue> node, int index, TKey key, TValue? specificValue, bool hasSpecificValue, out bool isEmpty)
+    private bool DeleteFromInternalNode(BTreeNode<TKey, TValue> node, int index, TKey key, TValue? specificValue, bool hasSpecificValue)
     {
-        isEmpty = false;
+        var separatorValues = node.Values[index];
 
         if (hasSpecificValue)
         {
-            // For specific value deletion in internal node, we need to find the value in leaves
-            var values = node.Values[index];
-            bool removed = values.Remove(specificValue!);
-            if (!removed) return false;
-
-            if (values.Count == 0)
+            if (separatorValues.Remove(specificValue!))
             {
-                // Fall through to handle empty key case
-            }
-            else
-            {
+                Count--;
+                if (separatorValues.Count > 0) return true;
+                // Separator exhausted but the leaf copy may still hold values:
+                // retire the separator entry without deleting the key itself.
+                ReplaceSeparator(node, index);
                 return true;
             }
+
+            bool removed = DeleteInternal(node.Children[index + 1], key, specificValue, true);
+            if (removed) Rebalance(node, index + 1);
+            return removed;
         }
 
-        var leftChild = node.Children[index];
-        var rightChild = node.Children[index + 1];
+        // Remove the leaf copy first, repairing only inside the right subtree so
+        // no rebalance merges across the separator we are about to retire.
+        var rightSubtree = node.Children[index + 1];
+        int leafValueCount = RemoveLeafCopy(rightSubtree, key, separatorValues, out var leaf);
+        RepairPath(leaf, rightSubtree);
+        Count -= separatorValues.Count + leafValueCount;
 
-        if (leftChild.KeyCount >= _minDegree)
+        var left = node.Children[index];
+        var right = node.Children[index + 1];
+
+        if (left.KeyCount >= _minDegree)
         {
-            // Use predecessor
-            var (predKey, predValues) = GetPredecessor(leftChild);
+            var (predKey, predValues) = GetPredecessor(left);
             node.Keys[index] = predKey;
-            node.Values[index] = new List<TValue>(predValues);
-            bool deleted = DeleteInternal(leftChild, predKey, default!, false, out bool leftIsEmpty);
-            if (leftIsEmpty && leftChild.KeyCount == 0)
-            {
-                HandleEmptyChild(node, index);
-            }
-            else if (leftChild.KeyCount < _minDegree - 1)
-            {
-                Rebalance(node, index);
-            }
-            return deleted;
+            node.Values[index] = predValues;
+            DeleteInternal(left, predKey, default!, false);
+            Count += predValues.Count;
+            Rebalance(node, index);
+            Rebalance(node, index + 1);
         }
-        else if (rightChild.KeyCount >= _minDegree)
+        else if (right.KeyCount >= _minDegree)
         {
-            // Use successor
-            var (succKey, succValues) = GetSuccessor(rightChild);
+            var (succKey, succValues) = GetSuccessor(right);
             node.Keys[index] = succKey;
-            node.Values[index] = new List<TValue>(succValues);
-            bool deleted = DeleteInternal(rightChild, succKey, default!, false, out bool rightIsEmpty);
-            if (rightIsEmpty && rightChild.KeyCount == 0)
-            {
-                HandleEmptyChild(node, index + 1);
-            }
-            else if (rightChild.KeyCount < _minDegree - 1)
-            {
-                Rebalance(node, index + 1);
-            }
-            return deleted;
+            node.Values[index] = succValues;
+            DeleteInternal(right, succKey, default!, false);
+            Count += succValues.Count;
+            Rebalance(node, index + 1);
         }
         else
         {
-            // Merge with right sibling
-            leftChild.MergeWithRightSibling(node, rightChild, index);
-            bool deleted = DeleteInternal(leftChild, key, specificValue, hasSpecificValue, out isEmpty);
-            return deleted;
+            node.Values[index] = new List<TValue>();
+            left.MergeWithRightSibling(node, right, index);
+            DeleteInternal(left, key, default!, false);
+            Rebalance(node, index);
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Retires a separator whose value list is exhausted, keeping the key's leaf copy.
+    /// </summary>
+    private void ReplaceSeparator(BTreeNode<TKey, TValue> node, int index)
+    {
+        var left = node.Children[index];
+        var right = node.Children[index + 1];
+
+        if (left.KeyCount >= _minDegree)
+        {
+            var (predKey, predValues) = GetPredecessor(left);
+            node.Keys[index] = predKey;
+            node.Values[index] = predValues;
+            DeleteInternal(left, predKey, default!, false);
+            Count += predValues.Count;
+            Rebalance(node, index);
+        }
+        else if (right.KeyCount >= _minDegree)
+        {
+            var (succKey, succValues) = GetSuccessor(right);
+            node.Keys[index] = succKey;
+            node.Values[index] = succValues;
+            DeleteInternal(right, succKey, default!, false);
+            Count += succValues.Count;
+            Rebalance(node, index + 1);
+        }
+        else
+        {
+            left.MergeWithRightSibling(node, right, index);
+            Rebalance(node, index);
         }
     }
 
     /// <summary>
-    /// Gets the predecessor (largest key in left subtree)
+    /// Removes the leaf copy of a promoted key without rebalancing; returns the
+    /// number of values removed, excluding any already counted via the separator
+    /// (split promotion shares one value list between separator and leaf).
+    /// </summary>
+    private int RemoveLeafCopy(BTreeNode<TKey, TValue> subtree, TKey key, List<TValue> separatorValues, out BTreeNode<TKey, TValue> leaf)
+    {
+        var node = subtree;
+        while (!node.IsLeaf)
+        {
+            int ci = node.GetChildIndex(key);
+            if (ci >= node.Children.Count)
+            {
+                leaf = node;
+                return 0;
+            }
+            node = node.Children[ci];
+        }
+
+        leaf = node;
+        int i = node.FindKeyIndex(key);
+        if (i < 0) return 0;
+
+        var list = node.Values[i];
+        int count = ReferenceEquals(list, separatorValues) ? 0 : list.Count;
+        node.Keys.RemoveAt(i);
+        node.Values.RemoveAt(i);
+        return count;
+    }
+
+    private void RepairPath(BTreeNode<TKey, TValue> leaf, BTreeNode<TKey, TValue> stop)
+    {
+        var cur = leaf;
+        while (cur != stop && cur.Parent != null)
+        {
+            var parent = cur.Parent;
+            int ci = parent.Children.IndexOf(cur);
+            if (ci >= 0) Rebalance(parent, ci);
+            cur = parent;
+        }
+    }
+
+    /// <summary>
+    /// Gets the predecessor (largest key in left subtree) with all of its values,
+    /// including any separator copy along the descent path.
     /// </summary>
     private (TKey key, List<TValue> values) GetPredecessor(BTreeNode<TKey, TValue> node)
     {
+        var ancestors = new List<BTreeNode<TKey, TValue>>();
         while (!node.IsLeaf)
         {
+            ancestors.Add(node);
             node = node.Children[node.Children.Count - 1];
         }
         int lastIndex = node.Keys.Count - 1;
-        return (node.Keys[lastIndex], node.Values[lastIndex]);
+        var key = node.Keys[lastIndex];
+        var values = new List<TValue>(node.Values[lastIndex]);
+        var seen = new HashSet<List<TValue>> { node.Values[lastIndex] };
+        for (int i = ancestors.Count - 1; i >= 0; i--)
+        {
+            int sep = ancestors[i].FindKeyIndex(key);
+            if (sep >= 0 && seen.Add(ancestors[i].Values[sep]))
+            {
+                values.AddRange(ancestors[i].Values[sep]);
+            }
+        }
+        return (key, values);
     }
 
     /// <summary>
-    /// Gets the successor (smallest key in right subtree)
+    /// Gets the successor (smallest key in right subtree) with all of its values,
+    /// including any separator copy along the descent path.
     /// </summary>
     private (TKey key, List<TValue> values) GetSuccessor(BTreeNode<TKey, TValue> node)
     {
+        var ancestors = new List<BTreeNode<TKey, TValue>>();
         while (!node.IsLeaf)
         {
+            ancestors.Add(node);
             node = node.Children[0];
         }
-        return (node.Keys[0], node.Values[0]);
-    }
-
-    /// <summary>
-    /// Handles an empty child node after deletion
-    /// </summary>
-    private void HandleEmptyChild(BTreeNode<TKey, TValue> parent, int childIndex)
-    {
-        if (childIndex < parent.Children.Count)
+        var key = node.Keys[0];
+        var values = new List<TValue>(node.Values[0]);
+        var seen = new HashSet<List<TValue>> { node.Values[0] };
+        for (int i = ancestors.Count - 1; i >= 0; i--)
         {
-            parent.Children.RemoveAt(childIndex);
+            int sep = ancestors[i].FindKeyIndex(key);
+            if (sep >= 0 && seen.Add(ancestors[i].Values[sep]))
+            {
+                values.AddRange(ancestors[i].Values[sep]);
+            }
         }
+        return (key, values);
     }
 
     /// <summary>
-    /// Rebalances the tree after deletion
+    /// Rebalances a child after deletion. MergeWithRightSibling already removes the
+    /// separator and the merged-away child from the parent, so no extra removal here.
     /// </summary>
     private void Rebalance(BTreeNode<TKey, TValue> parent, int childIndex)
     {
+        if (childIndex < 0 || childIndex >= parent.Children.Count) return;
         var child = parent.Children[childIndex];
+        if (child.KeyCount >= _minDegree - 1) return;
 
-        // Try to borrow from left sibling
         if (childIndex > 0)
         {
             var leftSibling = parent.Children[childIndex - 1];
@@ -453,7 +509,6 @@ public class BTreeIndex<TKey, TValue> : IBTreeIndex<TKey, TValue> where TKey : I
             }
         }
 
-        // Try to borrow from right sibling
         if (childIndex < parent.Children.Count - 1)
         {
             var rightSibling = parent.Children[childIndex + 1];
@@ -464,20 +519,13 @@ public class BTreeIndex<TKey, TValue> : IBTreeIndex<TKey, TValue> where TKey : I
             }
         }
 
-        // Merge with sibling
         if (childIndex > 0)
         {
-            // Merge with left sibling
-            var leftSibling = parent.Children[childIndex - 1];
-            leftSibling.MergeWithRightSibling(parent, child, childIndex - 1);
-            parent.Children.RemoveAt(childIndex);
+            parent.Children[childIndex - 1].MergeWithRightSibling(parent, child, childIndex - 1);
         }
         else if (childIndex < parent.Children.Count - 1)
         {
-            // Merge with right sibling
-            var rightSibling = parent.Children[childIndex + 1];
-            child.MergeWithRightSibling(parent, rightSibling, childIndex);
-            parent.Children.RemoveAt(childIndex + 1);
+            child.MergeWithRightSibling(parent, parent.Children[childIndex + 1], childIndex);
         }
     }
 
@@ -490,13 +538,13 @@ public class BTreeIndex<TKey, TValue> : IBTreeIndex<TKey, TValue> where TKey : I
 
         lock (_lock)
         {
-            if (_root == null || !_root.Search(key, out var values))
+            if (_root == null || !_root.Search(key, out var values) || values!.Count == 0)
             {
                 value = default;
                 return false;
             }
 
-            value = values![0];
+            value = values[0];
             return true;
         }
     }
@@ -515,7 +563,7 @@ public class BTreeIndex<TKey, TValue> : IBTreeIndex<TKey, TValue> where TKey : I
                 return Enumerable.Empty<TValue>();
             }
 
-            return values!.AsEnumerable();
+            return values!.ToList();
         }
     }
 
@@ -529,9 +577,9 @@ public class BTreeIndex<TKey, TValue> : IBTreeIndex<TKey, TValue> where TKey : I
 
         lock (_lock)
         {
-            if (_root == null) yield break;
+            var results = new List<KeyValuePair<TKey, TValue>>();
+            if (_root == null) return results;
 
-            // Find the starting leaf node
             var leaf = FindLeafNode(_root, startKey);
 
             while (leaf != null)
@@ -539,19 +587,17 @@ public class BTreeIndex<TKey, TValue> : IBTreeIndex<TKey, TValue> where TKey : I
                 for (int i = 0; i < leaf.Keys.Count; i++)
                 {
                     var key = leaf.Keys[i];
-                    int cmpStart = key.CompareTo(startKey);
-                    int cmpEnd = key.CompareTo(endKey);
-
-                    if (cmpStart < 0) continue;
-                    if (cmpEnd > 0) yield break;
+                    if (key.CompareTo(startKey) < 0) continue;
+                    if (key.CompareTo(endKey) > 0) return results;
 
                     foreach (var value in leaf.Values[i])
                     {
-                        yield return new KeyValuePair<TKey, TValue>(key, value);
+                        results.Add(new KeyValuePair<TKey, TValue>(key, value));
                     }
                 }
                 leaf = leaf.NextLeaf;
             }
+            return results;
         }
     }
 
@@ -564,7 +610,8 @@ public class BTreeIndex<TKey, TValue> : IBTreeIndex<TKey, TValue> where TKey : I
 
         lock (_lock)
         {
-            if (_root == null) yield break;
+            var results = new List<KeyValuePair<TKey, TValue>>();
+            if (_root == null) return results;
 
             var leaf = FindLeafNode(_root, key);
 
@@ -577,11 +624,12 @@ public class BTreeIndex<TKey, TValue> : IBTreeIndex<TKey, TValue> where TKey : I
 
                     foreach (var value in leaf.Values[i])
                     {
-                        yield return new KeyValuePair<TKey, TValue>(k, value);
+                        results.Add(new KeyValuePair<TKey, TValue>(k, value));
                     }
                 }
                 leaf = leaf.NextLeaf;
             }
+            return results;
         }
     }
 
@@ -594,7 +642,7 @@ public class BTreeIndex<TKey, TValue> : IBTreeIndex<TKey, TValue> where TKey : I
 
         lock (_lock)
         {
-            // Start from the leftmost leaf
+            var results = new List<KeyValuePair<TKey, TValue>>();
             var leaf = GetLeftmostLeaf(_root);
 
             while (leaf != null)
@@ -602,15 +650,16 @@ public class BTreeIndex<TKey, TValue> : IBTreeIndex<TKey, TValue> where TKey : I
                 for (int i = 0; i < leaf.Keys.Count; i++)
                 {
                     var k = leaf.Keys[i];
-                    if (k.CompareTo(key) > 0) yield break;
+                    if (k.CompareTo(key) > 0) return results;
 
                     foreach (var value in leaf.Values[i])
                     {
-                        yield return new KeyValuePair<TKey, TValue>(k, value);
+                        results.Add(new KeyValuePair<TKey, TValue>(k, value));
                     }
                 }
                 leaf = leaf.NextLeaf;
             }
+            return results;
         }
     }
 
@@ -646,6 +695,7 @@ public class BTreeIndex<TKey, TValue> : IBTreeIndex<TKey, TValue> where TKey : I
     {
         lock (_lock)
         {
+            var results = new List<KeyValuePair<TKey, TValue>>();
             var leaf = GetLeftmostLeaf(_root);
 
             while (leaf != null)
@@ -654,11 +704,12 @@ public class BTreeIndex<TKey, TValue> : IBTreeIndex<TKey, TValue> where TKey : I
                 {
                     foreach (var value in leaf.Values[i])
                     {
-                        yield return new KeyValuePair<TKey, TValue>(leaf.Keys[i], value);
+                        results.Add(new KeyValuePair<TKey, TValue>(leaf.Keys[i], value));
                     }
                 }
                 leaf = leaf.NextLeaf;
             }
+            return results;
         }
     }
 

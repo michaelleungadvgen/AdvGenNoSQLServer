@@ -25,6 +25,11 @@ public sealed class ManagedMemoryStorageEngine : IMemoryStorageEngine
     private long _missCount;
     private int _disposed;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ManagedMemoryStorageEngine"/> class, creating the shards and optionally a TTL cleanup timer
+    /// </summary>
+    /// <param name="config">Memory management settings supplying the eviction policy and default TTL</param>
+    /// <param name="limitBytes">The maximum total entry size in bytes before eviction kicks in</param>
     public ManagedMemoryStorageEngine(MemoryManagementConfiguration config, long limitBytes)
     {
         _limitBytes = limitBytes;
@@ -48,6 +53,12 @@ public sealed class ManagedMemoryStorageEngine : IMemoryStorageEngine
 
     private int ShardFor(string key) => Math.Abs(key.GetHashCode()) % ShardCount;
 
+    /// <summary>
+    /// Attempts to read an entry, returning a copy of the stored bytes (never the pooled buffer)
+    /// </summary>
+    /// <param name="key">The entry key</param>
+    /// <param name="value">Receives a copy of the entry bytes on success</param>
+    /// <returns>True if the entry exists; otherwise false</returns>
     public bool TryGet(string key, out ReadOnlySpan<byte> value)
     {
         int shard = ShardFor(key);
@@ -72,6 +83,12 @@ public sealed class ManagedMemoryStorageEngine : IMemoryStorageEngine
         }
     }
 
+    /// <summary>
+    /// Inserts or replaces an entry using a pooled buffer, evicting victims when the memory limit would be exceeded
+    /// </summary>
+    /// <param name="key">The entry key</param>
+    /// <param name="value">The bytes to store (copied into a pooled buffer)</param>
+    /// <param name="ttl">Optional time-to-live; null means no expiration</param>
     public void Set(string key, ReadOnlySpan<byte> value, TimeSpan? ttl = null)
     {
         int shard = ShardFor(key);
@@ -131,6 +148,11 @@ public sealed class ManagedMemoryStorageEngine : IMemoryStorageEngine
         }
     }
 
+    /// <summary>
+    /// Removes an entry and returns its pooled buffer
+    /// </summary>
+    /// <param name="key">The entry key</param>
+    /// <returns>True if the entry was removed; false if it did not exist</returns>
     public bool Remove(string key)
     {
         int shard = ShardFor(key);
@@ -153,6 +175,9 @@ public sealed class ManagedMemoryStorageEngine : IMemoryStorageEngine
         }
     }
 
+    /// <summary>
+    /// Removes all entries from every shard, returning pooled buffers
+    /// </summary>
     public void Clear()
     {
         for (int i = 0; i < ShardCount; i++)
@@ -171,6 +196,10 @@ public sealed class ManagedMemoryStorageEngine : IMemoryStorageEngine
         }
     }
 
+    /// <summary>
+    /// Gets a snapshot of usage and hit/miss statistics for the managed engine
+    /// </summary>
+    /// <returns>The current engine statistics with plan "Managed"</returns>
     public MemoryEngineStats GetStats() => new()
     {
         Plan = "Managed",
@@ -207,6 +236,9 @@ public sealed class ManagedMemoryStorageEngine : IMemoryStorageEngine
         }
     }
 
+    /// <summary>
+    /// Stops the TTL timer, clears all entries and disposes the shard locks
+    /// </summary>
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;

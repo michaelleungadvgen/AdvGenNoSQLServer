@@ -136,17 +136,48 @@ public readonly struct GeoPoint : IEquatable<GeoPoint>
         return null;
     }
 
+    /// <summary>
+    /// Determines whether another point has the same coordinates within a 1e-9 tolerance.
+    /// </summary>
+    /// <param name="other">The point to compare with.</param>
+    /// <returns>True if both coordinates match within tolerance; otherwise false.</returns>
     public bool Equals(GeoPoint other) => 
         Math.Abs(Longitude - other.Longitude) < 1e-9 && 
         Math.Abs(Latitude - other.Latitude) < 1e-9;
 
+    /// <summary>
+    /// Determines whether the object is a GeoPoint with equal coordinates.
+    /// </summary>
+    /// <param name="obj">The object to compare with.</param>
+    /// <returns>True if the object is an equal GeoPoint; otherwise false.</returns>
     public override bool Equals(object? obj) => obj is GeoPoint other && Equals(other);
 
+    /// <summary>
+    /// Gets a hash code computed from the longitude and latitude.
+    /// </summary>
+    /// <returns>The hash code for this point.</returns>
     public override int GetHashCode() => HashCode.Combine(Longitude, Latitude);
 
+    /// <summary>
+    /// Returns the point formatted as "[longitude, latitude]" with six decimal places.
+    /// </summary>
+    /// <returns>A string representation of the coordinates.</returns>
     public override string ToString() => $"[{Longitude:F6}, {Latitude:F6}]";
 
+    /// <summary>
+    /// Determines whether two points have equal coordinates.
+    /// </summary>
+    /// <param name="left">The first point.</param>
+    /// <param name="right">The second point.</param>
+    /// <returns>True if the points are equal; otherwise false.</returns>
     public static bool operator ==(GeoPoint left, GeoPoint right) => left.Equals(right);
+
+    /// <summary>
+    /// Determines whether two points have different coordinates.
+    /// </summary>
+    /// <param name="left">The first point.</param>
+    /// <param name="right">The second point.</param>
+    /// <returns>True if the points differ; otherwise false.</returns>
     public static bool operator !=(GeoPoint left, GeoPoint right) => !left.Equals(right);
 }
 
@@ -155,7 +186,14 @@ public readonly struct GeoPoint : IEquatable<GeoPoint>
 /// </summary>
 public enum DistanceUnit
 {
+    /// <summary>
+    /// Distance measured in kilometers.
+    /// </summary>
     Kilometers,
+
+    /// <summary>
+    /// Distance measured in miles.
+    /// </summary>
     Miles
 }
 
@@ -184,6 +222,13 @@ public readonly struct GeoBoundingBox
     /// </summary>
     public double MaxLatitude { get; }
 
+    /// <summary>
+    /// Creates a bounding box from explicit edge coordinates.
+    /// </summary>
+    /// <param name="minLongitude">The minimum longitude (left edge).</param>
+    /// <param name="minLatitude">The minimum latitude (bottom edge).</param>
+    /// <param name="maxLongitude">The maximum longitude (right edge).</param>
+    /// <param name="maxLatitude">The maximum latitude (top edge).</param>
     public GeoBoundingBox(double minLongitude, double minLatitude, double maxLongitude, double maxLatitude)
     {
         MinLongitude = minLongitude;
@@ -192,6 +237,11 @@ public readonly struct GeoBoundingBox
         MaxLatitude = maxLatitude;
     }
 
+    /// <summary>
+    /// Creates a bounding box from its bottom-left and top-right corner points.
+    /// </summary>
+    /// <param name="bottomLeft">The bottom-left corner.</param>
+    /// <param name="topRight">The top-right corner.</param>
     public GeoBoundingBox(GeoPoint bottomLeft, GeoPoint topRight)
     {
         MinLongitude = bottomLeft.Longitude;
@@ -224,6 +274,10 @@ public readonly struct GeoBoundingBox
         MinLongitude >= -180 && MaxLongitude <= 180 &&
         MinLatitude >= -90 && MaxLatitude <= 90;
 
+    /// <summary>
+    /// Returns the box formatted as "[[minLon, minLat], [maxLon, maxLat]]".
+    /// </summary>
+    /// <returns>A string representation of the box corners.</returns>
     public override string ToString() => 
         $"[[{MinLongitude:F6}, {MinLatitude:F6}], [{MaxLongitude:F6}, {MaxLatitude:F6}]]";
 }
@@ -248,6 +302,12 @@ public readonly struct GeoCircle
     /// </summary>
     public DistanceUnit Unit { get; }
 
+    /// <summary>
+    /// Creates a circular region with the specified center, radius, and distance unit.
+    /// </summary>
+    /// <param name="center">The center point of the circle.</param>
+    /// <param name="radius">The radius of the circle.</param>
+    /// <param name="unit">The unit of the radius (defaults to kilometers).</param>
     public GeoCircle(GeoPoint center, double radius, DistanceUnit unit = DistanceUnit.Kilometers)
     {
         Center = center;
@@ -288,6 +348,10 @@ public readonly struct GeoCircle
         );
     }
 
+    /// <summary>
+    /// Returns the circle formatted as "Circle(center, r=radius unit)".
+    /// </summary>
+    /// <returns>A string representation of the circle.</returns>
     public override string ToString() => $"Circle({Center}, r={Radius:F2}{(Unit == DistanceUnit.Kilometers ? "km" : "mi")})";
 }
 
@@ -301,11 +365,19 @@ public class GeoPolygon
     /// </summary>
     public IReadOnlyList<GeoPoint> Vertices { get; }
 
+    /// <summary>
+    /// Creates a polygon from an ordered sequence of vertices.
+    /// </summary>
+    /// <param name="vertices">The polygon vertices in order.</param>
     public GeoPolygon(IEnumerable<GeoPoint> vertices)
     {
         Vertices = vertices.ToList().AsReadOnly();
     }
 
+    /// <summary>
+    /// Creates a polygon from the specified vertices.
+    /// </summary>
+    /// <param name="vertices">The polygon vertices in order.</param>
     public GeoPolygon(params GeoPoint[] vertices)
     {
         Vertices = vertices.ToList().AsReadOnly();
@@ -354,5 +426,9 @@ public class GeoPolygon
         return new GeoBoundingBox(minLon, minLat, maxLon, maxLat);
     }
 
+    /// <summary>
+    /// Returns the polygon formatted as "Polygon(n vertices)".
+    /// </summary>
+    /// <returns>A string representation including the vertex count.</returns>
     public override string ToString() => $"Polygon({Vertices.Count} vertices)";
 }

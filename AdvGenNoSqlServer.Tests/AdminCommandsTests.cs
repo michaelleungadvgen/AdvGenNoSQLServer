@@ -28,7 +28,7 @@ public class AdminCommandsTests : IAsyncLifetime
             Host = "127.0.0.1",
             Port = 19301,
             StoragePath = _storagePath,
-            RequireAuthentication = false
+            RequireAuthentication = false, AnonymousRole = "admin"
         };
         var configManager = new Mock<IConfigurationManager>();
         configManager.Setup(c => c.Configuration).Returns(config);

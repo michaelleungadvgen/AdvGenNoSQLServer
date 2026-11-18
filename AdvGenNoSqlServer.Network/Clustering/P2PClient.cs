@@ -67,6 +67,9 @@ namespace AdvGenNoSqlServer.Network.Clustering
                 var connectionId = Guid.NewGuid().ToString("N")[..8];
                 var connection = new PeerConnection(connectionId, client, _config.Security);
 
+                // Establish mutual TLS before any application data (when configured).
+                await connection.AuthenticateAsClientAsync(host, timeoutCts.Token);
+
                 // Perform handshake
                 var result = await connection.InitiateHandshakeAsync(
                     _clusterManager.LocalNode,

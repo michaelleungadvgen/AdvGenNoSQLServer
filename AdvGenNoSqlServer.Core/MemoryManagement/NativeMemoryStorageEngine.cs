@@ -26,8 +26,17 @@ public sealed class NativeMemoryStorageEngine : IEvictingMemoryStorageEngine
     private long _missCount;
     private int _disposed;
 
+    /// <summary>
+    /// Raised synchronously when an entry is evicted, inside the shard write lock;
+    /// handlers receive (key, evictedBytes, remainingTtl) and must be fast
+    /// </summary>
     public event Action<string, byte[], TimeSpan?>? EntryEvicted;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="NativeMemoryStorageEngine"/> class, creating the shards and optionally a TTL cleanup timer
+    /// </summary>
+    /// <param name="config">Memory management settings supplying the eviction policy and default TTL</param>
+    /// <param name="limitBytes">The maximum total entry size in bytes before eviction kicks in</param>
     public NativeMemoryStorageEngine(MemoryManagementConfiguration config, long limitBytes)
     {
         _config = config;
@@ -52,6 +61,12 @@ public sealed class NativeMemoryStorageEngine : IEvictingMemoryStorageEngine
 
     private int ShardFor(string key) => Math.Abs(key.GetHashCode()) % ShardCount;
 
+    /// <summary>
+    /// Attempts to read an entry, copying the bytes to a managed array before releasing the shard read lock
+    /// </summary>
+    /// <param name="key">The entry key</param>
+    /// <param name="value">Receives a copy of the entry bytes on success</param>
+    /// <returns>True if the entry exists; otherwise false</returns>
     public bool TryGet(string key, out ReadOnlySpan<byte> value)
     {
         int shard = ShardFor(key);
@@ -77,6 +92,12 @@ public sealed class NativeMemoryStorageEngine : IEvictingMemoryStorageEngine
         }
     }
 
+    /// <summary>
+    /// Inserts or replaces an entry in unmanaged memory, evicting victims when the memory limit would be exceeded
+    /// </summary>
+    /// <param name="key">The entry key</param>
+    /// <param name="value">The bytes to store (copied to unmanaged memory)</param>
+    /// <param name="ttl">Optional time-to-live; null means no expiration</param>
     public void Set(string key, ReadOnlySpan<byte> value, TimeSpan? ttl = null)
     {
         int shard = ShardFor(key);
@@ -153,6 +174,11 @@ public sealed class NativeMemoryStorageEngine : IEvictingMemoryStorageEngine
         }
     }
 
+    /// <summary>
+    /// Removes an entry and frees its unmanaged memory
+    /// </summary>
+    /// <param name="key">The entry key</param>
+    /// <returns>True if the entry was removed; false if it did not exist</returns>
     public bool Remove(string key)
     {
         int shard = ShardFor(key);
@@ -173,6 +199,9 @@ public sealed class NativeMemoryStorageEngine : IEvictingMemoryStorageEngine
         }
     }
 
+    /// <summary>
+    /// Removes all entries from every shard, freeing their unmanaged memory
+    /// </summary>
     public void Clear()
     {
         for (int i = 0; i < ShardCount; i++)
@@ -194,6 +223,10 @@ public sealed class NativeMemoryStorageEngine : IEvictingMemoryStorageEngine
         }
     }
 
+    /// <summary>
+    /// Gets a snapshot of usage and hit/miss statistics for the native engine
+    /// </summary>
+    /// <returns>The current engine statistics with plan "Native"</returns>
     public MemoryEngineStats GetStats() => new()
     {
         Plan = "Native",
@@ -228,6 +261,9 @@ public sealed class NativeMemoryStorageEngine : IEvictingMemoryStorageEngine
         }
     }
 
+    /// <summary>
+    /// Stops the TTL timer, frees all entries and disposes the shard locks
+    /// </summary>
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;

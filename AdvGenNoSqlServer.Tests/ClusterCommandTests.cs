@@ -39,7 +39,7 @@ namespace AdvGenNoSqlServer.Tests
                 Host = "127.0.0.1",
                 Port = 19090,
                 MaxConcurrentConnections = 100,
-                RequireAuthentication = false
+                RequireAuthentication = false, AnonymousRole = "admin"
             };
 
             _configManagerMock.Setup(c => c.Configuration).Returns(_config);

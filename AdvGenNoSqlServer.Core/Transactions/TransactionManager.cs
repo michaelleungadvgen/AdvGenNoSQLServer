@@ -13,11 +13,18 @@ public class TransactionManager : ITransactionManager
     private readonly ConcurrentDictionary<string, TransactionInfo> _transactions;
     private readonly object _lock = new object();
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TransactionManager"/> class with an empty transaction table
+    /// </summary>
     public TransactionManager()
     {
         _transactions = new ConcurrentDictionary<string, TransactionInfo>();
     }
 
+    /// <summary>
+    /// Begins a new active transaction
+    /// </summary>
+    /// <returns>The identifier of the new transaction</returns>
     public string BeginTransaction()
     {
         var transactionId = Guid.NewGuid().ToString();
@@ -33,6 +40,11 @@ public class TransactionManager : ITransactionManager
         return transactionId;
     }
 
+    /// <summary>
+    /// Commits an active transaction
+    /// </summary>
+    /// <param name="transactionId">The transaction identifier</param>
+    /// <returns>True if committed; false if the transaction is unknown or not active</returns>
     public bool CommitTransaction(string transactionId)
     {
         if (!_transactions.TryGetValue(transactionId, out var transactionInfo))
@@ -55,6 +67,11 @@ public class TransactionManager : ITransactionManager
         }
     }
 
+    /// <summary>
+    /// Rolls back an active transaction
+    /// </summary>
+    /// <param name="transactionId">The transaction identifier</param>
+    /// <returns>True if rolled back; false if the transaction is unknown or not active</returns>
     public bool RollbackTransaction(string transactionId)
     {
         if (!_transactions.TryGetValue(transactionId, out var transactionInfo))
@@ -77,6 +94,11 @@ public class TransactionManager : ITransactionManager
         }
     }
 
+    /// <summary>
+    /// Gets the current status of a transaction
+    /// </summary>
+    /// <param name="transactionId">The transaction identifier</param>
+    /// <returns>The transaction status, or <see cref="TransactionStatus.Failed"/> for unknown transactions</returns>
     public TransactionStatus GetTransactionStatus(string transactionId)
     {
         if (!_transactions.TryGetValue(transactionId, out var transactionInfo))
@@ -87,6 +109,12 @@ public class TransactionManager : ITransactionManager
         return transactionInfo.Status;
     }
 
+    /// <summary>
+    /// Adds an operation to an active transaction
+    /// </summary>
+    /// <param name="transactionId">The transaction identifier</param>
+    /// <param name="operation">The operation to add</param>
+    /// <exception cref="InvalidOperationException">Thrown when the transaction is unknown or not active</exception>
     public void AddOperation(string transactionId, TransactionOperation operation)
     {
         if (!_transactions.TryGetValue(transactionId, out var transactionInfo))
@@ -105,6 +133,11 @@ public class TransactionManager : ITransactionManager
         }
     }
 
+    /// <summary>
+    /// Gets the operations recorded for a transaction
+    /// </summary>
+    /// <param name="transactionId">The transaction identifier</param>
+    /// <returns>A read-only view of the operations, or an empty sequence for unknown transactions</returns>
     public IEnumerable<TransactionOperation> GetOperations(string transactionId)
     {
         if (!_transactions.TryGetValue(transactionId, out var transactionInfo))

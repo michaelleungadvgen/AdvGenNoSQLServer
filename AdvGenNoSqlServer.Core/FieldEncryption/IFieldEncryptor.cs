@@ -102,7 +102,10 @@ public class FieldEncryptionConfig
 /// </summary>
 public enum EncryptionAlgorithm
 {
+    /// <summary>AES-256 in GCM mode (authenticated encryption).</summary>
     AES256GCM,
+
+    /// <summary>AES-256 in CBC mode.</summary>
     AES256CBC
 }
 

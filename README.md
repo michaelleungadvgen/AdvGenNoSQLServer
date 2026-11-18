@@ -52,6 +52,8 @@ This will automatically install the required dependencies (`AdvGenNoSqlServer.Co
 
 ## Quick Start
 
+See [Documentation/QuickStart.md](Documentation/QuickStart.md) for the full guide (server, client, REST, embedded mode, admin UIs, and all example apps). The basics:
+
 - Build the solution (Windows / PowerShell):
 
 ```powershell
@@ -130,9 +132,9 @@ All keys are flat (no nested sections):
 | Service | Default Port | Protocol | Notes |
 |---------|-------------|----------|-------|
 | TCP Server | 9191 | Binary TCP | Client library connections |
-| HTTPS API | 9192 | HTTPS REST | Always TCP port + 1 |
+| HTTPS API | 9192 | HTTPS REST | `AdminApiPort` / `NOSQL_ADMIN_HTTP_PORT` (independent of TCP port) |
 
-The HTTPS API always runs on `Port + 1` (9191 + 1 = 9192). There is no plain-HTTP API endpoint.
+The HTTPS API defaults to port 9192 and is configured separately from the TCP port. There is no plain-HTTP API endpoint by default.
 
 ### HTTPS / Dev Certificate
 

@@ -24,6 +24,12 @@ public sealed class GeospatialIndexEntry
     /// </summary>
     public object? Metadata { get; }
 
+    /// <summary>
+    /// Creates a new index entry for a document at the specified location.
+    /// </summary>
+    /// <param name="documentId">The document identifier.</param>
+    /// <param name="location">The document's location point.</param>
+    /// <param name="metadata">Optional metadata to associate with the entry.</param>
     public GeospatialIndexEntry(string documentId, GeoPoint location, object? metadata = null)
     {
         DocumentId = documentId ?? throw new ArgumentNullException(nameof(documentId));
@@ -57,6 +63,13 @@ public sealed class GeospatialQueryResult
     /// </summary>
     public object? Metadata { get; }
 
+    /// <summary>
+    /// Creates a new query result for a document with its location and distance from the query point.
+    /// </summary>
+    /// <param name="documentId">The document identifier.</param>
+    /// <param name="location">The document's location point.</param>
+    /// <param name="distance">The distance from the query point in query units.</param>
+    /// <param name="metadata">Optional metadata to associate with the result.</param>
     public GeospatialQueryResult(string documentId, GeoPoint location, double distance, object? metadata = null)
     {
         DocumentId = documentId ?? throw new ArgumentNullException(nameof(documentId));

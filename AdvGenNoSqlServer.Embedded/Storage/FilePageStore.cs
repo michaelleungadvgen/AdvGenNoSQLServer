@@ -58,6 +58,28 @@ public sealed class FilePageStore : IPageStore, ICatalogRootStore
         set { _catalogRootPageId = value; WriteHeader(); }
     }
 
+    /// <summary>Current free-list head (for the WAL layer's transactional overlay).</summary>
+    internal uint FreeListHeadPageId => _freeListHeadPageId;
+
+    /// <summary>Sets the free-list head and persists the header.</summary>
+    internal void SetFreeListHead(uint pageId)
+    {
+        _freeListHeadPageId = pageId;
+        WriteHeader();
+    }
+
+    /// <summary>Re-reads header fields from disk (after WAL replay or checkpoint wrote page 0).</summary>
+    internal void ReloadHeader() => LoadHeader();
+
+    /// <summary>Builds a header page image with the given metadata without touching the file.</summary>
+    internal Page BuildHeaderPage(uint freeListHead, uint catalogRoot)
+    {
+        var header = Page.CreateNew(0, PageType.Header);
+        WriteHeaderFields(header, catalogRoot, freeListHead);
+        header.Seal();
+        return header;
+    }
+
     /// <summary>Last checkpoint LSN persisted in the header.</summary>
     public ulong LastCheckpointLsn
     {
@@ -151,7 +173,7 @@ public sealed class FilePageStore : IPageStore, ICatalogRootStore
         _freeListHeadPageId = 0;
         _lastCheckpointLsn = 0;
         var header = Page.CreateNew(0, PageType.Header);
-        WriteHeaderFields(header);
+        WriteHeaderFields(header, _catalogRootPageId, _freeListHeadPageId);
         WritePage(header);
         _stream.Flush(true);
     }
@@ -171,16 +193,16 @@ public sealed class FilePageStore : IPageStore, ICatalogRootStore
     private void WriteHeader()
     {
         var header = ReadPageRaw(0);
-        WriteHeaderFields(header);
+        WriteHeaderFields(header, _catalogRootPageId, _freeListHeadPageId);
         WritePage(header);
     }
 
-    private void WriteHeaderFields(Page header)
+    private void WriteHeaderFields(Page header, uint catalogRoot, uint freeListHead)
     {
         var span = header.Buffer.AsSpan();
         BinaryPrimitives.WriteUInt16LittleEndian(span.Slice(OffFormatVersion, 2), FormatVersion);
-        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(OffCatalogRoot, 4), _catalogRootPageId);
-        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(OffFreeListHead, 4), _freeListHeadPageId);
+        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(OffCatalogRoot, 4), catalogRoot);
+        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(OffFreeListHead, 4), freeListHead);
         BinaryPrimitives.WriteUInt64LittleEndian(span.Slice(OffLastCheckpointLsn, 8), _lastCheckpointLsn);
     }
 }

@@ -244,12 +244,11 @@ public class MemoryTuner : IDisposable
     {
         var beforeMemory = GC.GetTotalMemory(false);
 
-        // Trigger full GC with compaction
-        GC.Collect(0, GCCollectionMode.Aggressive, blocking: true);
-        GC.Collect(1, GCCollectionMode.Aggressive, blocking: true);
-        GC.Collect(2, GCCollectionMode.Aggressive, blocking: true);
+        // Aggressive mode requires the maximum generation; a full blocking compacting
+        // collect covers all generations in one pass.
+        GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, blocking: true, compacting: true);
         GC.WaitForPendingFinalizers();
-        GC.Collect(2, GCCollectionMode.Aggressive, blocking: true);
+        GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, blocking: true, compacting: true);
 
         // Trim working set on Windows
         if (OperatingSystem.IsWindows())

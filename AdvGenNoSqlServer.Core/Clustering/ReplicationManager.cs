@@ -50,6 +50,21 @@ namespace AdvGenNoSqlServer.Core.Clustering
         public Func<ReplicationEvent, CancellationToken, Task>? ApplyEventCallback { get; set; }
 
         /// <summary>
+        /// Callback for restoring a full-sync snapshot to the local store.
+        /// </summary>
+        public Func<ReplicationSnapshot, CancellationToken, Task>? RestoreSnapshotCallback { get; set; }
+
+        /// <summary>
+        /// Transport used to fetch a full sync payload from a peer node.
+        /// </summary>
+        public IFullSyncTransport? FullSyncTransport { get; set; }
+
+        /// <summary>
+        /// Leader-side source of snapshots and trailing replication-log events.
+        /// </summary>
+        public IFullSyncProvider? FullSyncProvider { get; set; }
+
+        /// <summary>
         /// Creates a new replication manager.
         /// </summary>
         public ReplicationManager(
@@ -331,16 +346,73 @@ namespace AdvGenNoSqlServer.Core.Clustering
         /// <inheritdoc/>
         public async Task RequestFullSyncAsync(string nodeId, CancellationToken ct = default)
         {
-            // This would trigger a full synchronization from the leader
-            // Implementation depends on having access to the full document store
-            // For now, we just mark the node as needing sync
+            if (string.IsNullOrEmpty(nodeId))
+                throw new ArgumentException("Node ID cannot be empty", nameof(nodeId));
+
+            var transport = FullSyncTransport
+                ?? throw new InvalidOperationException("No full-sync transport configured. Set FullSyncTransport first.");
+            var restoreSnapshot = RestoreSnapshotCallback
+                ?? throw new InvalidOperationException("No snapshot restore callback configured. Set RestoreSnapshotCallback first.");
 
             var state = _nodeStates.GetOrAdd(nodeId, _ => new NodeReplicationState { NodeId = nodeId });
             state.IsSynchronized = false;
-            state.PendingEvents = long.MaxValue; // Unknown, needs full sync
+            state.PendingEvents = long.MaxValue; // Unknown until sync completes
 
-            // TODO: Implement actual full sync using snapshot + WAL replay
-            await Task.CompletedTask;
+            try
+            {
+                ct.ThrowIfCancellationRequested();
+                var data = await transport.RequestFullSyncAsync(nodeId, ct);
+                if (data?.Snapshot == null)
+                    throw new ReplicationSyncException("Full sync response did not contain a snapshot.");
+
+                var trailingEvents = data.TrailingEvents.OrderBy(e => e.SequenceNumber).ToList();
+                if (trailingEvents.Any(e => e.SequenceNumber <= data.Snapshot.SequenceNumber))
+                    throw new ReplicationSyncException("Full sync trailing events overlap the snapshot position.");
+
+                await restoreSnapshot(data.Snapshot, ct);
+
+                foreach (var evt in trailingEvents)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    await ApplyReplicationEventAsync(evt, ct);
+                }
+
+                state.LastSequenceNumber = data.LastSequenceNumber;
+                state.PendingEvents = 0;
+                state.IsSynchronized = true;
+                state.LastReplicationTime = DateTime.UtcNow;
+                state.EventsAcknowledged += trailingEvents.Count;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                state.IsSynchronized = false;
+                state.PendingEvents = long.MaxValue;
+                state.Failures++;
+                Interlocked.Increment(ref _totalFailures);
+                if (ex is ReplicationSyncException)
+                    throw;
+                throw new ReplicationSyncException($"Full sync from node '{nodeId}' failed: {ex.Message}", ex);
+            }
+        }
+
+        /// <summary>
+        /// Builds a full sync payload (snapshot plus trailing events) from the local
+        /// full-sync provider. Called on the leader when serving a full-sync request.
+        /// </summary>
+        public async Task<FullSyncData> CreateFullSyncDataAsync(CancellationToken ct = default)
+        {
+            var provider = FullSyncProvider
+                ?? throw new InvalidOperationException("No full-sync provider configured. Set FullSyncProvider first.");
+
+            var snapshot = await provider.CreateSnapshotAsync(ct);
+            var data = new FullSyncData { Snapshot = snapshot };
+
+            await foreach (var evt in provider.GetEventsAfterAsync(snapshot.SequenceNumber, ct))
+            {
+                data.TrailingEvents.Add(evt);
+            }
+
+            return data;
         }
 
         /// <inheritdoc/>

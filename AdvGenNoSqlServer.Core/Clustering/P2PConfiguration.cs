@@ -119,6 +119,26 @@ namespace AdvGenNoSqlServer.Core.Clustering
             if (DeadNodeTimeout <= HeartbeatInterval)
                 errors.Add("DeadNodeTimeout must be greater than HeartbeatInterval");
 
+            // Secure-by-default: an enabled cluster must authenticate and protect inter-node
+            // traffic. Enabling P2P without any security is a misconfiguration, not a default.
+            if (Enabled)
+            {
+                var hasTls = !string.IsNullOrEmpty(Security.CertificatePath);
+                var hasSecret = !string.IsNullOrEmpty(Security.ClusterSecret);
+
+                if (!hasTls && !hasSecret)
+                    errors.Add("P2P is enabled but no security is configured: set Security.CertificatePath (mutual TLS) or Security.ClusterSecret.");
+
+                if (Security.RequireMutualTls && !hasTls)
+                    errors.Add("P2P Security.RequireMutualTls is true but Security.CertificatePath is not set.");
+
+                if (hasSecret && !Security.SignMessages)
+                    errors.Add("P2P Security.SignMessages must be true when a ClusterSecret is configured.");
+
+                if (Security.MessageMaxAge <= TimeSpan.Zero)
+                    errors.Add("P2P Security.MessageMaxAge must be positive.");
+            }
+
             return errors.Count == 0;
         }
     }
@@ -173,6 +193,11 @@ namespace AdvGenNoSqlServer.Core.Clustering
         /// Path to the private key file.
         /// </summary>
         public string? PrivateKeyPath { get; set; }
+
+        /// <summary>
+        /// Password for the certificate file when it is a PFX/PKCS#12 bundle.
+        /// </summary>
+        public string? CertificatePassword { get; set; }
 
         /// <summary>
         /// Path to the CA certificate file.

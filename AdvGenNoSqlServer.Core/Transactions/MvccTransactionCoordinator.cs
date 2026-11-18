@@ -370,8 +370,15 @@ public class MvccTransactionCoordinator : ITransactionCoordinator, IDisposable
 /// </summary>
 public class MvccStatistics
 {
+    /// <summary>Gets or sets the number of currently active MVCC transactions.</summary>
     public int ActiveTransactionCount { get; set; }
+
+    /// <summary>Gets or sets the start timestamp of the oldest active transaction.</summary>
     public long OldestActiveTransactionTimestamp { get; set; }
+
+    /// <summary>Gets or sets the cumulative number of document versions reclaimed by garbage collection.</summary>
     public int TotalVersionsCollected { get; set; }
+
+    /// <summary>Gets or sets the time of the last garbage collection run, or null if none has run.</summary>
     public DateTime? LastCollectionTime { get; set; }
 }

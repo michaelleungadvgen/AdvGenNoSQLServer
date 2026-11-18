@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 // See LICENSE.txt for license information.
 
+using System.Collections.Concurrent;
 using AdvGenNoSqlServer.Core.Models;
 using AdvGenNoSqlServer.Storage.Indexing;
 using Xunit;
@@ -25,6 +26,16 @@ public class BackgroundIndexBuilderTests : IDisposable
     public void Dispose()
     {
         _builder.Dispose();
+    }
+
+    // Poll instead of fixed delays: event delivery can lag under parallel test load.
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+        while (!condition() && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(20);
+        }
     }
     
     #region Constructor Tests
@@ -69,13 +80,19 @@ public class BackgroundIndexBuilderTests : IDisposable
             "name",
             documents,
             doc => (doc.Data?.TryGetValue("name", out var val) == true ? val?.ToString() : null) ?? "",
-            isUnique: false);
+            isUnique: false,
+            options: new BackgroundIndexBuildOptions { BatchSize = 1, BatchDelayMs = 200 });
         
         Assert.NotNull(job);
         Assert.Equal("test_collection", job.CollectionName);
         Assert.Equal("name", job.FieldName);
-        Assert.Equal(BackgroundIndexBuildStatus.Pending, job.Status);
+        // A tiny job can complete before we observe it; it must not be finished yet
+        // given the batch delay, but Pending vs Running is a scheduling race.
+        Assert.True(job.Status is BackgroundIndexBuildStatus.Pending or BackgroundIndexBuildStatus.Running);
         Assert.NotEmpty(job.JobId);
+        
+        _builder.CancelJob(job.JobId);
+        await _builder.WaitForCompletionAsync(job.JobId, timeout: TimeSpan.FromSeconds(10));
     }
     
     [Fact]
@@ -207,8 +224,8 @@ public class BackgroundIndexBuilderTests : IDisposable
     public async Task StartBuildAsync_ReportsProgress()
     {
         var documents = CreateTestDocuments(100);
-        var progressReports = new List<IndexBuildProgress>();
-        var progress = new Progress<IndexBuildProgress>(p => progressReports.Add(p));
+        var progressReports = new ConcurrentQueue<IndexBuildProgress>();
+        var progress = new Progress<IndexBuildProgress>(p => progressReports.Enqueue(p));
         
         var job = await _builder.StartBuildAsync(
             "test_collection",
@@ -220,11 +237,11 @@ public class BackgroundIndexBuilderTests : IDisposable
         
         await _builder.WaitForCompletionAsync(job.JobId, timeout: TimeSpan.FromSeconds(30));
         
-        // Allow time for progress events to be processed
-        await Task.Delay(100);
+        // Wait for progress events to be delivered
+        await WaitUntilAsync(() => !progressReports.IsEmpty);
         
         Assert.True(progressReports.Count > 0);
-        Assert.All(progressReports, p => 
+        Assert.All(progressReports.ToArray(), p => 
         {
             Assert.Equal("test_collection", p.CollectionName);
             Assert.Equal("name", p.FieldName);
@@ -251,8 +268,8 @@ public class BackgroundIndexBuilderTests : IDisposable
         
         await _builder.WaitForCompletionAsync(job.JobId, timeout: TimeSpan.FromSeconds(30));
         
-        // Allow time for event to be processed
-        await Task.Delay(100);
+        // Wait for the completion event to be delivered
+        await WaitUntilAsync(() => completedResult != null);
         
         Assert.NotNull(completedResult);
         Assert.True(completedResult.IsSuccess);
@@ -262,11 +279,11 @@ public class BackgroundIndexBuilderTests : IDisposable
     public async Task StartBuildAsync_ReportsProgressEvent()
     {
         var documents = CreateTestDocuments(50);
-        var progressEvents = new List<IndexBuildProgress>();
+        var progressEvents = new ConcurrentQueue<IndexBuildProgress>();
         
         _builder.BuildProgress += (sender, args) =>
         {
-            progressEvents.Add(args.Progress);
+            progressEvents.Enqueue(args.Progress);
         };
         
         var job = await _builder.StartBuildAsync(
@@ -277,8 +294,8 @@ public class BackgroundIndexBuilderTests : IDisposable
         
         await _builder.WaitForCompletionAsync(job.JobId, timeout: TimeSpan.FromSeconds(30));
         
-        // Allow time for events to be processed
-        await Task.Delay(100);
+        // Wait for progress events to be delivered
+        await WaitUntilAsync(() => !progressEvents.IsEmpty);
         
         Assert.True(progressEvents.Count > 0);
     }
@@ -496,8 +513,8 @@ public class BackgroundIndexBuilderTests : IDisposable
     public async Task StartBuildAsync_WithBatchSize_ProcessesInBatches()
     {
         var documents = CreateTestDocuments(100);
-        var progressReports = new List<IndexBuildProgress>();
-        var progress = new Progress<IndexBuildProgress>(p => progressReports.Add(p));
+        var progressReports = new ConcurrentQueue<IndexBuildProgress>();
+        var progress = new Progress<IndexBuildProgress>(p => progressReports.Enqueue(p));
         
         var job = await _builder.StartBuildAsync(
             "test_collection",
@@ -508,7 +525,7 @@ public class BackgroundIndexBuilderTests : IDisposable
             progress: progress);
         
         await _builder.WaitForCompletionAsync(job.JobId, timeout: TimeSpan.FromSeconds(30));
-        await Task.Delay(100);
+        await WaitUntilAsync(() => progressReports.Count >= 3);
         
         // With batch size 25 and 100 documents, we expect at least a few progress reports
         Assert.True(progressReports.Count >= 3);

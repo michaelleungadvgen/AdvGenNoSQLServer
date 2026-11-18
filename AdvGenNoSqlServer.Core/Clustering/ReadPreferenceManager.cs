@@ -459,11 +459,19 @@ public class ReadPreferenceManager : IReadPreferenceManager, IDisposable
         }
     }
 
+    /// <summary>
+    /// Raises the <see cref="NodeSelected"/> event
+    /// </summary>
+    /// <param name="e">The event data describing the selected node</param>
     protected virtual void OnNodeSelected(NodeSelectedEventArgs e)
     {
         NodeSelected?.Invoke(this, e);
     }
 
+    /// <summary>
+    /// Raises the <see cref="NodeSelectionFailed"/> event
+    /// </summary>
+    /// <param name="e">The event data describing the selection failure</param>
     protected virtual void OnNodeSelectionFailed(NodeSelectionFailedEventArgs e)
     {
         NodeSelectionFailed?.Invoke(this, e);

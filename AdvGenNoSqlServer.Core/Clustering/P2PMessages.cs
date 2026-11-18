@@ -38,6 +38,11 @@ namespace AdvGenNoSqlServer.Core.Clustering
         public byte[] Signature { get; set; } = Array.Empty<byte>();
 
         /// <summary>
+        /// Unique per-message nonce used for anti-replay protection.
+        /// </summary>
+        public string Nonce { get; set; } = Guid.NewGuid().ToString("N");
+
+        /// <summary>
         /// Current term in Raft consensus.
         /// </summary>
         public long Term { get; set; }
@@ -111,7 +116,17 @@ namespace AdvGenNoSqlServer.Core.Clustering
         /// <summary>
         /// Replication acknowledgement.
         /// </summary>
-        ReplicationAck
+        ReplicationAck,
+
+        /// <summary>
+        /// Request for a full synchronization (snapshot + trailing events).
+        /// </summary>
+        FullSyncRequest,
+
+        /// <summary>
+        /// Response carrying a full synchronization payload.
+        /// </summary>
+        FullSyncResponse
     }
 
     /// <summary>
@@ -344,8 +359,13 @@ namespace AdvGenNoSqlServer.Core.Clustering
     /// </summary>
     public enum ReplicationOperationType
     {
+        /// <summary>A document insert operation.</summary>
         Insert,
+
+        /// <summary>A document update operation.</summary>
         Update,
+
+        /// <summary>A document delete operation.</summary>
         Delete
     }
 
@@ -439,5 +459,48 @@ namespace AdvGenNoSqlServer.Core.Clustering
         /// Follower's node ID.
         /// </summary>
         public required string FollowerId { get; set; }
+    }
+
+    /// <summary>
+    /// Request for a full synchronization from a peer node.
+    /// </summary>
+    public class FullSyncRequestMessage : P2PMessage
+    {
+        /// <inheritdoc/>
+        public override P2PMessageType MessageType => P2PMessageType.FullSyncRequest;
+
+        /// <summary>
+        /// Last sequence number known to the requester (0 = needs everything).
+        /// </summary>
+        public long LastKnownSequenceNumber { get; set; }
+    }
+
+    /// <summary>
+    /// Response carrying a snapshot plus trailing replication events.
+    /// </summary>
+    public class FullSyncResponseMessage : P2PMessage
+    {
+        /// <inheritdoc/>
+        public override P2PMessageType MessageType => P2PMessageType.FullSyncResponse;
+
+        /// <summary>
+        /// Message ID of the request being answered.
+        /// </summary>
+        public required string RequestMessageId { get; set; }
+
+        /// <summary>
+        /// Whether the full sync payload could be produced.
+        /// </summary>
+        public bool Success { get; set; }
+
+        /// <summary>
+        /// Error message if the full sync failed.
+        /// </summary>
+        public string? ErrorMessage { get; set; }
+
+        /// <summary>
+        /// Snapshot plus trailing events (null on failure).
+        /// </summary>
+        public FullSyncData? Data { get; set; }
     }
 }

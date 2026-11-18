@@ -47,6 +47,37 @@ public class HybridDocumentStoreTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public async Task Insert_AcknowledgedWrite_IsDurableWithoutFlush()
+    {
+        await _store.InsertAsync("items", new Document { Id = "d1", Data = new() { ["v"] = 1L } });
+
+        // No FlushAsync/DisposeAsync: an acknowledged write must already be on disk.
+        var second = new HybridDocumentStore(_testBasePath);
+        await second.InitializeAsync();
+        try
+        {
+            var doc = await second.GetAsync("items", "d1");
+            Assert.NotNull(doc);
+            Assert.Equal(1L, ((JsonElement)doc!.Data!["v"]).GetInt64());
+        }
+        finally
+        {
+            await second.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Insert_DiskFailure_ThrowsInsteadOfFalseSuccess()
+    {
+        // Block the collection directory with a regular file so the disk write fails.
+        var blockedPath = Path.Combine(_testBasePath, "blocked");
+        await File.WriteAllTextAsync(blockedPath, "not a directory");
+
+        await Assert.ThrowsAnyAsync<IOException>(
+            () => _store.InsertAsync("blocked", new Document { Id = "d1" }));
+    }
+
     #region Initialization Tests
 
     [Fact]

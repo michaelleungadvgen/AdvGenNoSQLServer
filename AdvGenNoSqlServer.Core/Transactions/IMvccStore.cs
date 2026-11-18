@@ -92,4 +92,42 @@ public interface IMvccStore
     /// Clears all versions from a collection
     /// </summary>
     Task ClearCollectionAsync(string collectionName, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Registers a transaction as active so its uncommitted writes are invisible to other snapshots.
+    /// </summary>
+    void RegisterTransaction(string transactionId);
+
+    /// <summary>
+    /// Marks a transaction committed, making its writes visible to later snapshots.
+    /// </summary>
+    void MarkTransactionCommitted(string transactionId);
+
+    /// <summary>
+    /// Marks a transaction rolled back.
+    /// </summary>
+    void MarkTransactionRolledBack(string transactionId);
+
+    /// <summary>
+    /// Gets the commit-state record of a registered transaction, or null if unregistered.
+    /// </summary>
+    MvccTransactionRecord? GetTransactionRecord(string transactionId);
+
+    /// <summary>
+    /// Gets the latest version of a document regardless of snapshot visibility.
+    /// </summary>
+    Task<DocumentVersion?> GetLatestVersionAsync(
+        string collectionName,
+        string documentId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Undoes a single write during rollback.
+    /// </summary>
+    Task<bool> UndoVersionAsync(
+        string collectionName,
+        string documentId,
+        DocumentVersion version,
+        MvccUndoKind kind,
+        CancellationToken cancellationToken = default);
 }

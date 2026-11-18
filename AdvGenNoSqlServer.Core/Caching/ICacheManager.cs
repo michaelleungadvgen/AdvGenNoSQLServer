@@ -2,6 +2,9 @@ using AdvGenNoSqlServer.Core.Models;
 
 namespace AdvGenNoSqlServer.Core.Caching;
 
+/// <summary>
+/// Contract for a document cache supporting get, set, remove and clear operations
+/// </summary>
 public interface ICacheManager
 {
     /// <summary>

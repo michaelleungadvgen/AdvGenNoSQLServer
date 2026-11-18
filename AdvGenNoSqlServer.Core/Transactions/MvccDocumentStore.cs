@@ -16,6 +16,7 @@ public class MvccDocumentStore : IMvccStore, IDisposable
     // CollectionName -> (DocumentId -> VersionChain)
     private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, VersionChain>> _collections;
     private readonly ConcurrentDictionary<string, long> _collectionDocumentCounts;
+    private readonly ConcurrentDictionary<string, MvccTransactionRecord> _transactions = new();
     private readonly ReaderWriterLockSlim _schemaLock;
     private bool _disposed;
 
@@ -63,7 +64,7 @@ public class MvccDocumentStore : IMvccStore, IDisposable
         if (!collection.TryGetValue(documentId, out var chain))
             return Task.FromResult<DocumentVersion?>(null);
 
-        var version = chain.GetVisibleVersion(snapshot.ReadTimestamp, snapshot.TransactionId);
+        var version = chain.GetVisibleVersion(snapshot, ResolveTransaction);
         return Task.FromResult(version);
     }
 
@@ -86,8 +87,8 @@ public class MvccDocumentStore : IMvccStore, IDisposable
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var version = chain.GetVisibleVersion(snapshot.ReadTimestamp, snapshot.TransactionId);
-                if (version != null && !version.IsDeleted)
+                var version = chain.GetVisibleVersion(snapshot, ResolveTransaction);
+                if (version != null)
                 {
                     versions.Add(version);
                 }
@@ -222,7 +223,7 @@ public class MvccDocumentStore : IMvccStore, IDisposable
         CancellationToken cancellationToken = default)
     {
         var version = await GetVisibleVersionAsync(collectionName, documentId, snapshot, cancellationToken);
-        return version != null && !version.IsDeleted;
+        return version != null;
     }
 
     /// <summary>
@@ -366,6 +367,94 @@ public class MvccDocumentStore : IMvccStore, IDisposable
             throw new ArgumentException("Collection name cannot be empty", nameof(collectionName));
     }
 
+    /// <inheritdoc />
+    public void RegisterTransaction(string transactionId)
+    {
+        _transactions.TryAdd(transactionId, new MvccTransactionRecord { State = TransactionState.Active });
+    }
+
+    /// <inheritdoc />
+    public void MarkTransactionCommitted(string transactionId)
+    {
+        var commitTs = MvccTimestamp.Next();
+        _transactions.AddOrUpdate(
+            transactionId,
+            _ => new MvccTransactionRecord { State = TransactionState.Committed, CommitTimestamp = commitTs },
+            (_, record) => { record.State = TransactionState.Committed; record.CommitTimestamp = commitTs; return record; });
+    }
+
+    /// <inheritdoc />
+    public void MarkTransactionRolledBack(string transactionId)
+    {
+        _transactions.AddOrUpdate(
+            transactionId,
+            _ => new MvccTransactionRecord { State = TransactionState.RolledBack },
+            (_, record) => { record.State = TransactionState.RolledBack; return record; });
+    }
+
+    /// <inheritdoc />
+    public MvccTransactionRecord? GetTransactionRecord(string transactionId)
+        => _transactions.TryGetValue(transactionId, out var record) ? record : null;
+
+    private MvccTransactionRecord? ResolveTransaction(string transactionId)
+        => _transactions.TryGetValue(transactionId, out var record) ? record : null;
+
+    /// <inheritdoc />
+    public Task<DocumentVersion?> GetLatestVersionAsync(
+        string collectionName,
+        string documentId,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ValidateCollectionName(collectionName);
+        ValidateDocumentId(documentId);
+
+        if (_collections.TryGetValue(collectionName, out var collection) &&
+            collection.TryGetValue(documentId, out var chain))
+        {
+            return Task.FromResult(chain.LatestVersion);
+        }
+        return Task.FromResult<DocumentVersion?>(null);
+    }
+
+    /// <inheritdoc />
+    public Task<bool> UndoVersionAsync(
+        string collectionName,
+        string documentId,
+        DocumentVersion version,
+        MvccUndoKind kind,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ValidateCollectionName(collectionName);
+        ValidateDocumentId(documentId);
+
+        if (!_collections.TryGetValue(collectionName, out var collection) ||
+            !collection.TryGetValue(documentId, out var chain))
+        {
+            return Task.FromResult(false);
+        }
+
+        if (kind == MvccUndoKind.Delete)
+        {
+            version.UnmarkDeleted();
+            _collectionDocumentCounts.AddOrUpdate(collectionName, 1, (_, count) => count + 1);
+            return Task.FromResult(true);
+        }
+
+        if (!chain.TryRemoveLatestVersion(version))
+            return Task.FromResult(false);
+
+        if (kind == MvccUndoKind.Insert)
+        {
+            _collectionDocumentCounts.AddOrUpdate(collectionName, 0, (_, count) => Math.Max(0, count - 1));
+            if (version.PreviousVersion == null)
+                collection.TryRemove(documentId, out _);
+        }
+
+        return Task.FromResult(true);
+    }
+
     private void ValidateDocumentId(string documentId)
     {
         if (string.IsNullOrWhiteSpace(documentId))
@@ -415,8 +504,15 @@ public record MvccCollectionStats(
 /// </summary>
 public class CollectionEventArgs : EventArgs
 {
+    /// <summary>
+    /// Gets the name of the collection the event relates to
+    /// </summary>
     public string CollectionName { get; }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CollectionEventArgs"/> class
+    /// </summary>
+    /// <param name="collectionName">The name of the affected collection</param>
     public CollectionEventArgs(string collectionName)
     {
         CollectionName = collectionName;

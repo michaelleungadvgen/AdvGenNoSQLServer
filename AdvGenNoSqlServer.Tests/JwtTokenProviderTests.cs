@@ -37,6 +37,47 @@ public class JwtTokenProviderTests
         };
     }
 
+    #region Expiration Enforcement Tests
+
+    [Fact]
+    public void ValidateToken_WithoutExpClaim_IsRejected()
+    {
+        var provider = CreateProvider();
+        var token = CraftToken(exp: null);
+        Assert.False(provider.ValidateToken(token).IsValid);
+    }
+
+    [Fact]
+    public void ValidateToken_ExpiredToken_IsRejected()
+    {
+        var provider = CreateProvider();
+        var token = CraftToken(DateTimeOffset.UtcNow.AddMinutes(-5).ToUnixTimeSeconds());
+        Assert.False(provider.ValidateToken(token).IsValid);
+    }
+
+    [Fact]
+    public void ExtractUsername_ExpiredToken_ReturnsNull()
+    {
+        var provider = CreateProvider();
+        var token = CraftToken(DateTimeOffset.UtcNow.AddMinutes(-5).ToUnixTimeSeconds());
+        Assert.Null(provider.ExtractUsername(token));
+    }
+
+    private static string CraftToken(long? exp)
+    {
+        static string B64Url(byte[] b) => Convert.ToBase64String(b).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        var header = B64Url(System.Text.Encoding.UTF8.GetBytes("""{"alg":"HS256","typ":"JWT"}"""));
+        var payloadJson = exp.HasValue
+            ? $$"""{"sub":"alice","iss":"TestIssuer","aud":"TestAudience","roles":["admin"],"exp":{{exp.Value}}}"""
+            : """{"sub":"alice","iss":"TestIssuer","aud":"TestAudience","roles":["admin"]}""";
+        var payload = B64Url(System.Text.Encoding.UTF8.GetBytes(payloadJson));
+        using var hmac = new System.Security.Cryptography.HMACSHA256(System.Text.Encoding.UTF8.GetBytes(TestSecretKey));
+        var sig = B64Url(hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes($"{header}.{payload}")));
+        return $"{header}.{payload}.{sig}";
+    }
+
+    #endregion
+
     #region Constructor Tests
 
     [Fact]

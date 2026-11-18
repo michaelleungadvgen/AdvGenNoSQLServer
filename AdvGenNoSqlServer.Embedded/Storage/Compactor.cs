@@ -27,7 +27,8 @@ internal static class Compactor
         {
             await dest.InitializeAsync();
 
-            var collections = (await source.GetCollectionsAsync(ct)).ToList();
+            // Ungated reads: the caller holds the source store's exclusive lock.
+            var collections = source.GetCollectionsUngated();
             foreach (var name in collections)
                 await dest.CreateCollectionAsync(name, ct);
 
@@ -37,14 +38,10 @@ internal static class Compactor
 
             foreach (var name in collections)
             {
-                foreach (var doc in await source.GetAllAsync(name, ct))
+                foreach (var doc in source.GetAllUngated(name))
                 {
-                    // Preserve id, data, and timestamps as a fresh insert (id is non-empty so it is kept).
-                    await dest.InsertAsync(name, new Document
-                    {
-                        Id = doc.Id,
-                        Data = doc.Data,
-                    }, ct);
+                    // Preserve id, data, timestamps and version across the rewrite.
+                    await dest.InsertPreservingMetadataAsync(name, doc, ct);
                 }
             }
         }

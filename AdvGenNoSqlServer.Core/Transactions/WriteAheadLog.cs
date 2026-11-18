@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 // See LICENSE.txt for license information.
 
+using AdvGenNoSqlServer.Core.IO;
 using AdvGenNoSqlServer.Core.Models;
 using System.Buffers.Binary;
 using System.IO.MemoryMappedFiles;
@@ -34,6 +35,7 @@ public class WriteAheadLog : IWriteAheadLog
     private long _currentFileSize;
     private long _entriesWritten;
     private long _bytesWritten;
+    private long? _tornTailPosition;
     private bool _disposed;
     private Timer? _checkpointTimer;
 
@@ -463,9 +465,9 @@ public class WriteAheadLog : IWriteAheadLog
                 ActiveTransactions = activeTransactions.ToList()
             };
 
-            // Save checkpoint metadata
+            // Save checkpoint metadata atomically (a torn checkpoint must not survive a crash)
             var json = JsonSerializer.Serialize(checkpoint);
-            await File.WriteAllTextAsync(_checkpointFilePath, json);
+            await AtomicFileWriter.WriteAllTextAsync(_checkpointFilePath, json);
 
             LastCheckpoint = checkpoint;
 
@@ -540,6 +542,26 @@ public class WriteAheadLog : IWriteAheadLog
                 }
             }
 
+            // A torn tail (crash mid-append) is truncated so new appends start clean.
+            if (_tornTailPosition.HasValue)
+            {
+                await _writeLock.WaitAsync();
+                try
+                {
+                    if (_logFile != null)
+                    {
+                        _logFile.SetLength(_tornTailPosition.Value);
+                        await _logFile.FlushAsync();
+                        _currentFileSize = _tornTailPosition.Value;
+                    }
+                }
+                finally
+                {
+                    _writeLock.Release();
+                }
+                _tornTailPosition = null;
+            }
+
             // Determine which transactions need recovery action
             foreach (var state in transactions.Values)
             {
@@ -598,6 +620,8 @@ public class WriteAheadLog : IWriteAheadLog
         long startLsn,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        _tornTailPosition = null;
+
         // Open a separate read stream for the current log file
         // Use FileShare.ReadWrite to allow concurrent access with the write stream
         using var readStream = new FileStream(
@@ -610,47 +634,119 @@ public class WriteAheadLog : IWriteAheadLog
 
         // Skip header
         readStream.Position = HEADER_SIZE;
+        long lastGoodLsn = 0;
 
         while (readStream.Position < readStream.Length)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            long entryStart = readStream.Position;
 
             var entryHeader = new byte[ENTRY_HEADER_SIZE];
-            var read = await readStream.ReadAsync(entryHeader.AsMemory(0, ENTRY_HEADER_SIZE), cancellationToken);
-            if (read < ENTRY_HEADER_SIZE) break;
+            long lsn = 0;
+            int dataLength = 0;
+            uint checksum = 0;
+            long ticks = 0;
+            WalOperationType opType = default;
+            byte[]? data = null;
+            bool corrupt = false;
 
-            var lsn = BinaryPrimitives.ReadInt64LittleEndian(entryHeader.AsSpan(0));
-            var dataLength = BinaryPrimitives.ReadInt32LittleEndian(entryHeader.AsSpan(8));
-            var checksum = BinaryPrimitives.ReadUInt32LittleEndian(entryHeader.AsSpan(12));
-            var timestamp = new DateTime(BinaryPrimitives.ReadInt64LittleEndian(entryHeader.AsSpan(16)));
-            var opType = (WalOperationType)entryHeader[24];
-
-            if (lsn < startLsn)
+            if (!await ReadFullAsync(readStream, entryHeader, cancellationToken))
             {
-                // Skip this entry's data
-                readStream.Position += dataLength;
-                continue;
+                corrupt = true;
+            }
+            else
+            {
+                lsn = BinaryPrimitives.ReadInt64LittleEndian(entryHeader.AsSpan(0));
+                dataLength = BinaryPrimitives.ReadInt32LittleEndian(entryHeader.AsSpan(8));
+                checksum = BinaryPrimitives.ReadUInt32LittleEndian(entryHeader.AsSpan(12));
+                ticks = BinaryPrimitives.ReadInt64LittleEndian(entryHeader.AsSpan(16));
+                opType = (WalOperationType)entryHeader[24];
+
+                if (dataLength < 0 || entryStart + ENTRY_HEADER_SIZE + dataLength > readStream.Length
+                    || ticks < 0 || ticks > DateTime.MaxValue.Ticks)
+                {
+                    corrupt = true;
+                }
+                else
+                {
+                    data = new byte[dataLength];
+                    if (!await ReadFullAsync(readStream, data, cancellationToken))
+                        corrupt = true;
+                    else if (CalculateCrc32(data) != checksum)
+                        corrupt = true;
+                }
             }
 
-            var data = new byte[dataLength];
-            read = await readStream.ReadAsync(data.AsMemory(0, dataLength), cancellationToken);
-            if (read < dataLength) break;
-
-            // Verify checksum
-            var calculatedChecksum = CalculateCrc32(data);
-            if (calculatedChecksum != checksum)
+            if (corrupt)
             {
-                throw new InvalidDataException($"CRC mismatch at LSN {lsn}");
+                // Distinguish a torn tail (crash mid-append) from mid-log corruption:
+                // if any valid committed entry exists after this point, truncating
+                // would silently discard it, so fail recovery instead.
+                if (await HasValidEntryAfterAsync(readStream, entryStart, lastGoodLsn, cancellationToken))
+                {
+                    throw new InvalidDataException(
+                        $"Mid-log corruption near LSN {lsn} at offset {entryStart}: valid entries exist after the corrupt entry; refusing to truncate committed data.");
+                }
+                _tornTailPosition = entryStart;
+                yield break;
             }
 
-            var entry = DeserializeEntry(data);
+            lastGoodLsn = lsn;
+            if (lsn < startLsn) continue;
+
+            var entry = DeserializeEntry(data!);
             entry.Lsn = lsn;
             entry.Checksum = checksum;
-            entry.Timestamp = timestamp;
+            entry.Timestamp = new DateTime(ticks);
             entry.OperationType = opType;
 
             yield return entry;
         }
+    }
+
+    /// <summary>
+    /// Probes for a structurally valid, checksum-correct entry after a corrupt position.
+    /// Uses the monotonic LSN as a cheap filter before doing full validation.
+    /// </summary>
+    private async Task<bool> HasValidEntryAfterAsync(
+        FileStream stream, long corruptStart, long lastGoodLsn, CancellationToken cancellationToken)
+    {
+        long length = stream.Length;
+        var lsnBuf = new byte[8];
+        var header = new byte[ENTRY_HEADER_SIZE];
+
+        for (long pos = corruptStart + 1; pos + ENTRY_HEADER_SIZE <= length; pos++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            stream.Position = pos;
+            if (!await ReadFullAsync(stream, lsnBuf, cancellationToken)) return false;
+            if (BinaryPrimitives.ReadInt64LittleEndian(lsnBuf) <= lastGoodLsn) continue;
+
+            stream.Position = pos;
+            if (!await ReadFullAsync(stream, header, cancellationToken)) return false;
+            int dataLength = BinaryPrimitives.ReadInt32LittleEndian(header.AsSpan(8));
+            uint checksum = BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(12));
+            long ticks = BinaryPrimitives.ReadInt64LittleEndian(header.AsSpan(16));
+            if (dataLength < 0 || pos + ENTRY_HEADER_SIZE + dataLength > length
+                || ticks < 0 || ticks > DateTime.MaxValue.Ticks) continue;
+
+            var data = new byte[dataLength];
+            if (!await ReadFullAsync(stream, data, cancellationToken)) return false;
+            if (CalculateCrc32(data) == checksum) return true;
+        }
+        return false;
+    }
+
+    private static async Task<bool> ReadFullAsync(Stream stream, byte[] buffer, CancellationToken cancellationToken)
+    {
+        int offset = 0;
+        while (offset < buffer.Length)
+        {
+            int read = await stream.ReadAsync(buffer.AsMemory(offset, buffer.Length - offset), cancellationToken);
+            if (read == 0) return false;
+            offset += read;
+        }
+        return true;
     }
 
     private async IAsyncEnumerable<WalLogEntry> ReplayFileAsync(
@@ -674,41 +770,37 @@ public class WriteAheadLog : IWriteAheadLog
         while (stream.Position < stream.Length)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            long entryStart = stream.Position;
 
             var entryHeader = new byte[ENTRY_HEADER_SIZE];
-            var read = await stream.ReadAsync(entryHeader.AsMemory(0, ENTRY_HEADER_SIZE), cancellationToken);
-            if (read < ENTRY_HEADER_SIZE) break;
+            if (!await ReadFullAsync(stream, entryHeader, cancellationToken))
+                yield break;
 
             var lsn = BinaryPrimitives.ReadInt64LittleEndian(entryHeader.AsSpan(0));
             var dataLength = BinaryPrimitives.ReadInt32LittleEndian(entryHeader.AsSpan(8));
             var checksum = BinaryPrimitives.ReadUInt32LittleEndian(entryHeader.AsSpan(12));
-            var timestamp = new DateTime(BinaryPrimitives.ReadInt64LittleEndian(entryHeader.AsSpan(16)));
+            var ticks = BinaryPrimitives.ReadInt64LittleEndian(entryHeader.AsSpan(16));
             var opType = (WalOperationType)entryHeader[24];
 
-            if (lsn < startLsn)
-            {
-                // Skip this entry's data
-                stream.Position += dataLength;
-                continue;
-            }
+            if (dataLength < 0 || entryStart + ENTRY_HEADER_SIZE + dataLength > stream.Length
+                || ticks < 0 || ticks > DateTime.MaxValue.Ticks)
+                yield break;
 
             var data = new byte[dataLength];
-            read = await stream.ReadAsync(data.AsMemory(0, dataLength), cancellationToken);
-            if (read < dataLength) break;
+            if (!await ReadFullAsync(stream, data, cancellationToken))
+                yield break;
 
-            // Verify checksum
-            var calculatedChecksum = CalculateCrc32(data);
-            if (calculatedChecksum != checksum)
-            {
-                // Corrupted entry - skip or throw?
-                // For recovery, we'll throw to indicate corruption
-                throw new InvalidDataException($"CRC mismatch at LSN {lsn}");
-            }
+            // Archives are immutable history; a corrupt tail stops replay of this
+            // file rather than failing recovery outright.
+            if (CalculateCrc32(data) != checksum)
+                yield break;
+
+            if (lsn < startLsn) continue;
 
             var entry = DeserializeEntry(data);
             entry.Lsn = lsn;
             entry.Checksum = checksum;
-            entry.Timestamp = timestamp;
+            entry.Timestamp = new DateTime(ticks);
             entry.OperationType = opType;
 
             yield return entry;

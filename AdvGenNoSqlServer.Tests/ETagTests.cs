@@ -269,7 +269,7 @@ public class ETagTests
         Assert.All(results, r => Assert.NotNull(r.ETag));
     }
 
-    [Fact(Skip = "Known issue: ETag validation fails due to timestamp changes between Get and Update operations")]
+    [Fact]
     public async Task ETagDocumentStore_UpdateIfMatch_Success()
     {
         var innerStore = new DocumentStore();
@@ -505,7 +505,7 @@ public class ETagTests
         Assert.False(notModified);
     }
 
-    [Fact(Skip = "Known issue: Concurrent updates conflict with InMemoryDocumentCollection.TryUpdate reference comparison")]
+    [Fact]
     public async Task ETagDocumentStore_ConcurrentUpdates_LastWriterWinsWithoutETag()
     {
         var innerStore = new DocumentStore();
@@ -536,7 +536,7 @@ public class ETagTests
         Assert.True((int)final!.Data["counter"] >= 0 && (int)final.Data["counter"] < 10);
     }
 
-    [Fact(Skip = "Known issue: InMemoryDocumentCollection.TryUpdate reference comparison conflicts with concurrent ETag updates")]
+    [Fact]
     public async Task ETagDocumentStore_ConcurrentUpdates_WithETag_ThrowsOnConflict()
     {
         var innerStore = new DocumentStore();
@@ -851,7 +851,7 @@ public class ETagTests
 
     #region Integration Tests
 
-    [Fact(Skip = "Known issue: ETag calculation includes timestamps which may change between Get and Update, causing validation to fail")]
+    [Fact]
     public async Task ETagDocumentStore_FullWorkflow_InsertGetUpdateWithETag()
     {
         var innerStore = new DocumentStore();
@@ -890,7 +890,7 @@ public class ETagTests
         Assert.Equal("Updated", final!.Data["name"]);
     }
 
-    [Fact(Skip = "Known issue: Test modifies retrieved document directly which affects ETag calculation. Also subject to timestamp-based ETag validation issues.")]
+    [Fact]
     public async Task ETagDocumentStore_StaleETagDetection_PreventsLostUpdates()
     {
         var innerStore = new DocumentStore();

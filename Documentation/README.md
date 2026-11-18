@@ -6,12 +6,18 @@ Welcome to the AdvGenNoSQL Server documentation.
 
 | Document | Description |
 |----------|-------------|
+| [QuickStart.md](QuickStart.md) | Get running fast: server, client, REST, embedded mode, admin UIs, examples |
 | [API.md](API.md) | Complete API reference for all public interfaces and classes |
 | [UserGuide.md](UserGuide.md) | End-user guide for using the NoSQL server |
 | [DeveloperGuide.md](DeveloperGuide.md) | Developer guide for contributing to the project |
 | [PerformanceTuning.md](PerformanceTuning.md) | Performance optimization and tuning guide |
+| [Deployment.md](Deployment.md) | Production deployment: env vars, Docker, reverse proxy, backup |
+| [ProductionReadiness.md](ProductionReadiness.md) | Hardening record and residual known issues |
 
 ## Quick Start
+
+New here? Start with the [Quick Start Guide](QuickStart.md) — build, run the server,
+connect a client, and try the example apps in a few minutes.
 
 ### For Users
 

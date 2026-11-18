@@ -17,7 +17,18 @@ namespace AdvGenNoSqlServer.Client
     /// </summary>
     public class NoSqlClientException : Exception
     {
+        /// <summary>
+        /// Initializes a new instance of the <see cref="NoSqlClientException"/> class with a specified error message.
+        /// </summary>
+        /// <param name="message">The message that describes the error.</param>
         public NoSqlClientException(string message) : base(message) { }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="NoSqlClientException"/> class with a specified error message
+        /// and a reference to the inner exception that caused it.
+        /// </summary>
+        /// <param name="message">The message that describes the error.</param>
+        /// <param name="inner">The exception that is the cause of this exception.</param>
         public NoSqlClientException(string message, Exception inner) : base(message, inner) { }
     }
 
@@ -26,7 +37,18 @@ namespace AdvGenNoSqlServer.Client
     /// </summary>
     public class NoSqlProtocolException : NoSqlClientException
     {
+        /// <summary>
+        /// Initializes a new instance of the <see cref="NoSqlProtocolException"/> class with a specified error message.
+        /// </summary>
+        /// <param name="message">The message that describes the protocol error.</param>
         public NoSqlProtocolException(string message) : base(message) { }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="NoSqlProtocolException"/> class with a specified error message
+        /// and a reference to the inner exception that caused it.
+        /// </summary>
+        /// <param name="message">The message that describes the protocol error.</param>
+        /// <param name="inner">The exception that is the cause of this exception.</param>
         public NoSqlProtocolException(string message, Exception inner) : base(message, inner) { }
     }
 

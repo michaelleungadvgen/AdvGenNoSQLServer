@@ -70,9 +70,24 @@ public class NotificationService
 /// </summary>
 public class Notification
 {
+    /// <summary>
+    /// Gets or sets the unique identifier of the notification.
+    /// </summary>
     public Guid Id { get; set; }
+
+    /// <summary>
+    /// Gets or sets the notification message text.
+    /// </summary>
     public string Message { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the severity type of the notification.
+    /// </summary>
     public NotificationType Type { get; set; }
+
+    /// <summary>
+    /// Gets or sets the local time when the notification was created.
+    /// </summary>
     public DateTime Timestamp { get; set; }
 }
 
@@ -81,8 +96,23 @@ public class Notification
 /// </summary>
 public enum NotificationType
 {
+    /// <summary>
+    /// Informational notification.
+    /// </summary>
     Info,
+
+    /// <summary>
+    /// Success notification for a completed operation.
+    /// </summary>
     Success,
+
+    /// <summary>
+    /// Warning notification about a potential problem.
+    /// </summary>
     Warning,
+
+    /// <summary>
+    /// Error notification for a failed operation.
+    /// </summary>
     Error
 }

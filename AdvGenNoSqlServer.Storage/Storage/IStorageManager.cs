@@ -5,6 +5,9 @@ using System.Threading.Tasks;
 
 namespace AdvGenNoSqlServer.Storage.Storage;
 
+/// <summary>
+/// Defines file-based persistence operations for documents organized into collections.
+/// </summary>
 public interface IStorageManager
 {
     /// <summary>

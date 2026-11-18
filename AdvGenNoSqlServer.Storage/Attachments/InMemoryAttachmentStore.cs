@@ -20,11 +20,27 @@ public sealed class InMemoryAttachmentStore : IAttachmentStore, IDisposable
     private readonly SemaphoreSlim _lock = new(1, 1);
     private bool _disposed;
 
+    /// <summary>
+    /// Creates a new in-memory attachment store with the specified options.
+    /// </summary>
+    /// <param name="options">Size, quota, and content-type limits to enforce.</param>
     public InMemoryAttachmentStore(AttachmentStoreOptions options)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
     }
 
+    /// <summary>
+    /// Stores an attachment in memory, replacing any existing attachment with the same name
+    /// while preserving its original creation timestamp. Enforces content-type, size, and quota limits.
+    /// </summary>
+    /// <param name="collectionName">The collection containing the document.</param>
+    /// <param name="documentId">The document the attachment belongs to.</param>
+    /// <param name="name">The attachment name (unique per document).</param>
+    /// <param name="contentType">The MIME content type of the attachment.</param>
+    /// <param name="content">The attachment bytes.</param>
+    /// <param name="metadata">Optional user-defined metadata.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>A result indicating success with attachment info, or failure with a reason.</returns>
     public async Task<AttachmentResult> StoreAsync(
         string collectionName, string documentId, string name, string contentType,
         byte[] content, Dictionary<string, string>? metadata = null, CancellationToken cancellationToken = default)
@@ -75,6 +91,14 @@ public sealed class InMemoryAttachmentStore : IAttachmentStore, IDisposable
         }
     }
 
+    /// <summary>
+    /// Retrieves a copy of an attachment, including its content bytes.
+    /// </summary>
+    /// <param name="collectionName">The collection containing the document.</param>
+    /// <param name="documentId">The document the attachment belongs to.</param>
+    /// <param name="name">The attachment name.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>A cloned attachment, or null if not found.</returns>
     public Task<Attachment?> GetAsync(string collectionName, string documentId, string name, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -95,12 +119,27 @@ public sealed class InMemoryAttachmentStore : IAttachmentStore, IDisposable
         return Task.FromResult<Attachment?>(null);
     }
 
+    /// <summary>
+    /// Retrieves attachment metadata without the content bytes.
+    /// </summary>
+    /// <param name="collectionName">The collection containing the document.</param>
+    /// <param name="documentId">The document the attachment belongs to.</param>
+    /// <param name="name">The attachment name.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>The attachment info, or null if not found.</returns>
     public Task<AttachmentInfo?> GetInfoAsync(string collectionName, string documentId, string name, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
         return Task.FromResult(GetDocAttachments(collectionName, documentId).TryGetValue(name, out var a) ? CloneInfo(a) : null);
     }
 
+    /// <summary>
+    /// Lists metadata for all attachments of a document.
+    /// </summary>
+    /// <param name="collectionName">The collection containing the document.</param>
+    /// <param name="documentId">The document whose attachments to list.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>A read-only list of attachment info entries.</returns>
     public Task<IReadOnlyList<AttachmentInfo>> ListAsync(string collectionName, string documentId, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -108,6 +147,14 @@ public sealed class InMemoryAttachmentStore : IAttachmentStore, IDisposable
         return Task.FromResult<IReadOnlyList<AttachmentInfo>>(list);
     }
 
+    /// <summary>
+    /// Deletes a single attachment from a document.
+    /// </summary>
+    /// <param name="collectionName">The collection containing the document.</param>
+    /// <param name="documentId">The document the attachment belongs to.</param>
+    /// <param name="name">The attachment name.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>True if the attachment was removed; false if it did not exist.</returns>
     public async Task<bool> DeleteAsync(string collectionName, string documentId, string name, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -122,6 +169,13 @@ public sealed class InMemoryAttachmentStore : IAttachmentStore, IDisposable
         }
     }
 
+    /// <summary>
+    /// Deletes all attachments belonging to a document.
+    /// </summary>
+    /// <param name="collectionName">The collection containing the document.</param>
+    /// <param name="documentId">The document whose attachments to delete.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>The number of attachments removed.</returns>
     public async Task<int> DeleteAllAsync(string collectionName, string documentId, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -138,12 +192,25 @@ public sealed class InMemoryAttachmentStore : IAttachmentStore, IDisposable
         }
     }
 
+    /// <summary>
+    /// Checks whether an attachment exists for a document.
+    /// </summary>
+    /// <param name="collectionName">The collection containing the document.</param>
+    /// <param name="documentId">The document the attachment belongs to.</param>
+    /// <param name="name">The attachment name.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>True if the attachment exists; otherwise false.</returns>
     public Task<bool> ExistsAsync(string collectionName, string documentId, string name, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
         return Task.FromResult(GetDocAttachments(collectionName, documentId).ContainsKey(name));
     }
 
+    /// <summary>
+    /// Gets the total size in bytes of all attachments held in memory.
+    /// </summary>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>The combined size of all stored attachment content.</returns>
     public Task<long> GetTotalStorageSizeAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -196,6 +263,9 @@ public sealed class InMemoryAttachmentStore : IAttachmentStore, IDisposable
         if (_disposed) throw new ObjectDisposedException(nameof(InMemoryAttachmentStore));
     }
 
+    /// <summary>
+    /// Releases the internal lock and clears all stored attachments.
+    /// </summary>
     public void Dispose()
     {
         if (!_disposed)

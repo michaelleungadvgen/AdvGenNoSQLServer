@@ -152,6 +152,13 @@ public sealed class EmbeddedDocumentStore : IDocumentStore, IDisposable
 
     /// <inheritdoc />
     public Task<Document> InsertAsync(string collectionName, Document document, CancellationToken cancellationToken = default)
+        => InsertCoreAsync(collectionName, document, preserveMetadata: false, cancellationToken);
+
+    /// <summary>Inserts while keeping the document's CreatedAt/UpdatedAt/Version (compaction).</summary>
+    internal Task<Document> InsertPreservingMetadataAsync(string collectionName, Document document, CancellationToken cancellationToken = default)
+        => InsertCoreAsync(collectionName, document, preserveMetadata: true, cancellationToken);
+
+    private Task<Document> InsertCoreAsync(string collectionName, Document document, bool preserveMetadata, CancellationToken cancellationToken)
     {
         ValidateCollectionName(collectionName);
         ArgumentNullException.ThrowIfNull(document);
@@ -169,9 +176,9 @@ public sealed class EmbeddedDocumentStore : IDocumentStore, IDisposable
             {
                 Id = id,
                 Data = document.Data ?? new Dictionary<string, object>(),
-                CreatedAt = now,
-                UpdatedAt = now,
-                Version = 1,
+                CreatedAt = preserveMetadata ? document.CreatedAt : now,
+                UpdatedAt = preserveMetadata ? document.UpdatedAt : now,
+                Version = preserveMetadata ? document.Version : 1,
             };
             var bytes = DocumentSerializer.Serialize(stored);
             _indexes.CheckInsert(collectionName, stored);
@@ -440,12 +447,54 @@ public sealed class EmbeddedDocumentStore : IDocumentStore, IDisposable
     /// <summary>Flushes pending page writes.</summary>
     public void Flush() => _store.Flush(true);
 
-    /// <inheritdoc />
-    public void Dispose()
+    /// <summary>
+    /// Holds the store-wide write lock so compaction can copy and swap the file
+    /// without concurrent writers. Reads inside the scope must use the ungated
+    /// internal helpers to avoid deadlocking on this lock.
+    /// </summary>
+    internal ExclusiveScope EnterExclusive()
+    {
+        _lock.EnterWriteLock();
+        return new ExclusiveScope(this);
+    }
+
+    internal readonly struct ExclusiveScope : IDisposable
+    {
+        private readonly EmbeddedDocumentStore _owner;
+        public ExclusiveScope(EmbeddedDocumentStore owner) => _owner = owner;
+        public void Dispose() => _owner._lock.ExitWriteLock();
+    }
+
+    /// <summary>Collection names without taking the lock (caller holds EnterExclusive).</summary>
+    internal List<string> GetCollectionsUngated() => _collections.Keys.ToList();
+
+    /// <summary>All documents of a collection without taking the lock (caller holds EnterExclusive).</summary>
+    internal List<Document> GetAllUngated(string collectionName)
+    {
+        var result = new List<Document>();
+        if (_collections.TryGetValue(collectionName, out var state))
+        {
+            foreach (var addr in state.PrimaryIndex.Values)
+                result.Add(DocumentSerializer.Deserialize(state.File.Read(addr).Body));
+        }
+        return result;
+    }
+
+    /// <summary>Disposes the underlying page store but keeps the gate lock alive.</summary>
+    internal void DisposeStorage()
     {
         _store.Flush(true);
         _store.Dispose();
-        _lock.Dispose();
+    }
+
+    /// <summary>Disposes the gate lock; only after any ExclusiveScope has exited.</summary>
+    internal void DisposeLock() => _lock.Dispose();
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        DisposeStorage();
+        DisposeLock();
         _ = _initialized;
     }
 }

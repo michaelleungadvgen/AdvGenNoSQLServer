@@ -142,6 +142,16 @@ public enum ShardHashAlgorithm
 /// </summary>
 public class ValidationException : Exception
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ValidationException"/> class with a specified error message
+    /// </summary>
+    /// <param name="message">The error message</param>
     public ValidationException(string message) : base(message) { }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ValidationException"/> class with a specified error message and inner exception
+    /// </summary>
+    /// <param name="message">The error message</param>
+    /// <param name="inner">The exception that caused this exception</param>
     public ValidationException(string message, Exception inner) : base(message, inner) { }
 }

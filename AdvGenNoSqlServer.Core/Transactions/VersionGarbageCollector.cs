@@ -100,6 +100,9 @@ public class VersionGarbageCollector : IDisposable
 /// </summary>
 public class GarbageCollectorStatistics
 {
+    /// <summary>Gets or sets the cumulative number of document versions reclaimed.</summary>
     public int TotalVersionsCollected { get; set; }
+
+    /// <summary>Gets or sets the time of the last collection run, or null if none has run.</summary>
     public DateTime? LastCollectionTime { get; set; }
 }

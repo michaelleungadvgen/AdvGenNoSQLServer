@@ -13,6 +13,10 @@ public class LocalStorageService
 {
     private readonly IJSRuntime _jsRuntime;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="LocalStorageService"/> class.
+    /// </summary>
+    /// <param name="jsRuntime">The JS runtime used to invoke browser localStorage APIs.</param>
     public LocalStorageService(IJSRuntime jsRuntime)
     {
         _jsRuntime = jsRuntime;

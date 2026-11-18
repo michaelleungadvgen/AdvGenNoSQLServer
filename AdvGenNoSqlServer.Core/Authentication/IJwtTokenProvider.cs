@@ -128,6 +128,16 @@ public class TokenValidationResult
 /// </summary>
 public class JwtTokenException : Exception
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="JwtTokenException"/> class with a specified error message
+    /// </summary>
+    /// <param name="message">The error message</param>
     public JwtTokenException(string message) : base(message) { }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="JwtTokenException"/> class with a specified error message and inner exception
+    /// </summary>
+    /// <param name="message">The error message</param>
+    /// <param name="innerException">The exception that caused this exception</param>
     public JwtTokenException(string message, Exception innerException) : base(message, innerException) { }
 }

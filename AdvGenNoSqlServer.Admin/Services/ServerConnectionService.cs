@@ -144,6 +144,10 @@ public class ServerConnectionService : INoSqlServerClient
     private string? _currentDatabase;
     private string? _authToken;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ServerConnectionService"/> class.
+    /// </summary>
+    /// <param name="http">The HTTP client used for all server API requests.</param>
     public ServerConnectionService(HttpClient http) => _http = http;
 
     /// <inheritdoc />
@@ -442,6 +446,68 @@ public class ServerConnectionService : INoSqlServerClient
         catch { return false; }
     }
 
+    // --- User management (admin only) ---
+
+    /// <summary>Lists all server user accounts.</summary>
+    public async Task<List<AdminUser>> GetUsersAsync()
+    {
+        EnsureConnected();
+        var resp = await _http.GetAsync($"{_baseApiUrl}/api/users");
+        if (!resp.IsSuccessStatusCode) throw new InvalidOperationException(await ErrorOf(resp));
+        var payload = await resp.Content.ReadFromJsonAsync<UsersResponse>();
+        return payload?.Users ?? new List<AdminUser>();
+    }
+
+    /// <summary>Creates a new user with the given role.</summary>
+    public async Task CreateUserAsync(string username, string password, string role)
+    {
+        EnsureConnected();
+        var resp = await _http.PostAsJsonAsync($"{_baseApiUrl}/api/users", new { username, password, role });
+        if (!resp.IsSuccessStatusCode) throw new InvalidOperationException(await ErrorOf(resp));
+    }
+
+    /// <summary>Changes a user's role (revokes their live sessions).</summary>
+    public async Task SetUserRoleAsync(string username, string role)
+    {
+        EnsureConnected();
+        var resp = await _http.PutAsJsonAsync($"{_baseApiUrl}/api/users/{Uri.EscapeDataString(username)}/role", new { role });
+        if (!resp.IsSuccessStatusCode) throw new InvalidOperationException(await ErrorOf(resp));
+    }
+
+    /// <summary>Resets a user's password (revokes their live sessions).</summary>
+    public async Task SetUserPasswordAsync(string username, string password)
+    {
+        EnsureConnected();
+        var resp = await _http.PutAsJsonAsync($"{_baseApiUrl}/api/users/{Uri.EscapeDataString(username)}/password", new { password });
+        if (!resp.IsSuccessStatusCode) throw new InvalidOperationException(await ErrorOf(resp));
+    }
+
+    /// <summary>Deletes a user (revokes their live sessions).</summary>
+    public async Task DeleteUserAsync(string username)
+    {
+        EnsureConnected();
+        var resp = await _http.DeleteAsync($"{_baseApiUrl}/api/users/{Uri.EscapeDataString(username)}");
+        if (!resp.IsSuccessStatusCode) throw new InvalidOperationException(await ErrorOf(resp));
+    }
+
+    private void EnsureConnected()
+    {
+        if (!_isConnected || _baseApiUrl == null)
+            throw new InvalidOperationException("Not connected to the server.");
+    }
+
+    private static async Task<string> ErrorOf(HttpResponseMessage resp)
+    {
+        try
+        {
+            var e = await resp.Content.ReadFromJsonAsync<ErrorResponse>();
+            return string.IsNullOrEmpty(e?.Error) ? $"HTTP {(int)resp.StatusCode}" : e!.Error!;
+        }
+        catch { return $"HTTP {(int)resp.StatusCode}"; }
+    }
+
+    private record UsersResponse(bool Success, List<AdminUser>? Users);
+
     private record DocumentResponse(bool Success, string? Id, string? Message);
     private record ErrorResponse(string? Error);
 
@@ -473,12 +539,39 @@ public class ServerConnectionService : INoSqlServerClient
 /// </summary>
 public class ServerStats
 {
+    /// <summary>
+    /// Gets or sets the total number of documents stored on the server.
+    /// </summary>
     public int TotalDocuments { get; set; }
+
+    /// <summary>
+    /// Gets or sets the total number of collections on the server.
+    /// </summary>
     public int TotalCollections { get; set; }
+
+    /// <summary>
+    /// Gets or sets the number of currently active client connections.
+    /// </summary>
     public int ActiveConnections { get; set; }
+
+    /// <summary>
+    /// Gets or sets how long the server has been running.
+    /// </summary>
     public TimeSpan Uptime { get; set; }
+
+    /// <summary>
+    /// Gets or sets the server's memory usage in megabytes.
+    /// </summary>
     public int MemoryUsageMB { get; set; }
+
+    /// <summary>
+    /// Gets or sets the server's query throughput in queries per second.
+    /// </summary>
     public int QueriesPerSecond { get; set; }
+
+    /// <summary>
+    /// Gets or sets the server software version. Defaults to "1.0.0".
+    /// </summary>
     public string ServerVersion { get; set; } = "1.0.0";
 }
 
@@ -487,9 +580,49 @@ public class ServerStats
 /// </summary>
 public class QueryResult
 {
+    /// <summary>
+    /// Gets or sets a value indicating whether the query executed successfully.
+    /// </summary>
     public bool Success { get; set; }
+
+    /// <summary>
+    /// Gets or sets the documents returned by the query.
+    /// </summary>
     public List<Document> Documents { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets the query execution time in milliseconds.
+    /// </summary>
     public int ExecutionTimeMs { get; set; }
+
+    /// <summary>
+    /// Gets or sets the total number of documents matching the query.
+    /// </summary>
     public int TotalCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets the error message when the query fails; otherwise <c>null</c>.
+    /// </summary>
     public string? ErrorMessage { get; set; }
+}
+
+/// <summary>
+/// A server user account for admin management (no secrets).
+/// </summary>
+public class AdminUser
+{
+    /// <summary>
+    /// Gets or sets the user's login name.
+    /// </summary>
+    public string Username { get; set; } = "";
+
+    /// <summary>
+    /// Gets or sets the user's server role (admin / readwrite / readonly).
+    /// </summary>
+    public string Role { get; set; } = "";
+
+    /// <summary>
+    /// Gets or sets the time when the account was created.
+    /// </summary>
+    public DateTime CreatedAt { get; set; }
 }

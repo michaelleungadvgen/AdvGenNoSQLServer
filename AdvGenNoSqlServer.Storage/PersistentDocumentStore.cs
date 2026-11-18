@@ -5,6 +5,7 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using AdvGenNoSqlServer.Core.Abstractions;
+using AdvGenNoSqlServer.Core.IO;
 using AdvGenNoSqlServer.Core.Models;
 using AdvGenNoSqlServer.Core.Security;
 
@@ -60,6 +61,9 @@ public class PersistentDocumentStore : IPersistentDocumentStore
         {
             Directory.CreateDirectory(_dataPath);
         }
+
+        // Sweep orphaned temp files left by a crash between write and rename.
+        AtomicFileWriter.CleanupTempFiles(_dataPath);
 
         // Load existing collections from disk
         var collectionDirectories = Directory.GetDirectories(_dataPath);
@@ -411,8 +415,20 @@ public class PersistentDocumentStore : IPersistentDocumentStore
             }
             catch (JsonException)
             {
-                // Skip invalid files
-                continue;
+                // Quarantine corrupt files instead of silently dropping them, so
+                // the data loss is visible and recoverable by an operator.
+                try
+                {
+                    var quarantineDir = Path.Combine(collectionPath, "_corrupt");
+                    Directory.CreateDirectory(quarantineDir);
+                    var destination = Path.Combine(
+                        quarantineDir,
+                        $"{Path.GetFileName(file)}.{DateTime.UtcNow.Ticks}.corrupt");
+                    File.Move(file, destination);
+                }
+                catch (IOException)
+                {
+                }
             }
         }
 
@@ -488,7 +504,7 @@ public class PersistentDocumentStore : IPersistentDocumentStore
     {
         var documentPath = GetDocumentPath(collectionName, document.Id);
         var json = JsonSerializer.Serialize(document, _jsonOptions);
-        await File.WriteAllTextAsync(documentPath, json);
+        await AtomicFileWriter.WriteAllTextAsync(documentPath, json);
     }
 
     private async Task DeleteDocumentFromDiskAsync(string collectionName, string documentId)

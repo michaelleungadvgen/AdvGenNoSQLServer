@@ -118,9 +118,22 @@ public class LockRequest
 /// </summary>
 public class DeadlockException : Exception
 {
+    /// <summary>
+    /// Gets the identifier of the transaction involved in the deadlock
+    /// </summary>
     public string TransactionId { get; }
+
+    /// <summary>
+    /// Gets the identifier of the resource the deadlock occurred on
+    /// </summary>
     public string ResourceId { get; }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DeadlockException"/> class
+    /// </summary>
+    /// <param name="message">The error message</param>
+    /// <param name="transactionId">The identifier of the deadlocked transaction</param>
+    /// <param name="resourceId">The identifier of the contested resource</param>
     public DeadlockException(string message, string transactionId, string resourceId)
         : base(message)
     {

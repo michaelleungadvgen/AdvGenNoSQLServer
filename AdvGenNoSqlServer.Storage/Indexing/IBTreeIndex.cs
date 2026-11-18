@@ -155,6 +155,16 @@ public interface IBTreeIndex<TKey, TValue> where TKey : IComparable<TKey>
 /// </summary>
 public class DuplicateKeyException : Exception
 {
+    /// <summary>
+    /// Creates a new exception with the specified error message.
+    /// </summary>
+    /// <param name="message">The message describing the duplicate key violation.</param>
     public DuplicateKeyException(string message) : base(message) { }
+
+    /// <summary>
+    /// Creates a new exception with the specified error message and inner cause.
+    /// </summary>
+    /// <param name="message">The message describing the duplicate key violation.</param>
+    /// <param name="innerException">The exception that caused this failure.</param>
     public DuplicateKeyException(string message, Exception innerException) : base(message, innerException) { }
 }

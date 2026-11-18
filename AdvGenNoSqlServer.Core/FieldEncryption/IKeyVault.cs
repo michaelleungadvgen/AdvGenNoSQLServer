@@ -126,9 +126,16 @@ public class DataKey
 /// </summary>
 public enum KeyStatus
 {
+    /// <summary>Key is active and usable for encryption and decryption.</summary>
     Active,
+
+    /// <summary>Key is inactive and not used for new encryption.</summary>
     Inactive,
+
+    /// <summary>Key has been compromised and must not be used.</summary>
     Compromised,
+
+    /// <summary>Key has passed its expiration date.</summary>
     Expired
 }
 

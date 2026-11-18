@@ -390,7 +390,7 @@ namespace AdvGenNoSqlServer.Tests
                 EnableSsl = true,
                 SslCertificatePath = _testCertPath,
                 SslCertificatePassword = _testCertPassword,
-                RequireAuthentication = false,
+                RequireAuthentication = false, AnonymousRole = "admin",
                 CheckCertificateRevocation = false
             };
 

@@ -34,6 +34,12 @@ public class ConfigurationChangedEventArgs : EventArgs
     /// </summary>
     public DateTime ChangeTime { get; }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ConfigurationChangedEventArgs"/> class, stamping the change time as now (UTC)
+    /// </summary>
+    /// <param name="oldConfig">The configuration before the change</param>
+    /// <param name="newConfig">The configuration after the change</param>
+    /// <param name="changeSource">The source of the change (e.g., "File", "Manual", "Environment")</param>
     public ConfigurationChangedEventArgs(ServerConfiguration oldConfig, ServerConfiguration newConfig, string changeSource)
     {
         OldConfiguration = oldConfig;
@@ -79,6 +85,11 @@ public class ConfigurationManager : IConfigurationManager, IDisposable
     /// </summary>
     public bool IsHotReloadEnabled => _enableHotReload && _fileWatcher != null;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ConfigurationManager"/> class, loads the configuration and optionally starts hot-reload monitoring
+    /// </summary>
+    /// <param name="configPath">Path to the base JSON configuration file</param>
+    /// <param name="enableHotReload">Whether to watch the configuration file for changes</param>
     public ConfigurationManager(string configPath = "appsettings.json", bool enableHotReload = false)
     {
         _configPath = configPath;
@@ -98,6 +109,9 @@ public class ConfigurationManager : IConfigurationManager, IDisposable
         }
     }
 
+    /// <summary>
+    /// Gets the currently loaded server configuration
+    /// </summary>
     public ServerConfiguration Configuration => _configuration;
 
     /// <summary>
@@ -229,6 +243,9 @@ public class ConfigurationManager : IConfigurationManager, IDisposable
         }
     }
 
+    /// <summary>
+    /// Manually reloads the configuration from disk and raises <see cref="ConfigurationChanged"/>; in Production an invalid reload is discarded
+    /// </summary>
     public void ReloadConfiguration()
     {
         ReloadConfigurationInternal("Manual");
@@ -261,6 +278,13 @@ public class ConfigurationManager : IConfigurationManager, IDisposable
         }
     }
 
+    /// <summary>
+    /// Updates a single configuration property by name via reflection and raises <see cref="ConfigurationChanged"/>
+    /// </summary>
+    /// <param name="key">The name of the configuration property to update</param>
+    /// <param name="value">The new value, converted to the property's type</param>
+    /// <exception cref="ArgumentException">Thrown when the key does not exist or is not writable</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the value cannot be converted or applied</exception>
     public void UpdateConfiguration(string key, object value)
     {
         var oldConfig = CloneConfiguration(_configuration);
@@ -582,6 +606,9 @@ public class ConfigurationManager : IConfigurationManager, IDisposable
         }
     }
 
+    /// <summary>
+    /// Disables hot-reload monitoring and releases the file watcher
+    /// </summary>
     public void Dispose()
     {
         if (!_isDisposed)

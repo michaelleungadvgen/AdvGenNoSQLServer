@@ -57,6 +57,32 @@ public class CrashRecoveryTests : IDisposable
     }
 
     [Fact]
+    public async Task Crash_CorruptWalTail_NewCommitsSurviveNextRecovery()
+    {
+        var path = DbPath();
+        var store = EmbeddedDocumentStore.OpenFile(path, walCheckpointBytes: long.MaxValue);
+        for (int i = 0; i < 5; i++)
+            await store.InsertAsync("items", Doc($"old-{i}", i));
+        store.SimulateCrash();
+
+        // Corrupt the WAL so recovery replays zero pages (unknown frame type at start).
+        var walPath = path + ".wal";
+        using (var fs = new FileStream(walPath, FileMode.Open, FileAccess.Write, FileShare.None))
+        {
+            fs.WriteByte(0xFF);
+        }
+
+        var reopened = EmbeddedDocumentStore.OpenFile(path);
+        Assert.Equal(0, await reopened.CountAsync("items"));
+        for (int i = 0; i < 3; i++)
+            await reopened.InsertAsync("items", Doc($"new-{i}", i));
+        reopened.SimulateCrash();
+
+        using var final = EmbeddedDocumentStore.OpenFile(path);
+        Assert.Equal(3, await final.CountAsync("items"));
+    }
+
+    [Fact]
     public async Task CheckpointThreshold_TruncatesWal_DataInMainFile()
     {
         var path = DbPath();

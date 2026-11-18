@@ -312,6 +312,16 @@ public class FieldEncryptor : IFieldEncryptor
 /// </summary>
 public class FieldEncryptionException : Exception
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FieldEncryptionException"/> class with a specified error message
+    /// </summary>
+    /// <param name="message">The error message</param>
     public FieldEncryptionException(string message) : base(message) { }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FieldEncryptionException"/> class with a specified error message and inner exception
+    /// </summary>
+    /// <param name="message">The error message</param>
+    /// <param name="innerException">The exception that caused this exception</param>
     public FieldEncryptionException(string message, Exception innerException) : base(message, innerException) { }
 }

@@ -10,9 +10,16 @@ namespace AdvGenNoSqlServer.Core.Transactions;
 /// </summary>
 public enum TransactionStatus
 {
+    /// <summary>Transaction is in progress and accepting operations.</summary>
     Active,
+
+    /// <summary>Transaction was committed successfully.</summary>
     Committed,
+
+    /// <summary>Transaction was rolled back.</summary>
     RolledBack,
+
+    /// <summary>Transaction failed or expired.</summary>
     Failed
 }
 
@@ -21,10 +28,29 @@ public enum TransactionStatus
 /// </summary>
 public class TransactionOperation
 {
+    /// <summary>
+    /// Gets or sets the operation type (e.g., INSERT, UPDATE, DELETE)
+    /// </summary>
     public string OperationType { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the target collection name
+    /// </summary>
     public string CollectionName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the document involved in the operation, if any
+    /// </summary>
     public Document? Document { get; set; }
+
+    /// <summary>
+    /// Gets or sets the target document identifier, if any
+    /// </summary>
     public string? DocumentId { get; set; }
+
+    /// <summary>
+    /// Gets or sets additional data for the operation, if any
+    /// </summary>
     public Dictionary<string, object>? Data { get; set; }
 }
 

@@ -11,12 +11,34 @@ using System.Threading.Tasks;
 
 namespace AdvGenNoSqlServer.Core.Models;
 
+/// <summary>
+/// Represents a schemaless document with an identifier, arbitrary key-value data and version metadata
+/// </summary>
 public class Document
 {
+    /// <summary>
+    /// Gets or sets the unique document identifier
+    /// </summary>
     public required string Id { get; set; }
+
+    /// <summary>
+    /// Gets or sets the document's field values, or null when the document has no data
+    /// </summary>
     public Dictionary<string, object>? Data { get; set; }
+
+    /// <summary>
+    /// Gets or sets the time the document was created
+    /// </summary>
     public DateTime CreatedAt { get; set; }
+
+    /// <summary>
+    /// Gets or sets the time the document was last updated
+    /// </summary>
     public DateTime UpdatedAt { get; set; }
+
+    /// <summary>
+    /// Gets or sets the document version number, incremented on updates
+    /// </summary>
     public long Version { get; set; }
 
     /// <summary>

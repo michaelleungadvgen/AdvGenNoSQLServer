@@ -27,6 +27,14 @@ public sealed class MixedMemoryStorageEngine : IMemoryStorageEngine
     private long _evictionCount;
     private int _disposed;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MixedMemoryStorageEngine"/> class with a native hot tier
+    /// that spills evictions to the document store, plus an optional cold-tier cleanup timer
+    /// </summary>
+    /// <param name="config">Memory management settings supplying hot-tier size, spill collection and TTL</param>
+    /// <param name="totalLimitBytes">The total memory limit in bytes for the engine</param>
+    /// <param name="store">The document store used as the cold tier</param>
+    /// <param name="logger">Optional logger for spill and cleanup diagnostics</param>
     public MixedMemoryStorageEngine(
         MemoryManagementConfiguration config,
         long totalLimitBytes,
@@ -56,6 +64,13 @@ public sealed class MixedMemoryStorageEngine : IMemoryStorageEngine
         }
     }
 
+    /// <summary>
+    /// Attempts to read an entry from the hot tier, falling back to the cold tier with expiry checks
+    /// and fire-and-forget promotion of cold hits back to hot memory
+    /// </summary>
+    /// <param name="key">The entry key</param>
+    /// <param name="value">Receives the entry bytes on success</param>
+    /// <returns>True if the entry exists in either tier and is not expired; otherwise false</returns>
     public bool TryGet(string key, out ReadOnlySpan<byte> value)
     {
         if (_hot.TryGet(key, out value)) return true;
@@ -123,9 +138,20 @@ public sealed class MixedMemoryStorageEngine : IMemoryStorageEngine
         return true;
     }
 
+    /// <summary>
+    /// Inserts or replaces an entry in the hot tier; evictions spill to the cold tier automatically
+    /// </summary>
+    /// <param name="key">The entry key</param>
+    /// <param name="value">The bytes to store</param>
+    /// <param name="ttl">Optional time-to-live; null means no expiration</param>
     public void Set(string key, ReadOnlySpan<byte> value, TimeSpan? ttl = null)
         => _hot.Set(key, value, ttl);
 
+    /// <summary>
+    /// Removes an entry from both the hot and cold tiers
+    /// </summary>
+    /// <param name="key">The entry key</param>
+    /// <returns>True if the entry was removed from either tier; otherwise false</returns>
     public bool Remove(string key)
     {
         bool hotRemoved = _hot.Remove(key);
@@ -134,12 +160,19 @@ public sealed class MixedMemoryStorageEngine : IMemoryStorageEngine
         return hotRemoved || coldRemoved;
     }
 
+    /// <summary>
+    /// Clears the hot tier and the cold-tier spill collection
+    /// </summary>
     public void Clear()
     {
         _hot.Clear();
         _store.ClearCollectionAsync(_config.Mixed.SpillCollection, _cts.Token).GetAwaiter().GetResult();
     }
 
+    /// <summary>
+    /// Gets a snapshot of combined hot- and cold-tier usage and hit/miss statistics
+    /// </summary>
+    /// <returns>The current engine statistics with plan "Mixed"</returns>
     public MemoryEngineStats GetStats()
     {
         var hotStats = _hot.GetStats();
@@ -212,6 +245,9 @@ public sealed class MixedMemoryStorageEngine : IMemoryStorageEngine
         }
     }
 
+    /// <summary>
+    /// Stops the cold cleanup timer, unsubscribes from hot-tier evictions and disposes the hot engine
+    /// </summary>
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;

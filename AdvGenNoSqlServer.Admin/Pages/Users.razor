@@ -1,218 +1,211 @@
-// Copyright (c) 2026 AdvanGeneration Pty. Ltd.
-// Licensed under the MIT License.
-// See LICENSE.txt for license information.
-
+@* Copyright (c) 2026 AdvanGeneration Pty. Ltd. *@
+@* Licensed under the MIT License. See LICENSE.txt for license information. *@
 @page "/users"
+@inject ServerConnectionService Connection
+@inject AdminAuthService Auth
+@inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
 <PageTitle>Users & Roles - AdvGenNoSQL Admin</PageTitle>
 
-<MudText Typo="Typo.h4" Class="mb-4">Users & Roles</MudText>
+<div class="d-flex align-center mb-4">
+    <MudText Typo="Typo.h4" Class="flex-grow-1">Users &amp; Roles</MudText>
+    <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync" Disabled="_loading" Class="mr-2">Refresh</MudButton>
+    @if (IsAdmin)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="CreateUser">New User</MudButton>
+    }
+</div>
 
-<MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true">
-    <MudTabPanel Text="Users" Icon="@Icons.Material.Filled.People">
-        <MudPaper Class="pa-4">
-            <div class="d-flex align-center mb-4">
-                <MudTextField T="string" 
-                              @bind-Value="_userSearchTerm"
-                              Placeholder="Search users..."
-                              Adornment="Adornment.Start"
-                              AdornmentIcon="@Icons.Material.Filled.Search"
-                              Class="mr-4"
-                              Immediate="true" />
-                <MudButton Variant="Variant.Filled" 
-                           Color="Color.Primary"
-                           StartIcon="@Icons.Material.Filled.PersonAdd"
-                           OnClick="CreateUser">
-                    Add User
-                </MudButton>
-            </div>
-
-            <MudTable Items="_filteredUsers" Dense="true" Hover="true" Bordered="true">
+@if (!Auth.IsAuthenticated)
+{
+    <MudAlert Severity="Severity.Warning">
+        You are not logged in. <MudLink OnClick="@(() => Navigation.NavigateTo("/login"))">Go to login</MudLink>.
+    </MudAlert>
+}
+else if (!IsAdmin)
+{
+    <MudAlert Severity="Severity.Warning">
+        User management requires the <b>admin</b> role. You are logged in as @Auth.CurrentUser (@Auth.CurrentRole).
+    </MudAlert>
+}
+else
+{
+    <MudPaper Class="pa-4" Elevation="2">
+        <MudTextField T="string" @bind-Value="_search" Placeholder="Search users..."
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Immediate="true" Class="mb-4" />
+        @if (_loading)
+        {
+            <div class="d-flex justify-center pa-8"><MudProgressCircular Indeterminate="true" Color="Color.Primary" /></div>
+        }
+        else
+        {
+            <MudTable Items="FilteredUsers" Hover="true" Dense="true" Bordered="true" Striped="true">
                 <HeaderContent>
                     <MudTh>Username</MudTh>
-                    <MudTh>Roles</MudTh>
-                    <MudTh>Status</MudTh>
-                    <MudTh>Last Login</MudTh>
-                    <MudTh>Actions</MudTh>
+                    <MudTh>Role</MudTh>
+                    <MudTh>Created</MudTh>
+                    <MudTh Style="width:170px">Actions</MudTh>
                 </HeaderContent>
                 <RowTemplate>
-                    <MudTd DataLabel="Username">@context.Username</MudTd>
-                    <MudTd DataLabel="Roles">
-                        @foreach (var role in context.Roles)
-                        {
-                            <MudChip T="string" Size="Size.Small" Color="Color.Primary" Class="mr-1">@role</MudChip>
-                        }
+                    <MudTd DataLabel="Username">
+                        <div class="d-flex align-center">
+                            <MudIcon Icon="@Icons.Material.Filled.AccountCircle" Class="mr-2" Color="Color.Primary" />
+                            <MudText Typo="Typo.subtitle2">@context.Username</MudText>
+                            @if (context.Username == Auth.CurrentUser)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Info" Class="ml-2">you</MudChip>
+                            }
+                        </div>
                     </MudTd>
-                    <MudTd DataLabel="Status">
-                        <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Error)">
-                            @(context.IsActive ? "Active" : "Inactive")
-                        </MudChip>
+                    <MudTd DataLabel="Role">
+                        <MudChip T="string" Size="Size.Small" Color="@RoleColor(context.Role)">@context.Role</MudChip>
                     </MudTd>
-                    <MudTd DataLabel="Last Login">@context.LastLogin?.ToString("yyyy-MM-dd HH:mm")</MudTd>
+                    <MudTd DataLabel="Created">@context.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</MudTd>
                     <MudTd DataLabel="Actions">
-                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Default" OnClick="() => EditUser(context)" />
-                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="() => DeleteUser(context)" />
+                        <MudIconButton Icon="@Icons.Material.Filled.ManageAccounts" Size="Size.Small" Title="Change role" OnClick="@(() => ChangeRole(context))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Password" Size="Size.Small" Title="Reset password" OnClick="@(() => ResetPassword(context))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" Title="Delete user"
+                                       Disabled="@(context.Role == "admin" && AdminCount <= 1)" OnClick="@(() => DeleteUser(context))" />
                     </MudTd>
                 </RowTemplate>
+                <NoRecordsContent>
+                    <MudText Class="pa-4" Align="Align.Center">No users found.</MudText>
+                </NoRecordsContent>
             </MudTable>
-        </MudPaper>
-    </MudTabPanel>
+            <MudText Typo="Typo.caption" Class="mt-3 d-block">@_users.Count user(s) · @AdminCount admin(s)</MudText>
+        }
+    </MudPaper>
 
-    <MudTabPanel Text="Roles" Icon="@Icons.Material.Filled.AdminPanelSettings">
-        <MudPaper Class="pa-4">
-            <div class="d-flex align-center mb-4">
-                <MudTextField T="string" 
-                              @bind-Value="_roleSearchTerm"
-                              Placeholder="Search roles..."
-                              Adornment="Adornment.Start"
-                              AdornmentIcon="@Icons.Material.Filled.Search"
-                              Class="mr-4"
-                              Immediate="true" />
-                <MudButton Variant="Variant.Filled" 
-                           Color="Color.Primary"
-                           StartIcon="@Icons.Material.Filled.Add"
-                           OnClick="CreateRole">
-                    Add Role
-                </MudButton>
-            </div>
-
-            <MudTable Items="_filteredRoles" Dense="true" Hover="true" Bordered="true">
-                <HeaderContent>
-                    <MudTh>Role Name</MudTh>
-                    <MudTh>Description</MudTh>
-                    <MudTh>Permissions</MudTh>
-                    <MudTh>Actions</MudTh>
-                </HeaderContent>
-                <RowTemplate>
-                    <MudTd DataLabel="Name">
-                        <MudText Typo="Typo.subtitle2">@context.Name</MudText>
-                    </MudTd>
-                    <MudTd DataLabel="Description">@context.Description</MudTd>
-                    <MudTd DataLabel="Permissions">
-                        <MudText Typo="Typo.caption">@context.Permissions.Count permissions</MudText>
-                    </MudTd>
-                    <MudTd DataLabel="Actions">
-                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Default" OnClick="() => EditRole(context)" />
-                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="() => DeleteRole(context)" />
-                    </MudTd>
-                </RowTemplate>
-            </MudTable>
-        </MudPaper>
-    </MudTabPanel>
-</MudTabs>
+    <MudPaper Class="pa-4 mt-4" Elevation="1">
+        <MudText Typo="Typo.h6" Class="mb-2">Built-in roles</MudText>
+        <MudSimpleTable Dense="true" Bordered="true">
+            <tbody>
+                <tr><td><MudChip T="string" Size="Size.Small" Color="Color.Error">admin</MudChip></td><td>Full access, including user management and dropping collections/databases.</td></tr>
+                <tr><td><MudChip T="string" Size="Size.Small" Color="Color.Info">readwrite</MudChip></td><td>Read and write documents; create collections. No user management.</td></tr>
+                <tr><td><MudChip T="string" Size="Size.Small" Color="Color.Default">readonly</MudChip></td><td>Read-only access to data.</td></tr>
+            </tbody>
+        </MudSimpleTable>
+        <MudText Typo="Typo.caption" Class="mt-2 d-block">
+            The last remaining admin cannot be deleted or demoted. Role and password changes revoke the user's active sessions.
+        </MudText>
+    </MudPaper>
+}
 
 @code {
-    private List<UserViewModel> _users = new();
-    private List<RoleViewModel> _roles = new();
-    private string _userSearchTerm = "";
-    private string _roleSearchTerm = "";
+    private List<AdminUser> _users = new();
+    private string _search = "";
+    private bool _loading = true;
 
-    private IEnumerable<UserViewModel> _filteredUsers => 
-        string.IsNullOrWhiteSpace(_userSearchTerm) 
-            ? _users 
-            : _users.Where(u => u.Username.Contains(_userSearchTerm, StringComparison.OrdinalIgnoreCase));
+    private bool IsAdmin => Auth.IsAuthenticated && Auth.CurrentRole == "admin";
+    private int AdminCount => _users.Count(u => u.Role == "admin");
 
-    private IEnumerable<RoleViewModel> _filteredRoles => 
-        string.IsNullOrWhiteSpace(_roleSearchTerm) 
-            ? _roles 
-            : _roles.Where(r => r.Name.Contains(_roleSearchTerm, StringComparison.OrdinalIgnoreCase));
+    private IEnumerable<AdminUser> FilteredUsers =>
+        string.IsNullOrWhiteSpace(_search)
+            ? _users
+            : _users.Where(u => u.Username.Contains(_search, StringComparison.OrdinalIgnoreCase));
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        LoadSampleData();
+        if (!Auth.IsAuthenticated || !IsAdmin) { _loading = false; return; }
+        await LoadAsync();
     }
 
-    private void LoadSampleData()
+    private static Color RoleColor(string role) => role switch
     {
-        _roles = new List<RoleViewModel>
+        "admin" => Color.Error,
+        "readwrite" => Color.Info,
+        _ => Color.Default
+    };
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try { _users = await Connection.GetUsersAsync(); }
+        catch (Exception ex) { Snackbar.Add($"Failed to load users: {ex.Message}", Severity.Error); }
+        finally { _loading = false; }
+    }
+
+    private async Task CreateUser()
+    {
+        var parameters = new DialogParameters<UserDialog>
         {
-            new() { Name = "Admin", Description = "Full system access", Permissions = new List<string> { "*" } },
-            new() { Name = "PowerUser", Description = "Extended permissions", Permissions = new List<string> { "read", "write", "query" } },
-            new() { Name = "User", Description = "Standard user", Permissions = new List<string> { "read", "query" } },
-            new() { Name = "ReadOnly", Description = "View only access", Permissions = new List<string> { "read" } },
-            new() { Name = "Guest", Description = "Limited access", Permissions = new List<string> { "read" } }
+            { x => x.Mode, "create" },
+            { x => x.Message, "Create a new server user." },
+            { x => x.ConfirmText, "Create" },
+            { x => x.InitialRole, "readwrite" }
         };
-
-        _users = new List<UserViewModel>
+        var dialog = await DialogService.ShowAsync<UserDialog>("New User", parameters);
+        var result = await dialog.Result;
+        if (result?.Canceled != false || result.Data is not UserDialog.UserDialogResult r) return;
+        try
         {
-            new() { Username = "admin", Roles = new List<string> { "Admin" }, IsActive = true, LastLogin = DateTime.Now.AddHours(-1) },
-            new() { Username = "john.doe", Roles = new List<string> { "User" }, IsActive = true, LastLogin = DateTime.Now.AddDays(-1) },
-            new() { Username = "jane.smith", Roles = new List<string> { "PowerUser" }, IsActive = true, LastLogin = DateTime.Now.AddHours(-5) },
-            new() { Username = "guest", Roles = new List<string> { "Guest" }, IsActive = false, LastLogin = null },
-            new() { Username = "readonly", Roles = new List<string> { "ReadOnly" }, IsActive = true, LastLogin = DateTime.Now.AddDays(-7) }
+            await Connection.CreateUserAsync(r.Username, r.Password, r.Role);
+            Snackbar.Add($"User '{r.Username}' created", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task ChangeRole(AdminUser user)
+    {
+        var parameters = new DialogParameters<UserDialog>
+        {
+            { x => x.Mode, "role" },
+            { x => x.Message, $"Change the role for '{user.Username}'." },
+            { x => x.ConfirmText, "Save" },
+            { x => x.InitialUsername, user.Username },
+            { x => x.InitialRole, user.Role }
         };
+        var dialog = await DialogService.ShowAsync<UserDialog>($"Role — {user.Username}", parameters);
+        var result = await dialog.Result;
+        if (result?.Canceled != false || result.Data is not UserDialog.UserDialogResult r) return;
+        try
+        {
+            await Connection.SetUserRoleAsync(user.Username, r.Role);
+            Snackbar.Add($"Role updated for '{user.Username}'", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
     }
 
-    private void CreateUser()
+    private async Task ResetPassword(AdminUser user)
     {
-        Snackbar.Add("Create user dialog would open", Severity.Info);
+        var parameters = new DialogParameters<UserDialog>
+        {
+            { x => x.Mode, "password" },
+            { x => x.Message, $"Set a new password for '{user.Username}'." },
+            { x => x.ConfirmText, "Reset" },
+            { x => x.InitialUsername, user.Username }
+        };
+        var dialog = await DialogService.ShowAsync<UserDialog>($"Password — {user.Username}", parameters);
+        var result = await dialog.Result;
+        if (result?.Canceled != false || result.Data is not UserDialog.UserDialogResult r) return;
+        try
+        {
+            await Connection.SetUserPasswordAsync(user.Username, r.Password);
+            Snackbar.Add($"Password reset for '{user.Username}'", Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
     }
 
-    private void EditUser(UserViewModel user)
-    {
-        Snackbar.Add($"Edit user: {user.Username}", Severity.Info);
-    }
-
-    private async Task DeleteUser(UserViewModel user)
+    private async Task DeleteUser(AdminUser user)
     {
         var parameters = new DialogParameters<ConfirmDialog>
         {
-            { x => x.Title, "Delete User" },
-            { x => x.Message, $"Are you sure you want to delete user '{user.Username}'?" },
+            { x => x.Message, $"Delete user '{user.Username}'? This cannot be undone." },
             { x => x.ConfirmText, "Delete" }
         };
-        
-        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Confirm", parameters);
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Delete User", parameters);
         var result = await dialog.Result;
-        
-        if (result?.Canceled == true) return;
-        
-        _users.Remove(user);
-        Snackbar.Add($"User '{user.Username}' deleted", Severity.Success);
-    }
-
-    private void CreateRole()
-    {
-        Snackbar.Add("Create role dialog would open", Severity.Info);
-    }
-
-    private void EditRole(RoleViewModel role)
-    {
-        Snackbar.Add($"Edit role: {role.Name}", Severity.Info);
-    }
-
-    private async Task DeleteRole(RoleViewModel role)
-    {
-        var parameters = new DialogParameters<ConfirmDialog>
+        if (result?.Canceled != false) return;
+        try
         {
-            { x => x.Title, "Delete Role" },
-            { x => x.Message, $"Are you sure you want to delete role '{role.Name}'?" },
-            { x => x.ConfirmText, "Delete" }
-        };
-        
-        var dialog = await DialogService.ShowAsync<ConfirmDialog>("Confirm", parameters);
-        var result = await dialog.Result;
-        
-        if (result?.Canceled == true) return;
-        
-        _roles.Remove(role);
-        Snackbar.Add($"Role '{role.Name}' deleted", Severity.Success);
-    }
-
-    public class UserViewModel
-    {
-        public string Username { get; set; } = "";
-        public List<string> Roles { get; set; } = new();
-        public bool IsActive { get; set; }
-        public DateTime? LastLogin { get; set; }
-    }
-
-    public class RoleViewModel
-    {
-        public string Name { get; set; } = "";
-        public string Description { get; set; } = "";
-        public List<string> Permissions { get; set; } = new();
+            await Connection.DeleteUserAsync(user.Username);
+            Snackbar.Add($"User '{user.Username}' deleted", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
     }
 }

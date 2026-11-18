@@ -64,7 +64,7 @@ internal class InMemoryDocumentCollection
 
             if (_documents.TryGetValue(id, out var document))
             {
-                yield return document;
+                yield return document.Clone();
             }
         }
     }
@@ -89,12 +89,12 @@ internal class InMemoryDocumentCollection
             throw new DocumentAlreadyExistsException(Name, document.Id);
         }
 
-        // Set metadata
+        // Set metadata; clone caller data so later caller mutations cannot corrupt the store
         var now = DateTime.UtcNow;
         var documentToStore = new Document
         {
             Id = document.Id,
-            Data = document.Data ?? new Dictionary<string, object>(),
+            Data = document.Data != null ? document.Clone().Data! : new Dictionary<string, object>(),
             CreatedAt = now,
             UpdatedAt = now,
             Version = 1
@@ -121,7 +121,7 @@ internal class InMemoryDocumentCollection
             return null;
 
         _documents.TryGetValue(documentId, out var document);
-        return document;
+        return document?.Clone();
     }
 
     /// <summary>
@@ -134,7 +134,7 @@ internal class InMemoryDocumentCollection
         // rather than using .Values which acquires locks and allocates an array.
         foreach (var kvp in _documents)
         {
-            yield return kvp.Value;
+            yield return kvp.Value.Clone();
         }
     }
 
@@ -152,30 +152,29 @@ internal class InMemoryDocumentCollection
         if (string.IsNullOrWhiteSpace(document.Id))
             throw new ArgumentException("Document ID cannot be empty", nameof(document));
 
-        // Check if document exists
-        if (!_documents.TryGetValue(document.Id, out var existingDocument))
+        // Unconditional update: last writer wins. Retry the compare-and-swap when a
+        // concurrent writer replaced the stored instance between read and write.
+        while (true)
         {
-            throw new DocumentNotFoundException(Name, document.Id);
+            if (!_documents.TryGetValue(document.Id, out var existingDocument))
+            {
+                throw new DocumentNotFoundException(Name, document.Id);
+            }
+
+            var updatedDocument = new Document
+            {
+                Id = document.Id,
+                Data = document.Data != null ? document.Clone().Data! : existingDocument.Data,
+                CreatedAt = existingDocument.CreatedAt,
+                UpdatedAt = DateTime.UtcNow,
+                Version = existingDocument.Version + 1
+            };
+
+            if (_documents.TryUpdate(document.Id, updatedDocument, existingDocument))
+            {
+                return updatedDocument;
+            }
         }
-
-        // Create updated document with new version
-        var updatedDocument = new Document
-        {
-            Id = document.Id,
-            Data = document.Data ?? existingDocument.Data,
-            CreatedAt = existingDocument.CreatedAt,
-            UpdatedAt = DateTime.UtcNow,
-            Version = existingDocument.Version + 1
-        };
-
-        // Update the document
-        if (!_documents.TryUpdate(document.Id, updatedDocument, existingDocument))
-        {
-            // Document was modified by another thread, throw exception to indicate conflict
-            throw new DocumentStoreException($"Document '{document.Id}' was modified by another operation");
-        }
-
-        return updatedDocument;
     }
 
     /// <summary>

@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 // See LICENSE.txt for license information.
 
+using System.Collections.Concurrent;
 using AdvGenNoSqlServer.Core.Abstractions;
 using AdvGenNoSqlServer.Core.ETags;
 using AdvGenNoSqlServer.Core.Models;
@@ -16,6 +17,7 @@ public class ETagDocumentStore : IDocumentStore, IDisposable
 {
     private readonly IDocumentStore _innerStore;
     private readonly IETagGenerator _eTagGenerator;
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _documentGates = new();
     private bool _isDisposed;
 
     /// <summary>
@@ -112,23 +114,34 @@ public class ETagDocumentStore : IDocumentStore, IDisposable
         if (string.IsNullOrWhiteSpace(eTag))
             throw new ArgumentException("ETag cannot be empty", nameof(eTag));
 
-        // Get current document
-        var currentDocument = await _innerStore.GetAsync(collectionName, document.Id, cancellationToken);
-        
-        if (currentDocument == null)
+        // Serialize validate+update per document so two writers holding the same
+        // ETag cannot both pass validation before either update lands.
+        var gate = _documentGates.GetOrAdd($"{collectionName}/{document.Id}", _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(cancellationToken);
+        try
         {
-            throw new DocumentNotFoundException(collectionName, document.Id);
-        }
+            // Get current document
+            var currentDocument = await _innerStore.GetAsync(collectionName, document.Id, cancellationToken);
 
-        // Validate ETag
-        if (!_eTagGenerator.ValidateETag(currentDocument, eTag))
+            if (currentDocument == null)
+            {
+                throw new DocumentNotFoundException(collectionName, document.Id);
+            }
+
+            // Validate ETag
+            if (!_eTagGenerator.ValidateETag(currentDocument, eTag))
+            {
+                var currentETag = _eTagGenerator.GenerateETag(currentDocument);
+                throw new ConcurrencyException(collectionName, document.Id, currentETag, eTag);
+            }
+
+            // ETag matches, proceed with update
+            return await _innerStore.UpdateAsync(collectionName, document, cancellationToken);
+        }
+        finally
         {
-            var currentETag = _eTagGenerator.GenerateETag(currentDocument);
-            throw new ConcurrencyException(collectionName, document.Id, currentETag, eTag);
+            gate.Release();
         }
-
-        // ETag matches, proceed with update
-        return await _innerStore.UpdateAsync(collectionName, document, cancellationToken);
     }
 
     /// <summary>
@@ -154,23 +167,32 @@ public class ETagDocumentStore : IDocumentStore, IDisposable
         if (string.IsNullOrWhiteSpace(eTag))
             throw new ArgumentException("ETag cannot be empty", nameof(eTag));
 
-        // Get current document
-        var currentDocument = await _innerStore.GetAsync(collectionName, documentId, cancellationToken);
-        
-        if (currentDocument == null)
+        var gate = _documentGates.GetOrAdd($"{collectionName}/{documentId}", _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(cancellationToken);
+        try
         {
-            return false;
-        }
+            // Get current document
+            var currentDocument = await _innerStore.GetAsync(collectionName, documentId, cancellationToken);
 
-        // Validate ETag
-        if (!_eTagGenerator.ValidateETag(currentDocument, eTag))
+            if (currentDocument == null)
+            {
+                return false;
+            }
+
+            // Validate ETag
+            if (!_eTagGenerator.ValidateETag(currentDocument, eTag))
+            {
+                var currentETag = _eTagGenerator.GenerateETag(currentDocument);
+                throw new ConcurrencyException(collectionName, documentId, currentETag, eTag);
+            }
+
+            // ETag matches, proceed with delete
+            return await _innerStore.DeleteAsync(collectionName, documentId, cancellationToken);
+        }
+        finally
         {
-            var currentETag = _eTagGenerator.GenerateETag(currentDocument);
-            throw new ConcurrencyException(collectionName, documentId, currentETag, eTag);
+            gate.Release();
         }
-
-        // ETag matches, proceed with delete
-        return await _innerStore.DeleteAsync(collectionName, documentId, cancellationToken);
     }
 
     /// <summary>

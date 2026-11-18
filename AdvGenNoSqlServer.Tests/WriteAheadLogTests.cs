@@ -58,6 +58,84 @@ public class WriteAheadLogTests : IDisposable
         };
     }
 
+    [Fact]
+    public async Task Wal_RecoverAsync_TornTail_TruncatesAndAllowsNewAppends()
+    {
+        var options = CreateTestOptions();
+        var txn1 = Guid.NewGuid().ToString();
+        using (var wal = new WriteAheadLog(options))
+        {
+            await wal.AppendBeginTransactionAsync(txn1);
+            await wal.AppendCommitAsync(txn1);
+            await wal.FlushAsync();
+        }
+
+        // Simulate a crash mid-append: garbage bytes after the last valid entry.
+        var logPath = Path.Combine(_testLogDirectory, "wal.current");
+        using (var fs = new FileStream(logPath, FileMode.Open, FileAccess.Write, FileShare.ReadWrite))
+        {
+            fs.Seek(0, SeekOrigin.End);
+            fs.Write(new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF });
+        }
+
+        var txn2 = Guid.NewGuid().ToString();
+        using (var wal = new WriteAheadLog(options))
+        {
+            var recovery = await wal.RecoverAsync();
+            Assert.True(recovery.Success);
+            Assert.Contains(txn1, recovery.CommittedTransactions);
+
+            await wal.AppendBeginTransactionAsync(txn2);
+            await wal.AppendCommitAsync(txn2);
+            await wal.FlushAsync();
+        }
+
+        using (var wal = new WriteAheadLog(options))
+        {
+            var recovery = await wal.RecoverAsync();
+            Assert.True(recovery.Success);
+            Assert.Contains(txn2, recovery.CommittedTransactions);
+        }
+    }
+
+    [Fact]
+    public async Task Wal_RecoverAsync_MidLogCorruption_FailsInsteadOfTruncating()
+    {
+        var options = CreateTestOptions();
+        var txn1 = Guid.NewGuid().ToString();
+        var txn2 = Guid.NewGuid().ToString();
+        using (var wal = new WriteAheadLog(options))
+        {
+            await wal.AppendBeginTransactionAsync(txn1);
+            await wal.AppendCommitAsync(txn1);
+            await wal.AppendBeginTransactionAsync(txn2);
+            await wal.AppendCommitAsync(txn2);
+            await wal.FlushAsync();
+        }
+
+        // Flip one byte inside the first entry's payload (mid-log, not the tail).
+        var logPath = Path.Combine(_testLogDirectory, "wal.current");
+        const int firstPayloadOffset = 32 + 48 + 5; // HEADER_SIZE + ENTRY_HEADER_SIZE + 5
+        using (var fs = new FileStream(logPath, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite))
+        {
+            fs.Position = firstPayloadOffset;
+            int b = fs.ReadByte();
+            fs.Position = firstPayloadOffset;
+            fs.WriteByte((byte)(b ^ 0xFF));
+        }
+        long lengthBefore = new FileInfo(logPath).Length;
+
+        using (var wal = new WriteAheadLog(options))
+        {
+            var recovery = await wal.RecoverAsync();
+            Assert.False(recovery.Success);
+            Assert.NotNull(recovery.ErrorMessage);
+        }
+
+        // The log must not be truncated: later committed entries are preserved.
+        Assert.Equal(lengthBefore, new FileInfo(logPath).Length);
+    }
+
     #region Basic Operations
 
     [Fact]

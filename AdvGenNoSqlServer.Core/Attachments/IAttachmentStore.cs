@@ -268,7 +268,17 @@ public interface IAttachmentStore
 /// </summary>
 public class AttachmentStoreException : Exception
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AttachmentStoreException"/> class with a specified error message
+    /// </summary>
+    /// <param name="message">The error message</param>
     public AttachmentStoreException(string message) : base(message) { }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AttachmentStoreException"/> class with a specified error message and inner exception
+    /// </summary>
+    /// <param name="message">The error message</param>
+    /// <param name="innerException">The exception that caused this exception</param>
     public AttachmentStoreException(string message, Exception innerException) : base(message, innerException) { }
 }
 
@@ -277,10 +287,27 @@ public class AttachmentStoreException : Exception
 /// </summary>
 public class AttachmentNotFoundException : AttachmentStoreException
 {
+    /// <summary>
+    /// Gets the name of the collection containing the document
+    /// </summary>
     public string CollectionName { get; }
+
+    /// <summary>
+    /// Gets the identifier of the document owning the attachment
+    /// </summary>
     public string DocumentId { get; }
+
+    /// <summary>
+    /// Gets the name of the missing attachment
+    /// </summary>
     public string AttachmentName { get; }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AttachmentNotFoundException"/> class
+    /// </summary>
+    /// <param name="collectionName">The name of the collection</param>
+    /// <param name="documentId">The identifier of the document</param>
+    /// <param name="attachmentName">The name of the missing attachment</param>
     public AttachmentNotFoundException(string collectionName, string documentId, string attachmentName)
         : base($"Attachment '{attachmentName}' not found for document '{documentId}' in collection '{collectionName}'")
     {
@@ -295,9 +322,21 @@ public class AttachmentNotFoundException : AttachmentStoreException
 /// </summary>
 public class AttachmentTooLargeException : AttachmentStoreException
 {
+    /// <summary>
+    /// Gets the maximum allowed attachment size in bytes
+    /// </summary>
     public long MaxSize { get; }
+
+    /// <summary>
+    /// Gets the actual attachment size in bytes
+    /// </summary>
     public long ActualSize { get; }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AttachmentTooLargeException"/> class
+    /// </summary>
+    /// <param name="maxSize">The maximum allowed size in bytes</param>
+    /// <param name="actualSize">The actual attachment size in bytes</param>
     public AttachmentTooLargeException(long maxSize, long actualSize)
         : base($"Attachment size ({actualSize} bytes) exceeds maximum allowed ({maxSize} bytes)")
     {
@@ -311,8 +350,15 @@ public class AttachmentTooLargeException : AttachmentStoreException
 /// </summary>
 public class AttachmentContentTypeException : AttachmentStoreException
 {
+    /// <summary>
+    /// Gets the disallowed content type
+    /// </summary>
     public string ContentType { get; }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AttachmentContentTypeException"/> class
+    /// </summary>
+    /// <param name="contentType">The disallowed content type</param>
     public AttachmentContentTypeException(string contentType)
         : base($"Content type '{contentType}' is not allowed")
     {

@@ -1,0 +1,69 @@
+@* Copyright (c) 2026 AdvanGeneration Pty. Ltd. *@
+@* Licensed under the MIT License. See LICENSE.txt for license information. *@
+@using AdvGenNoSqlServer.Core.Authentication
+
+<MudDialog>
+    <DialogContent>
+        <MudText Class="mb-4">@Message</MudText>
+        @if (Mode == "create")
+        {
+            <MudTextField T="string" @bind-Value="Username" Label="Username" Variant="Variant.Outlined" Immediate="true" Class="mb-3" />
+        }
+        @if (Mode == "create" || Mode == "password")
+        {
+            <MudTextField T="string" @bind-Value="Password"
+                          Label="@(Mode == "create" ? "Password (min 6 chars)" : "New password (min 6 chars)")"
+                          Variant="Variant.Outlined" InputType="InputType.Password" Immediate="true" Class="mb-3" />
+        }
+        @if (Mode == "create" || Mode == "role")
+        {
+            <MudSelect T="string" @bind-Value="Role" Label="Role" Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter">
+                <MudSelectItem T="string" Value="@("admin")">admin — full access</MudSelectItem>
+                <MudSelectItem T="string" Value="@("readwrite")">readwrite — read &amp; write data</MudSelectItem>
+                <MudSelectItem T="string" Value="@("readonly")">readonly — read only</MudSelectItem>
+            </MudSelect>
+        }
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-3">@_error</MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">@ConfirmText</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private MudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public string Mode { get; set; } = "create";
+    [Parameter] public string Message { get; set; } = "";
+    [Parameter] public string ConfirmText { get; set; } = "Save";
+    [Parameter] public string InitialUsername { get; set; } = "";
+    [Parameter] public string InitialRole { get; set; } = "readwrite";
+
+    private string Username { get; set; } = "";
+    private string Password { get; set; } = "";
+    private string Role { get; set; } = "readwrite";
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        Username = InitialUsername;
+        Role = InitialRole;
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void Submit()
+    {
+        if (Mode == "create" && string.IsNullOrWhiteSpace(Username)) { _error = "Username is required."; return; }
+        if ((Mode == "create" || Mode == "password") && (string.IsNullOrEmpty(Password) || Password.Length < 6))
+        { _error = "Password must be at least 6 characters."; return; }
+        if ((Mode == "create" || Mode == "role") && !UserRole.IsValid(Role)) { _error = "Invalid role."; return; }
+        MudDialog.Close(DialogResult.Ok(new UserDialogResult(Username.Trim(), Password, Role)));
+    }
+
+    public record UserDialogResult(string Username, string Password, string Role);
+}

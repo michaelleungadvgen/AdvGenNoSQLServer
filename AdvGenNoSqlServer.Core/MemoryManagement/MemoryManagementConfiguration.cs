@@ -2,6 +2,9 @@
 // Licensed under the MIT License.
 namespace AdvGenNoSqlServer.Core.MemoryManagement;
 
+/// <summary>
+/// Configuration for the memory storage engines: plan selection, memory limits, eviction policy and TTL
+/// </summary>
 public class MemoryManagementConfiguration
 {
     /// <summary>Native | Managed | Mixed. Unknown values fall back to Managed.</summary>
@@ -22,9 +25,13 @@ public class MemoryManagementConfiguration
     /// <summary>Default entry TTL in seconds. 0 = no expiry.</summary>
     public int DefaultTtlSeconds { get; set; } = 3600;
 
+    /// <summary>Settings for the Mixed plan's hot and cold tiers.</summary>
     public MixedTierConfiguration Mixed { get; set; } = new();
 }
 
+/// <summary>
+/// Settings for the Mixed engine's native hot tier and document-store cold tier
+/// </summary>
 public class MixedTierConfiguration
 {
     /// <summary>Max MB kept in native hot memory. Must be &gt; 0 and &lt; MaxMemoryMB.</summary>

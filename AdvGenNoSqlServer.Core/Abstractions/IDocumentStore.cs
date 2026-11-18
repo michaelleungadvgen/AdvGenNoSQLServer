@@ -118,7 +118,17 @@ public interface IDocumentStore
 /// </summary>
 public class DocumentStoreException : Exception
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DocumentStoreException"/> class with a specified error message
+    /// </summary>
+    /// <param name="message">The error message</param>
     public DocumentStoreException(string message) : base(message) { }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DocumentStoreException"/> class with a specified error message and inner exception
+    /// </summary>
+    /// <param name="message">The error message</param>
+    /// <param name="innerException">The exception that caused this exception</param>
     public DocumentStoreException(string message, Exception innerException) : base(message, innerException) { }
 }
 
@@ -127,9 +137,21 @@ public class DocumentStoreException : Exception
 /// </summary>
 public class DocumentNotFoundException : DocumentStoreException
 {
+    /// <summary>
+    /// Gets the name of the collection in which the document was not found
+    /// </summary>
     public string CollectionName { get; }
+
+    /// <summary>
+    /// Gets the identifier of the missing document
+    /// </summary>
     public string DocumentId { get; }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DocumentNotFoundException"/> class
+    /// </summary>
+    /// <param name="collectionName">The name of the collection</param>
+    /// <param name="documentId">The identifier of the missing document</param>
     public DocumentNotFoundException(string collectionName, string documentId)
         : base($"Document '{documentId}' not found in collection '{collectionName}'")
     {
@@ -143,9 +165,21 @@ public class DocumentNotFoundException : DocumentStoreException
 /// </summary>
 public class DocumentAlreadyExistsException : DocumentStoreException
 {
+    /// <summary>
+    /// Gets the name of the collection in which the document already exists
+    /// </summary>
     public string CollectionName { get; }
+
+    /// <summary>
+    /// Gets the identifier of the conflicting document
+    /// </summary>
     public string DocumentId { get; }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DocumentAlreadyExistsException"/> class
+    /// </summary>
+    /// <param name="collectionName">The name of the collection</param>
+    /// <param name="documentId">The identifier of the conflicting document</param>
     public DocumentAlreadyExistsException(string collectionName, string documentId)
         : base($"Document '{documentId}' already exists in collection '{collectionName}'")
     {
@@ -159,8 +193,15 @@ public class DocumentAlreadyExistsException : DocumentStoreException
 /// </summary>
 public class CollectionNotFoundException : DocumentStoreException
 {
+    /// <summary>
+    /// Gets the name of the missing collection
+    /// </summary>
     public string CollectionName { get; }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CollectionNotFoundException"/> class
+    /// </summary>
+    /// <param name="collectionName">The name of the missing collection</param>
     public CollectionNotFoundException(string collectionName)
         : base($"Collection '{collectionName}' not found")
     {

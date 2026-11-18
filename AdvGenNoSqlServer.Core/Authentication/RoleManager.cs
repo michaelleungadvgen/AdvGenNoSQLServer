@@ -15,6 +15,9 @@ public class RoleManager
     private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, byte>> _userRoles = new();
     private readonly PermissionRegistry _permissionRegistry = new();
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="RoleManager"/> class and creates the default roles
+    /// </summary>
     public RoleManager()
     {
         // Initialize default roles
@@ -326,10 +329,29 @@ public class RoleManager
 /// </summary>
 public class Role
 {
+    /// <summary>
+    /// Gets or sets the unique role name
+    /// </summary>
     public required string Name { get; set; }
+
+    /// <summary>
+    /// Gets or sets an optional human-readable description of the role
+    /// </summary>
     public string? Description { get; set; }
+
+    /// <summary>
+    /// Gets or sets the set of permission names granted to the role (values are unused markers)
+    /// </summary>
     public ConcurrentDictionary<string, byte> Permissions { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets the UTC time the role was created
+    /// </summary>
     public DateTime CreatedAt { get; set; }
+
+    /// <summary>
+    /// Gets or sets the UTC time the role was last updated
+    /// </summary>
     public DateTime UpdatedAt { get; set; }
 }
 
@@ -338,10 +360,19 @@ public class Role
 /// </summary>
 public static class RoleNames
 {
+    /// <summary>Administrator role with full permissions.</summary>
     public const string Admin = "Admin";
+
+    /// <summary>Power user role with data and query permissions but no server administration.</summary>
     public const string PowerUser = "PowerUser";
+
+    /// <summary>Standard user role for regular document operations.</summary>
     public const string User = "User";
+
+    /// <summary>Role restricted to read-only operations.</summary>
     public const string ReadOnly = "ReadOnly";
+
+    /// <summary>Guest role with minimal permissions.</summary>
     public const string Guest = "Guest";
 }
 
@@ -351,26 +382,47 @@ public static class RoleNames
 public static class Permissions
 {
     // Document permissions
+    /// <summary>Permission to read documents.</summary>
     public const string DocumentRead = "document:read";
+
+    /// <summary>Permission to create or update documents.</summary>
     public const string DocumentWrite = "document:write";
+
+    /// <summary>Permission to delete documents.</summary>
     public const string DocumentDelete = "document:delete";
 
     // Collection permissions
+    /// <summary>Permission to create collections.</summary>
     public const string CollectionCreate = "collection:create";
+
+    /// <summary>Permission to delete collections.</summary>
     public const string CollectionDelete = "collection:delete";
+
+    /// <summary>Permission to list collections.</summary>
     public const string CollectionList = "collection:list";
 
     // Query permissions
+    /// <summary>Permission to execute queries.</summary>
     public const string QueryExecute = "query:execute";
+
+    /// <summary>Permission to run aggregation queries.</summary>
     public const string QueryAggregate = "query:aggregate";
 
     // Transaction permissions
+    /// <summary>Permission to execute transactions.</summary>
     public const string TransactionExecute = "transaction:execute";
 
     // Admin permissions
+    /// <summary>Permission to manage user accounts.</summary>
     public const string UserManage = "user:manage";
+
+    /// <summary>Permission to manage roles and permissions.</summary>
     public const string RoleManage = "role:manage";
+
+    /// <summary>Permission to administer the server.</summary>
     public const string ServerAdmin = "server:admin";
+
+    /// <summary>Permission to read audit logs.</summary>
     public const string AuditRead = "audit:read";
 }
 
@@ -381,6 +433,9 @@ public class PermissionRegistry
 {
     private readonly ConcurrentDictionary<string, byte> _validPermissions;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PermissionRegistry"/> class pre-populated with the built-in permissions
+    /// </summary>
     public PermissionRegistry()
     {
         _validPermissions = new ConcurrentDictionary<string, byte>(new[]
@@ -410,16 +465,29 @@ public class PermissionRegistry
         });
     }
 
+    /// <summary>
+    /// Checks whether a permission name is registered as valid
+    /// </summary>
+    /// <param name="permission">The permission name to check</param>
+    /// <returns>True if the permission is registered; otherwise false</returns>
     public bool IsValidPermission(string permission)
     {
         return _validPermissions.ContainsKey(permission);
     }
 
+    /// <summary>
+    /// Gets all registered permission names
+    /// </summary>
+    /// <returns>A snapshot of the valid permission names</returns>
     public IReadOnlyCollection<string> GetAllPermissions()
     {
         return _validPermissions.Keys.ToList();
     }
 
+    /// <summary>
+    /// Registers a custom permission name; existing registrations are left unchanged
+    /// </summary>
+    /// <param name="permission">The permission name to register</param>
     public void RegisterCustomPermission(string permission)
     {
         _validPermissions.TryAdd(permission, 1);

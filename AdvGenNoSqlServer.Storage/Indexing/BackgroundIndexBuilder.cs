@@ -162,26 +162,27 @@ public class BackgroundIndexBuilder : IBackgroundIndexBuilder, IDisposable
         bool isUnique,
         IProgress<IndexBuildProgress>? progress) where TKey : IComparable<TKey>
     {
-        var stopwatch = Stopwatch.StartNew();
-        job.StartedAt = DateTime.UtcNow;
-        job.Status = BackgroundIndexBuildStatus.Running;
-        job.Progress.Status = BackgroundIndexBuildStatus.Running;
-        job.Progress.StartedAt = job.StartedAt.Value;
-        
-        var result = new BackgroundIndexBuildResult
-        {
-            JobId = job.JobId,
-            CollectionName = job.CollectionName,
-            FieldName = job.FieldName,
-            Status = BackgroundIndexBuildStatus.Running,
-            StartedAt = job.StartedAt.Value
-        };
-        
-        // Wait for concurrency slot
+        // Wait for concurrency slot before marking the job Running, so
+        // RunningBuildCount never exceeds MaxConcurrentBuilds.
         await _concurrencySemaphore.WaitAsync(job.CancellationTokenSource?.Token ?? CancellationToken.None);
-        
+
         try
         {
+            var stopwatch = Stopwatch.StartNew();
+            job.StartedAt = DateTime.UtcNow;
+            job.Status = BackgroundIndexBuildStatus.Running;
+            job.Progress.Status = BackgroundIndexBuildStatus.Running;
+            job.Progress.StartedAt = job.StartedAt.Value;
+
+            var result = new BackgroundIndexBuildResult
+            {
+                JobId = job.JobId,
+                CollectionName = job.CollectionName,
+                FieldName = job.FieldName,
+                Status = BackgroundIndexBuildStatus.Running,
+                StartedAt = job.StartedAt.Value
+            };
+
             // Create the index structure first
             var index = _indexManager.CreateIndex(
                 job.CollectionName,

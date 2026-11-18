@@ -13,8 +13,13 @@ public class AdminAuthService
 {
     private readonly ServerConnectionService _connectionService;
     private string? _currentUser;
+    private string? _currentRole;
     private bool _isAuthenticated;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AdminAuthService"/> class.
+    /// </summary>
+    /// <param name="connectionService">The server connection service whose auth token is updated on login and logout.</param>
     public AdminAuthService(ServerConnectionService connectionService)
     {
         _connectionService = connectionService;
@@ -34,6 +39,11 @@ public class AdminAuthService
     /// Gets the current username.
     /// </summary>
     public string CurrentUser => _currentUser ?? "Anonymous";
+
+    /// <summary>
+    /// Gets the current user's server role (admin / readwrite / readonly).
+    /// </summary>
+    public string CurrentRole => _currentRole ?? "";
 
     /// <summary>
     /// Logs in the user with the specified credentials.
@@ -59,6 +69,7 @@ public class AdminAuthService
                 if (result?.Success == true && !string.IsNullOrEmpty(result.Token))
                 {
                     _currentUser = username;
+                    _currentRole = result.Role;
                     _isAuthenticated = true;
                     _connectionService.AuthToken = result.Token;
                     AuthenticationStateChanged?.Invoke(this, EventArgs.Empty);
@@ -81,6 +92,7 @@ public class AdminAuthService
     public void Logout()
     {
         _currentUser = null;
+        _currentRole = null;
         _isAuthenticated = false;
         _connectionService.AuthToken = null;
         
@@ -96,5 +108,5 @@ public class AdminAuthService
         return $"https://{url}";
     }
 
-    private record LoginResponse(bool Success, string? Token, string? Username, DateTime? ExpiresAt);
+    private record LoginResponse(bool Success, string? Token, string? Username, string? Role, DateTime? ExpiresAt);
 }

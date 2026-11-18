@@ -16,6 +16,7 @@ public class MvccTransactionContext : ITransactionContext
     private readonly IWriteAheadLog _writeAheadLog;
     private readonly List<string> _lockedResources;
     private readonly HashSet<string> _writtenDocuments;
+    private readonly List<(string Collection, string DocumentId, DocumentVersion Version, MvccUndoKind Kind)> _undoLog = new();
     private readonly object _stateLock = new();
     private bool _isCommittedOrRolledBack;
     private bool _disposed;
@@ -84,6 +85,9 @@ public class MvccTransactionContext : ITransactionContext
         var readTimestamp = MvccTimestamp.Next();
         Snapshot = new MvccSnapshot(readTimestamp, transactionId, activeTransactions);
 
+        // Register as active so uncommitted writes are invisible to other snapshots.
+        _mvccStore.RegisterTransaction(transactionId);
+
         _lockedResources = new List<string>();
         _writtenDocuments = new HashSet<string>();
         OperationCount = 0;
@@ -99,7 +103,9 @@ public class MvccTransactionContext : ITransactionContext
 
         var version = await _mvccStore.GetVisibleVersionAsync(collectionName, documentId, Snapshot, ct);
 
-        if (version == null || version.IsDeleted)
+        // Snapshot visibility already accounts for committed/uncommitted deletes;
+        // filtering on the raw IsDeleted flag here would leak uncommitted deletes.
+        if (version == null)
             return null;
 
         return version.Document;
@@ -114,7 +120,7 @@ public class MvccTransactionContext : ITransactionContext
         EnsureActive();
 
         var versions = await _mvccStore.GetVisibleVersionsAsync(collectionName, Snapshot, ct);
-        return versions.Where(v => !v.IsDeleted).Select(v => v.Document).ToList();
+        return versions.Select(v => v.Document).ToList();
     }
 
     /// <summary>
@@ -129,7 +135,7 @@ public class MvccTransactionContext : ITransactionContext
         var existingVersion = await _mvccStore.GetVisibleVersionAsync(
             collectionName, document.Id, Snapshot, ct);
 
-        if (existingVersion != null && !existingVersion.IsDeleted)
+        if (existingVersion != null)
         {
             throw new InvalidOperationException(
                 $"Document {document.Id} already exists in collection {collectionName}");
@@ -140,6 +146,7 @@ public class MvccTransactionContext : ITransactionContext
 
         var version = await _mvccStore.InsertVersionAsync(collectionName, document, TransactionId, ct);
         _writtenDocuments.Add(resourceKey);
+        _undoLog.Add((collectionName, document.Id, version, MvccUndoKind.Insert));
 
         await _writeAheadLog.AppendInsertAsync(TransactionId, collectionName, document);
 
@@ -155,24 +162,19 @@ public class MvccTransactionContext : ITransactionContext
         ThrowIfDisposed();
         EnsureActive();
 
-        // For Serializable isolation, we need to ensure no one else modified
-        // the document since our snapshot
+        // For Serializable isolation, the document must be visible in our snapshot.
         if (IsolationLevel == IsolationLevel.Serializable)
         {
             var currentVersion = await _mvccStore.GetVisibleVersionAsync(
                 collectionName, document.Id, Snapshot, ct);
 
-            if (currentVersion == null || currentVersion.IsDeleted)
+            if (currentVersion == null)
                 return null;
-
-            // Check if another transaction modified it after our snapshot
-            if (currentVersion.CreatedByTransactionId != TransactionId &&
-                currentVersion.CreatedAt.Ticks > Snapshot.ReadTimestamp)
-            {
-                throw new TransactionConflictException(
-                    $"Write-write conflict on document {document.Id}. Another transaction modified it.");
-            }
         }
+
+        // Write-write conflict detection against the LATEST version (a snapshot-visible
+        // version can never be newer than the snapshot, so checking it is useless).
+        await EnsureNoWriteConflictAsync(collectionName, document.Id, ct);
 
         var resourceKey = $"{collectionName}:{document.Id}";
         LockResource(resourceKey);
@@ -184,6 +186,7 @@ public class MvccTransactionContext : ITransactionContext
             return null;
 
         _writtenDocuments.Add(resourceKey);
+        _undoLog.Add((collectionName, document.Id, version, MvccUndoKind.Update));
 
         await _writeAheadLog.AppendUpdateAsync(TransactionId, collectionName, document, document);
 
@@ -199,31 +202,29 @@ public class MvccTransactionContext : ITransactionContext
         ThrowIfDisposed();
         EnsureActive();
 
-        // For Serializable isolation, check for conflicts
+        // For Serializable isolation, the document must be visible in our snapshot.
         if (IsolationLevel == IsolationLevel.Serializable)
         {
             var currentVersion = await _mvccStore.GetVisibleVersionAsync(
                 collectionName, documentId, Snapshot, ct);
 
-            if (currentVersion == null || currentVersion.IsDeleted)
+            if (currentVersion == null)
                 return false;
-
-            if (currentVersion.CreatedByTransactionId != TransactionId &&
-                currentVersion.CreatedAt.Ticks > Snapshot.ReadTimestamp)
-            {
-                throw new TransactionConflictException(
-                    $"Write-write conflict on document {documentId}. Another transaction modified it.");
-            }
         }
+
+        await EnsureNoWriteConflictAsync(collectionName, documentId, ct);
 
         var resourceKey = $"{collectionName}:{documentId}";
         LockResource(resourceKey);
 
+        var latestBeforeDelete = await _mvccStore.GetLatestVersionAsync(collectionName, documentId, ct);
         var result = await _mvccStore.DeleteVersionAsync(collectionName, documentId, TransactionId, ct);
 
         if (result)
         {
             _writtenDocuments.Add(resourceKey);
+            if (latestBeforeDelete != null)
+                _undoLog.Add((collectionName, documentId, latestBeforeDelete, MvccUndoKind.Delete));
 
             // Create a tombstone document for WAL
             var tombstone = new Document { Id = documentId };
@@ -233,6 +234,37 @@ public class MvccTransactionContext : ITransactionContext
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// First-committer-wins: fails if another transaction created a newer version that
+    /// was uncommitted at our snapshot or committed after it.
+    /// </summary>
+    private async Task EnsureNoWriteConflictAsync(string collectionName, string documentId, CancellationToken ct)
+    {
+        var latest = await _mvccStore.GetLatestVersionAsync(collectionName, documentId, ct);
+        if (latest == null || latest.CreatedByTransactionId == TransactionId)
+            return;
+
+        var record = _mvccStore.GetTransactionRecord(latest.CreatedByTransactionId);
+        bool conflict = record == null
+            ? latest.CreatedAt.Ticks > Snapshot.ReadTimestamp
+            : record.State != TransactionState.Committed || record.CommitTimestamp > Snapshot.ReadTimestamp;
+
+        // A concurrent delete of the latest version is also a write-write conflict.
+        if (!conflict && latest.IsDeleted && latest.DeletedByTransactionId != TransactionId)
+        {
+            var deleter = _mvccStore.GetTransactionRecord(latest.DeletedByTransactionId!);
+            conflict = deleter == null
+                ? latest.DeletedAt!.Value.Ticks > Snapshot.ReadTimestamp
+                : deleter.State != TransactionState.Committed || deleter.CommitTimestamp > Snapshot.ReadTimestamp;
+        }
+
+        if (conflict)
+        {
+            throw new TransactionConflictException(
+                $"Write-write conflict on document {documentId}. Another transaction modified it.");
+        }
     }
 
     /// <summary>
@@ -254,6 +286,9 @@ public class MvccTransactionContext : ITransactionContext
         {
             // Write commit record to WAL
             await _writeAheadLog.AppendCommitAsync(TransactionId);
+
+            // Publish commit state so our versions become visible to later snapshots.
+            _mvccStore.MarkTransactionCommitted(TransactionId);
 
             lock (_stateLock)
             {
@@ -284,7 +319,8 @@ public class MvccTransactionContext : ITransactionContext
 
         lock (_stateLock)
         {
-            if (State != TransactionState.Active && State != TransactionState.Preparing)
+            // Failed commits must remain rollback-able so their applied versions can be undone.
+            if (State != TransactionState.Active && State != TransactionState.Preparing && State != TransactionState.Failed)
                 return false;
 
             State = TransactionState.RollingBack;
@@ -294,6 +330,15 @@ public class MvccTransactionContext : ITransactionContext
         {
             // Write rollback record to WAL
             await _writeAheadLog.AppendRollbackAsync(TransactionId);
+
+            // Physically undo applied writes, newest first.
+            for (int i = _undoLog.Count - 1; i >= 0; i--)
+            {
+                var entry = _undoLog[i];
+                await _mvccStore.UndoVersionAsync(entry.Collection, entry.DocumentId, entry.Version, entry.Kind, cancellationToken);
+            }
+            _undoLog.Clear();
+            _mvccStore.MarkTransactionRolledBack(TransactionId);
 
             lock (_stateLock)
             {
@@ -401,7 +446,7 @@ public class MvccTransactionContext : ITransactionContext
     {
         if (_disposed) return;
 
-        if (AutoRollbackOnDispose && State == TransactionState.Active && !_isCommittedOrRolledBack)
+        if (AutoRollbackOnDispose && (State == TransactionState.Active || State == TransactionState.Failed) && !_isCommittedOrRolledBack)
         {
             _ = RollbackAsync();
         }
@@ -416,6 +461,16 @@ public class MvccTransactionContext : ITransactionContext
 /// </summary>
 public class TransactionConflictException : Exception
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TransactionConflictException"/> class with a specified error message
+    /// </summary>
+    /// <param name="message">The error message</param>
     public TransactionConflictException(string message) : base(message) { }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TransactionConflictException"/> class with a specified error message and inner exception
+    /// </summary>
+    /// <param name="message">The error message</param>
+    /// <param name="inner">The exception that caused this exception</param>
     public TransactionConflictException(string message, Exception inner) : base(message, inner) { }
 }

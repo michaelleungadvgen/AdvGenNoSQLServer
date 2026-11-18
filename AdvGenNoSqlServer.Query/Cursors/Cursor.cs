@@ -318,7 +318,17 @@ public class CursorStats
 /// </summary>
 public class CursorException : Exception
 {
+    /// <summary>
+    /// Initializes a new instance with the specified error message
+    /// </summary>
+    /// <param name="message">The error message</param>
     public CursorException(string message) : base(message) { }
+
+    /// <summary>
+    /// Initializes a new instance with the specified error message and inner exception
+    /// </summary>
+    /// <param name="message">The error message</param>
+    /// <param name="innerException">The exception that caused this failure</param>
     public CursorException(string message, Exception innerException) : base(message, innerException) { }
 }
 
@@ -327,6 +337,10 @@ public class CursorException : Exception
 /// </summary>
 public class CursorNotFoundException : CursorException
 {
+    /// <summary>
+    /// Initializes a new instance for a cursor that does not exist or has expired
+    /// </summary>
+    /// <param name="cursorId">The identifier of the missing cursor</param>
     public CursorNotFoundException(string cursorId) : base($"Cursor '{cursorId}' not found or has expired") { }
 }
 
@@ -335,6 +349,15 @@ public class CursorNotFoundException : CursorException
 /// </summary>
 public class InvalidCursorOptionsException : CursorException
 {
+    /// <summary>
+    /// Initializes a new instance with the specified error message
+    /// </summary>
+    /// <param name="message">The error message</param>
     public InvalidCursorOptionsException(string message) : base(message) { }
+
+    /// <summary>
+    /// Initializes a new instance from a list of validation errors
+    /// </summary>
+    /// <param name="errors">The validation errors describing the invalid options</param>
     public InvalidCursorOptionsException(IEnumerable<string> errors) : base($"Invalid cursor options: {string.Join(", ", errors)}") { }
 }
