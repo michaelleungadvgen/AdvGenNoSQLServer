@@ -118,6 +118,20 @@ All Microsoft System.* libraries are part of .NET and licensed under MIT:
 
 ---
 
+## MCP Server Dependencies (AdvGenNoSqlServer.Mcp)
+
+| Package | Version | License | License URL | Compatibility | Purpose |
+|---------|---------|---------|-------------|---------------|---------|
+| ModelContextProtocol | 2.4.0 | Apache-2.0 | https://licenses.nuget.org/Apache-2.0 | ✓ Compatible | Official C# MCP SDK (stdio transport, tools) |
+| ModelContextProtocol.AspNetCore | 2.4.0 | Apache-2.0 | https://licenses.nuget.org/Apache-2.0 | ✓ Compatible | Streamable HTTP transport for remote agents |
+| Microsoft.Extensions.Hosting | 9.0.1 | MIT | https://licenses.nuget.org/MIT | ✓ Compatible | Generic host for the stdio server process |
+
+Transitive dependencies are Microsoft.Extensions.* / System.* (MIT). The MCP E2E test
+project (`AdvGenNoSqlServer.Mcp.E2ETests`) additionally uses `ModelContextProtocol` as an
+MCP client; xUnit/test-SDK licenses are listed under Testing Dependencies.
+
+---
+
 ## License Compatibility Matrix
 
 | License | Type | MIT Compatible | Notes |

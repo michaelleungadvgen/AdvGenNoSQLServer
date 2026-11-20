@@ -7,6 +7,7 @@ Welcome to the AdvGenNoSQL Server documentation.
 | Document | Description |
 |----------|-------------|
 | [QuickStart.md](QuickStart.md) | Get running fast: server, client, REST, embedded mode, admin UIs, examples |
+| [McpServer.md](McpServer.md) | MCP server: connect AI agents (Qoder/Claude/Cursor/SDK clients) to the database |
 | [API.md](API.md) | Complete API reference for all public interfaces and classes |
 | [UserGuide.md](UserGuide.md) | End-user guide for using the NoSQL server |
 | [DeveloperGuide.md](DeveloperGuide.md) | Developer guide for contributing to the project |

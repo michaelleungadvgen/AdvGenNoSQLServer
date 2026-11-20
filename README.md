@@ -34,6 +34,15 @@ var cheap = items.Find(x => x.Price < 3.0m && x.IsActive);
 
 See [AdvGenNoSqlServer.Embedded/README.md](AdvGenNoSqlServer.Embedded/README.md) for the full quick start, query subset, and LiteDB migration guide.
 
+## MCP server (AI agents)
+
+`AdvGenNoSqlServer.Mcp` exposes the database to MCP-capable AI agents (Qoder, Claude, Cursor,
+custom SDK clients) as 21 tools — collections, documents, users, attachments — over stdio or
+streamable HTTP, using the same authenticated/RBAC-enforced TCP path as the .NET client.
+Setup and agent connection configs: [AdvGenNoSqlServer.Mcp/README.md](AdvGenNoSqlServer.Mcp/README.md)
+and [Documentation/McpServer.md](Documentation/McpServer.md). E2E tests:
+`dotnet test AdvGenNoSqlServer.Mcp.E2ETests -c Release`.
+
 ## Installation
 
 Install the client library via NuGet:
@@ -282,6 +291,7 @@ dotnet test AdvGenNoSqlServer.Host.E2ETests -c Release --filter "FullyQualifiedN
 - Server host: `AdvGenNoSqlServer.Host`
 - Web Admin (WASM): `AdvGenNoSqlServer.Admin`
 - Admin Client (Blazor Server): `AdvGenNoSqlServer.AdminClient`
+- MCP server (AI agents): `AdvGenNoSqlServer.Mcp`
 - Unit tests: `AdvGenNoSqlServer.Tests`
 - E2E tests: `AdvGenNoSqlServer.*.PlaywrightTests`
 
